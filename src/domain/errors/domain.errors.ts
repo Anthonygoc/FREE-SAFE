@@ -5,6 +5,13 @@ export class DomainError extends Error {
   }
 }
 
+export class CampoObrigatorioError extends DomainError {
+  constructor(campo: string) {
+    super(`Campo obrigatório ausente: ${campo}`);
+    this.name = 'CampoObrigatorioError';
+  }
+}
+
 export class UnauthorizedError extends DomainError {
   constructor(message = 'Não autorizado') {
     super(message);
