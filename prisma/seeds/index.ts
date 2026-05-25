@@ -1,10 +1,13 @@
 import { PrismaClient } from '@prisma/client';
+
+import { seedAdmin } from './admin.seed';
 import { seedPostos } from './postos.seed';
 
 const db = new PrismaClient();
 
 async function main() {
   await seedPostos(db);
+  await seedAdmin(db);
 }
 
 main()
