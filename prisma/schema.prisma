@@ -1,13 +1,321 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PerfilUsuario {
+  ADMIN
+  GERENTE
+  RH
+  COLABORADOR
+  MANUTENCAO
+}
+
+enum StatusColaborador {
+  ATIVO
+  AFASTADO
+  DESLIGADO
+}
+
+enum ProdutoCombustivel {
+  GASOLINA_COMUM
+  GASOLINA_ADITIVADA
+  GASOLINA_PREMIUM
+  ETANOL_HIDRATADO
+  DIESEL_S10
+  DIESEL_S500
+}
+
+enum ResultadoAnalise {
+  APROVADO
+  REPROVADO
+}
+
+enum AspectoCombustivel {
+  LIQUIDO_E_ISENTO
+  TURVO
+  COM_IMPUREZAS
+}
+
+enum SituacaoAfericao {
+  DENTRO_DA_LEGISLACAO
+  FORA_DA_TOLERANCIA
+}
+
+enum TipoEntrevista {
+  ADMISSAO
+  INTEGRACAO
+  TRINTA_DIAS
+  EXPERIENCIA
+  PERIODICA
+  OCORRENCIA
+  RETORNO
+  DESLIGAMENTO
+}
+
+enum TipoDocumento {
+  AUTORIZACAO_ANP
+  CONTRATO_DISTRIBUIDORA
+  ALVARA_FUNCIONAMENTO
+  ALVARA_SANITARIO
+  LICENCA_AMBIENTAL
+  AVCB_BOMBEIROS
+  INMETRO_IPEM
+  CNPJ
+  INSCRICAO_ESTADUAL
+  FISPQ
+  PARECER_TECNICO
+  OUTORGA
+  PLANTA_BAIXA
+  FOTO_FACHADA
+}
+
+enum StatusDocumento {
+  VALIDO
+  VENCENDO
+  VENCIDO
+}
+
+enum TipoManutencao {
+  PREVENTIVA
+  CORRETIVA
+  EMERGENCIAL
+}
+
+enum StatusManutencao {
+  ABERTA
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+model User {
+  id           String        @id @default(uuid())
+  nome         String        @db.VarChar(150)
+  email        String        @unique @db.VarChar(200)
+  senhaHash    String        @map("senha_hash")
+  perfil       PerfilUsuario @default(COLABORADOR)
+  postoId      String?       @map("posto_id")
+  ativo        Boolean       @default(true)
+  criadoEm    DateTime      @default(now()) @map("criado_em")
+  atualizadoEm DateTime     @updatedAt @map("atualizado_em")
+
+  posto        Posto?        @relation("UsuariosPosto", fields: [postoId], references: [id])
+  raqsCriadas  RAQ[]
+  entrevistas  Entrevista[]
+  colaborador  Colaborador?
+
+  @@map("users")
+}
+
+model Posto {
+  id                String   @id @default(uuid())
+  nome              String   @db.VarChar(100)
+  razaoSocial       String   @map("razao_social") @db.VarChar(200)
+  cnpj              String   @unique @db.VarChar(18)
+  inscricaoEstadual String?  @map("inscricao_estadual") @db.VarChar(30)
+  endereco          String   @db.VarChar(300)
+  cidade            String   @db.VarChar(100)
+  uf                String   @db.Char(2)
+  gerenteId         String?  @map("gerente_id")
+  ativo             Boolean  @default(true)
+  criadoEm          DateTime @default(now()) @map("criado_em")
+  atualizadoEm      DateTime @updatedAt @map("atualizado_em")
+
+  users         User[]        @relation("UsuariosPosto")
+  colaboradores Colaborador[]
+  raqs          RAQ[]
+  afericoes     Afericao[]
+  documentos    Documento[]
+  manutencoes   Manutencao[]
+  drenagens     Drenagem[]
+
+  @@map("postos")
+}
+
+model Colaborador {
+  id           String            @id @default(uuid())
+  postoId      String            @map("posto_id")
+  userId       String?           @unique @map("user_id")
+  nome         String            @db.VarChar(150)
+  cpf          String            @unique @db.VarChar(14)
+  rg           String?           @db.VarChar(20)
+  telefone     String?           @db.VarChar(20)
+  email        String?           @db.VarChar(200)
+  endereco     String?           @db.VarChar(300)
+  cargo        String            @db.VarChar(80)
+  dataAdmissao DateTime          @map("data_admissao") @db.Date
+  turno        String?           @db.VarChar(30)
+  escala       String?           @db.VarChar(30)
+  status       StatusColaborador @default(ATIVO)
+  criadoEm    DateTime           @default(now()) @map("criado_em")
+  atualizadoEm DateTime          @updatedAt @map("atualizado_em")
+
+  posto        Posto         @relation(fields: [postoId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
+  treinamentos TreinamentoColaborador[]
+  entrevistas  Entrevista[]
+
+  @@map("colaboradores")
+}
+
+model Curso {
+  id                 String   @id @default(uuid())
+  nome               String   @db.VarChar(150)
+  descricao          String?  @db.Text
+  cargaHoraria       Int?     @map("carga_horaria")
+  validadeDias       Int?     @map("validade_dias")
+  cargosObrigatorios String[] @map("cargos_obrigatorios")
+  ativo              Boolean  @default(true)
+  criadoEm          DateTime  @default(now()) @map("criado_em")
+
+  treinamentos TreinamentoColaborador[]
+
+  @@map("cursos")
+}
+
+model TreinamentoColaborador {
+  id             String    @id @default(uuid())
+  colaboradorId  String    @map("colaborador_id")
+  cursoId        String    @map("curso_id")
+  status         String    @db.VarChar(30)
+  nota           Float?
+  dataConclusao  DateTime? @map("data_conclusao") @db.Date
+  certificadoUrl String?   @map("certificado_url") @db.VarChar(500)
+  criadoEm      DateTime   @default(now()) @map("criado_em")
+
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
+  curso       Curso       @relation(fields: [cursoId], references: [id])
+
+  @@unique([colaboradorId, cursoId])
+  @@map("treinamentos_colaborador")
+}
+
+model Entrevista {
+  id                     String         @id @default(uuid())
+  colaboradorId          String         @map("colaborador_id")
+  postoId                String         @map("posto_id")
+  responsavelId          String         @map("responsavel_id")
+  tipo                   TipoEntrevista
+  data                   DateTime       @db.Date
+  respostas              Json?
+  observacoes            String?        @db.Text
+  compromissoColaborador String?        @map("compromisso_colaborador") @db.Text
+  assinaturaColaboradorUrl String?      @map("assinatura_colaborador_url") @db.VarChar(500)
+  assinaturaResponsavelUrl String?      @map("assinatura_responsavel_url") @db.VarChar(500)
+  criadoEm              DateTime        @default(now()) @map("criado_em")
+
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
+  responsavel User        @relation(fields: [responsavelId], references: [id])
+
+  @@map("entrevistas")
+}
+
+model RAQ {
+  id                   String             @id @default(uuid())
+  postoId              String             @map("posto_id")
+  responsavelId        String             @map("responsavel_id")
+  produto              ProdutoCombustivel
+  data                 DateTime           @default(now())
+  temperaturaObservada Float              @map("temperatura_observada")
+  densidadeObservada   Float              @map("densidade_observada")
+  massa20c             Float?             @map("massa_20c")
+  aspecto              AspectoCombustivel
+  cor                  String             @db.VarChar(30)
+  faseAquosa           Float?             @map("fase_aquosa")
+  teorEtanol           Float?             @map("teor_etanol")
+  teorAlcoolico        Float?             @map("teor_alcoolico")
+  resultado            ResultadoAnalise
+  boletimUrl           String?            @map("boletim_url") @db.VarChar(500)
+  fotoProvetaUrl       String?            @map("foto_proveta_url") @db.VarChar(500)
+  fotoAmostraUrl       String?            @map("foto_amostra_url") @db.VarChar(500)
+  distribuidora        String?            @db.VarChar(100)
+  notaFiscal           String?            @map("nota_fiscal") @db.VarChar(50)
+  placaCaminhao        String?            @map("placa_caminhao") @db.VarChar(10)
+  tanqueDestino        String?            @map("tanque_destino") @db.VarChar(50)
+  pdfUrl               String?            @map("pdf_url") @db.VarChar(500)
+  criadoEm            DateTime            @default(now()) @map("criado_em")
+
+  posto       Posto @relation(fields: [postoId], references: [id])
+  responsavel User  @relation(fields: [responsavelId], references: [id])
+
+  @@map("raqs")
+}
+
+model Afericao {
+  id            String             @id @default(uuid())
+  postoId       String             @map("posto_id")
+  responsavelId String             @map("responsavel_id")
+  produto       ProdutoCombustivel
+  bomba         Int
+  bico          Int
+  medidaPadrao  Float              @map("medida_padrao") @default(20)
+  resultadoMl   Float              @map("resultado_ml")
+  situacao      SituacaoAfericao
+  observacoes   String?            @db.Text
+  fotosUrls     String[]           @map("fotos_urls")
+  relatorioUrl  String?            @map("relatorio_url") @db.VarChar(500)
+  data          DateTime           @default(now())
+  criadoEm     DateTime            @default(now()) @map("criado_em")
+
+  posto Posto @relation(fields: [postoId], references: [id])
+
+  @@map("afericoes")
+}
+
+model Documento {
+  id             String          @id @default(uuid())
+  postoId        String          @map("posto_id")
+  tipo           TipoDocumento
+  numero         String?         @db.VarChar(100)
+  dataEmissao    DateTime?       @map("data_emissao") @db.Date
+  dataVencimento DateTime?       @map("data_vencimento") @db.Date
+  arquivoUrl     String?         @map("arquivo_url") @db.VarChar(500)
+  status         StatusDocumento @default(VALIDO)
+  criadoEm      DateTime         @default(now()) @map("criado_em")
+  atualizadoEm  DateTime         @updatedAt @map("atualizado_em")
+
+  posto Posto @relation(fields: [postoId], references: [id])
+
+  @@map("documentos")
+}
+
+model Manutencao {
+  id             String           @id @default(uuid())
+  postoId        String           @map("posto_id")
+  equipamento    String           @db.VarChar(100)
+  tipo           TipoManutencao
+  descricao      String           @db.Text
+  status         StatusManutencao @default(ABERTA)
+  responsavel    String           @db.VarChar(150)
+  dataAbertura   DateTime         @map("data_abertura") @default(now()) @db.Date
+  dataFechamento DateTime?        @map("data_fechamento") @db.Date
+  fotosUrls      String[]         @map("fotos_urls")
+  criadoEm      DateTime          @default(now()) @map("criado_em")
+  atualizadoEm  DateTime          @updatedAt @map("atualizado_em")
+
+  posto Posto @relation(fields: [postoId], references: [id])
+
+  @@map("manutencoes")
+}
+
+model Drenagem {
+  id          String             @id @default(uuid())
+  postoId     String             @map("posto_id")
+  tanque      String             @db.VarChar(50)
+  produto     ProdutoCombustivel
+  data        DateTime           @db.Date
+  responsavel String             @db.VarChar(150)
+  resultado   String?            @db.VarChar(200)
+  observacoes String?            @db.Text
+  fotosUrls   String[]           @map("fotos_urls")
+  criadoEm   DateTime            @default(now()) @map("criado_em")
+
+  posto Posto @relation(fields: [postoId], references: [id])
+
+  @@map("drenagens")
 }
