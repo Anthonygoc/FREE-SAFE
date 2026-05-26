@@ -12,9 +12,7 @@ const credentialsSchema = z.object({
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   secret: process.env.NEXTAUTH_SECRET,
-  session: {
-    strategy: 'jwt',
-  },
+  session: { strategy: 'jwt' },
   providers: [
     Credentials({
       name: 'Credenciais',
@@ -23,24 +21,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: 'Senha', type: 'password' },
       },
       async authorize(rawCredentials) {
-        const parsed = credentialsSchema.safeParse(rawCredentials);
-        if (!parsed.success) return null;
+        try {
+          console.log('[auth] authorize called');
+          const parsed = credentialsSchema.safeParse(rawCredentials);
+          if (!parsed.success) {
+            console.log('[auth] schema validation failed');
+            return null;
+          }
 
-        const { email, password } = parsed.data;
-        const user = await prisma.user.findUnique({ where: { email } });
+          const { email, password } = parsed.data;
+          console.log('[auth] looking up user:', email);
 
-        if (!user || !user.ativo) return null;
+          const user = await prisma.user.findUnique({ where: { email } });
+          console.log('[auth] user found:', !!user);
 
-        const passwordMatches = await bcrypt.compare(password, user.senhaHash);
-        if (!passwordMatches) return null;
+          if (!user || !user.ativo) return null;
 
-        return {
-          id: user.id,
-          name: user.nome,
-          email: user.email,
-          perfil: user.perfil,
-          postoId: user.postoId,
-        };
+          const passwordMatches = await bcrypt.compare(password, user.senhaHash);
+          console.log('[auth] password matches:', passwordMatches);
+
+          if (!passwordMatches) return null;
+
+          return {
+            id: user.id,
+            name: user.nome,
+            email: user.email,
+            perfil: user.perfil,
+            postoId: user.postoId,
+          };
+        } catch (error) {
+          console.error('[auth] authorize error:', error);
+          return null;
+        }
       },
     }),
   ],
@@ -67,7 +79,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
-  pages: {
-    signIn: '/login',
-  },
+  pages: { signIn: '/login' },
 });
