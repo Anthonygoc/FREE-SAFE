@@ -1,29 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_ROUTES = ['/login', '/api/auth'];
+const PUBLIC_PATHS = ['/login', '/api/auth', '/_next', '/favicon'];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Liberar rotas públicas
-  const isPublic = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
-  if (isPublic) return NextResponse.next();
+  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
 
-  // Verificar cookie de sessão do NextAuth v5
-  const sessionToken =
-    req.cookies.get('authjs.session-token')?.value ||
-    req.cookies.get('__Secure-authjs.session-token')?.value ||
-    req.cookies.get('next-auth.session-token')?.value;
+  // Log todos os cookies para debug
+  const allCookies = req.cookies.getAll();
+  console.log('[middleware] pathname:', pathname);
+  console.log('[middleware] cookies:', allCookies.map(c => c.name));
 
-  if (!sessionToken) {
-    const loginUrl = new URL('/login', req.url);
-    loginUrl.searchParams.set('callbackUrl', pathname);
-    return NextResponse.redirect(loginUrl);
+  const hasSession =
+    req.cookies.has('authjs.session-token') ||
+    req.cookies.has('__Secure-authjs.session-token') ||
+    req.cookies.has('__Host-authjs.session-token');
+
+  console.log('[middleware] hasSession:', hasSession);
+
+  if (!hasSession) {
+    const url = req.nextUrl.clone();
+    url.pathname = '/login';
+    url.searchParams.set('callbackUrl', pathname);
+    return NextResponse.redirect(url);
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|public).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 };
