@@ -38,4 +38,10 @@ export class AfericaoPrismaRepository implements AfericaoRepository {
 
     return raws.map(AfericaoMapper.toDomain);
   }
+
+  async contarForaDaTolerancia(): Promise<number> {
+    return this.db.afericao.count({
+      where: { situacao: 'FORA_DA_TOLERANCIA' },
+    });
+  }
 }
