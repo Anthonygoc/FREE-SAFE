@@ -1,413 +1,508 @@
 ---
-name: free-safe-adapters
-description: Use esta skill ao criar adaptadores de infraestrutura do FREE SAFE: Supabase Storage, geração de PDF com @react-pdf/renderer e envio de e-mail com Resend. Cada adaptador implementa um port do domínio.
+name: free-safe-database
+description: Use esta skill ao criar ou modificar o schema Prisma, repositórios, mappers ou seeds do FREE SAFE. Cobre todas as tabelas, relações, convenções de nomenclatura e o padrão de mapper entre modelo Prisma e entidade de domínio.
 ---
 
-# FREE SAFE — Adaptadores de Infraestrutura
+# FREE SAFE — Banco de dados (Prisma + PostgreSQL)
 
-## Supabase Storage
+## Schema Prisma completo
 
-```typescript
-// src/infrastructure/storage/supabase-storage.adapter.ts
+```prisma
+// prisma/schema.prisma
 
-import { createClient } from '@supabase/supabase-js';
-import type { StoragePort } from '@/domain/ports/storage.port';
-import { env } from '@/lib/env';
+generator client {
+  provider = "prisma-client-js"
+}
 
-// Buckets do projeto
-const BUCKETS = {
-  raq:           'raq-anexos',
-  certificados:  'certificados',
-  documentos:    'documentos-postos',
-  manutencao:    'manutencao-fotos',
-} as const;
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
-export class SupabaseStorageAdapter implements StoragePort {
-  private readonly client = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
+// ─── Enums ────────────────────────────────────────────
 
-  async upload(
-    caminho: string,
-    arquivo: Buffer,
-    tipo: string,
-  ): Promise<string> {
-    const bucket = this.inferirBucket(caminho);
+enum PerfilUsuario {
+  ADMIN
+  GERENTE
+  RH
+  COLABORADOR
+  MANUTENCAO
+}
 
-    const { error } = await this.client.storage
-      .from(bucket)
-      .upload(caminho, arquivo, {
-        contentType: tipo,
-        upsert: true,
-      });
+enum StatusColaborador {
+  ATIVO
+  AFASTADO
+  DESLIGADO
+}
 
-    if (error) throw new Error(`Falha no upload: ${error.message}`);
+enum ProdutoCombustivel {
+  GASOLINA_COMUM
+  GASOLINA_ADITIVADA
+  GASOLINA_PREMIUM
+  ETANOL_HIDRATADO
+  DIESEL_S10
+  DIESEL_S500
+}
 
-    const { data } = this.client.storage
-      .from(bucket)
-      .getPublicUrl(caminho);
+enum ResultadoAnalise {
+  APROVADO
+  REPROVADO
+}
 
-    return data.publicUrl;
-  }
+enum AspectoCombustivel {
+  LIQUIDO_E_ISENTO
+  TURVO
+  COM_IMPUREZAS
+}
 
-  async deletar(caminho: string): Promise<void> {
-    const bucket = this.inferirBucket(caminho);
-    const { error } = await this.client.storage
-      .from(bucket)
-      .remove([caminho]);
+enum SituacaoAfericao {
+  DENTRO_DA_LEGISLACAO
+  FORA_DA_TOLERANCIA
+}
 
-    if (error) throw new Error(`Falha ao deletar arquivo: ${error.message}`);
-  }
+enum TipoEntrevista {
+  ADMISSAO
+  INTEGRACAO
+  TRINTA_DIAS
+  EXPERIENCIA
+  PERIODICA
+  OCORRENCIA
+  RETORNO
+  DESLIGAMENTO
+}
 
-  private inferirBucket(caminho: string): string {
-    if (caminho.startsWith('raq/'))          return BUCKETS.raq;
-    if (caminho.startsWith('certificados/')) return BUCKETS.certificados;
-    if (caminho.startsWith('documentos/'))   return BUCKETS.documentos;
-    if (caminho.startsWith('manutencao/'))   return BUCKETS.manutencao;
-    return BUCKETS.documentos; // fallback
-  }
+enum TipoDocumento {
+  AUTORIZACAO_ANP
+  CONTRATO_DISTRIBUIDORA
+  ALVARA_FUNCIONAMENTO
+  ALVARA_SANITARIO
+  LICENCA_AMBIENTAL
+  AVCB_BOMBEIROS
+  INMETRO_IPEM
+  CNPJ
+  INSCRICAO_ESTADUAL
+  FISPQ
+  PARECER_TECNICO
+  OUTORGA
+  PLANTA_BAIXA
+  FOTO_FACHADA
+}
+
+enum StatusDocumento {
+  VALIDO
+  VENCENDO
+  VENCIDO
+}
+
+enum TipoManutencao {
+  PREVENTIVA
+  CORRETIVA
+  EMERGENCIAL
+}
+
+enum StatusManutencao {
+  ABERTA
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+// ─── Modelos ──────────────────────────────────────────
+
+model User {
+  id         String        @id @default(uuid())
+  nome       String        @db.VarChar(150)
+  email      String        @unique @db.VarChar(200)
+  senhaHash  String        @map("senha_hash")
+  perfil     PerfilUsuario @default(COLABORADOR)
+  postoId    String?       @map("posto_id")
+  ativo      Boolean       @default(true)
+  criadoEm  DateTime      @default(now()) @map("criado_em")
+  atualizadoEm DateTime   @updatedAt @map("atualizado_em")
+
+  posto        Posto?        @relation(fields: [postoId], references: [id])
+  raqsCriadas  RAQ[]
+  entrevistas  Entrevista[]
+  colaborador  Colaborador?
+
+  @@map("users")
+}
+
+model Posto {
+  id           String  @id @default(uuid())
+  nome         String  @db.VarChar(100)
+  razaoSocial  String  @map("razao_social") @db.VarChar(200)
+  cnpj         String  @unique @db.VarChar(18)
+  inscricaoEstadual String? @map("inscricao_estadual") @db.VarChar(30)
+  endereco     String  @db.VarChar(300)
+  cidade       String  @db.VarChar(100)
+  uf           String  @db.Char(2)
+  gerenteId    String? @map("gerente_id")
+  ativo        Boolean @default(true)
+  criadoEm    DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  gerente       User?          @relation(fields: [gerenteId], references: [id])
+  colaboradores Colaborador[]
+  raqs          RAQ[]
+  afericoes     Afericao[]
+  documentos    Documento[]
+  manutencoes   Manutencao[]
+  drenagens     Drenagem[]
+  users         User[]
+
+  @@map("postos")
+}
+
+model Colaborador {
+  id            String            @id @default(uuid())
+  postoId       String            @map("posto_id")
+  userId        String?           @unique @map("user_id")
+  nome          String            @db.VarChar(150)
+  cpf           String            @unique @db.VarChar(14)
+  rg            String?           @db.VarChar(20)
+  telefone      String?           @db.VarChar(20)
+  email         String?           @db.VarChar(200)
+  endereco      String?           @db.VarChar(300)
+  cargo         String            @db.VarChar(80)
+  dataAdmissao  DateTime          @map("data_admissao") @db.Date
+  turno         String?           @db.VarChar(30)
+  escala        String?           @db.VarChar(30)
+  status        StatusColaborador @default(ATIVO)
+  criadoEm     DateTime           @default(now()) @map("criado_em")
+  atualizadoEm DateTime           @updatedAt @map("atualizado_em")
+
+  posto        Posto         @relation(fields: [postoId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
+  treinamentos TreinamentoColaborador[]
+  entrevistas  Entrevista[]
+
+  @@map("colaboradores")
+}
+
+model Curso {
+  id               String   @id @default(uuid())
+  nome             String   @db.VarChar(150)
+  descricao        String?  @db.Text
+  cargaHoraria     Int?     @map("carga_horaria")
+  validadeDias     Int?     @map("validade_dias")
+  cargosObrigatorios String[] @map("cargos_obrigatorios")
+  ativo            Boolean  @default(true)
+  criadoEm        DateTime  @default(now()) @map("criado_em")
+
+  treinamentos TreinamentoColaborador[]
+
+  @@map("cursos")
+}
+
+model TreinamentoColaborador {
+  id              String   @id @default(uuid())
+  colaboradorId   String   @map("colaborador_id")
+  cursoId         String   @map("curso_id")
+  status          String   @db.VarChar(30) // PENDENTE | EM_ANDAMENTO | CONCLUIDO
+  nota            Float?
+  dataConclusao   DateTime? @map("data_conclusao") @db.Date
+  certificadoUrl  String?  @map("certificado_url") @db.VarChar(500)
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+
+  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
+  curso       Curso       @relation(fields: [cursoId], references: [id])
+
+  @@unique([colaboradorId, cursoId])
+  @@map("treinamentos_colaborador")
+}
+
+model Entrevista {
+  id                    String         @id @default(uuid())
+  colaboradorId         String         @map("colaborador_id")
+  postoId               String         @map("posto_id")
+  responsavelId         String         @map("responsavel_id")
+  tipo                  TipoEntrevista
+  data                  DateTime       @db.Date
+  respostas             Json?
+  observacoes           String?        @db.Text
+  compromissoColaborador String?       @map("compromisso_colaborador") @db.Text
+  assinaturaColaboradorUrl String?     @map("assinatura_colaborador_url") @db.VarChar(500)
+  assinaturaResponsavelUrl String?     @map("assinatura_responsavel_url") @db.VarChar(500)
+  criadoEm             DateTime        @default(now()) @map("criado_em")
+
+  colaborador  Colaborador @relation(fields: [colaboradorId], references: [id])
+  responsavel  User        @relation(fields: [responsavelId], references: [id])
+
+  @@map("entrevistas")
+}
+
+model RAQ {
+  id                   String             @id @default(uuid())
+  postoId              String             @map("posto_id")
+  responsavelId        String             @map("responsavel_id")
+  produto              ProdutoCombustivel
+  data                 DateTime           @default(now()) @db.Timestamptz
+  temperaturaObservada Float              @map("temperatura_observada")
+  densidadeObservada   Float              @map("densidade_observada")
+  massa20c             Float?             @map("massa_20c")
+  aspecto              AspectoCombustivel
+  cor                  String             @db.VarChar(30)
+  faseAquosa           Float?             @map("fase_aquosa")
+  teorEtanol           Float?             @map("teor_etanol")
+  teorAlcoolico        Float?             @map("teor_alcoolico")
+  resultado            ResultadoAnalise
+  boletimUrl           String?            @map("boletim_url") @db.VarChar(500)
+  fotoProvetaUrl       String?            @map("foto_proveta_url") @db.VarChar(500)
+  fotoAmostraUrl       String?            @map("foto_amostra_url") @db.VarChar(500)
+  distribuidora        String?            @db.VarChar(100)
+  notaFiscal           String?            @map("nota_fiscal") @db.VarChar(50)
+  placaCaminhao        String?            @map("placa_caminhao") @db.VarChar(10)
+  tanqueDestino        String?            @map("tanque_destino") @db.VarChar(50)
+  pdfUrl               String?            @map("pdf_url") @db.VarChar(500)
+  criadoEm            DateTime            @default(now()) @map("criado_em")
+
+  posto       Posto @relation(fields: [postoId], references: [id])
+  responsavel User  @relation(fields: [responsavelId], references: [id])
+
+  @@map("raqs")
+}
+
+model Afericao {
+  id             String           @id @default(uuid())
+  postoId        String           @map("posto_id")
+  responsavelId  String           @map("responsavel_id")
+  produto        ProdutoCombustivel
+  bomba          Int
+  bico           Int
+  medidaPadrao   Float            @map("medida_padrao") @default(20)
+  resultadoMl    Float            @map("resultado_ml")
+  situacao       SituacaoAfericao
+  observacoes    String?          @db.Text
+  fotosUrls      String[]         @map("fotos_urls")
+  relatorioUrl   String?          @map("relatorio_url") @db.VarChar(500)
+  data           DateTime         @default(now()) @db.Timestamptz
+  criadoEm      DateTime          @default(now()) @map("criado_em")
+
+  posto       Posto @relation(fields: [postoId], references: [id])
+
+  @@map("afericoes")
+}
+
+model Documento {
+  id             String          @id @default(uuid())
+  postoId        String          @map("posto_id")
+  tipo           TipoDocumento
+  numero         String?         @db.VarChar(100)
+  dataEmissao    DateTime?       @map("data_emissao") @db.Date
+  dataVencimento DateTime?       @map("data_vencimento") @db.Date
+  arquivoUrl     String?         @map("arquivo_url") @db.VarChar(500)
+  status         StatusDocumento @default(VALIDO)
+  criadoEm      DateTime         @default(now()) @map("criado_em")
+  atualizadoEm  DateTime         @updatedAt @map("atualizado_em")
+
+  posto Posto @relation(fields: [postoId], references: [id])
+
+  @@map("documentos")
+}
+
+model Manutencao {
+  id             String           @id @default(uuid())
+  postoId        String           @map("posto_id")
+  equipamento    String           @db.VarChar(100)
+  tipo           TipoManutencao
+  descricao      String           @db.Text
+  status         StatusManutencao @default(ABERTA)
+  responsavel    String           @db.VarChar(150)
+  dataAbertura   DateTime         @map("data_abertura") @default(now()) @db.Date
+  dataFechamento DateTime?        @map("data_fechamento") @db.Date
+  fotosUrls      String[]         @map("fotos_urls")
+  criadoEm      DateTime          @default(now()) @map("criado_em")
+  atualizadoEm  DateTime          @updatedAt @map("atualizado_em")
+
+  posto Posto @relation(fields: [postoId], references: [id])
+
+  @@map("manutencoes")
+}
+
+model Drenagem {
+  id            String   @id @default(uuid())
+  postoId       String   @map("posto_id")
+  tanque        String   @db.VarChar(50)
+  produto       ProdutoCombustivel
+  data          DateTime @db.Date
+  responsavel   String   @db.VarChar(150)
+  resultado     String?  @db.VarChar(200)
+  observacoes   String?  @db.Text
+  fotosUrls     String[] @map("fotos_urls")
+  criadoEm     DateTime  @default(now()) @map("criado_em")
+
+  posto Posto @relation(fields: [postoId], references: [id])
+
+  @@map("drenagens")
 }
 ```
 
-## Geração de PDF da RAQ
+## Padrão de repositório Prisma
 
 ```typescript
-// src/infrastructure/pdf/react-pdf.adapter.ts
+// src/infrastructure/database/prisma/repositories/raq.prisma-repository.ts
 
-import React from 'react';
-import {
-  Document,
-  Page,
-  Text,
-  View,
-  StyleSheet,
-  renderToBuffer,
-  Font,
-} from '@react-pdf/renderer';
-import type { PDFPort } from '@/domain/ports/pdf.port';
-import type { RAQ } from '@/domain/entities/raq.entity';
-import type { Posto } from '@/domain/entities/posto.entity';
+import type { PrismaClient } from '@prisma/client';
+import type { RAQRepository, FiltrosRAQ } from '@/domain/ports/raq.repository';
+import { RAQ } from '@/domain/entities/raq.entity';
+import { RAQMapper } from '@/infrastructure/database/mappers/raq.mapper';
+import { NotFoundError } from '@/domain/errors/domain.errors';
 
-const styles = StyleSheet.create({
-  page: {
-    padding: 40,
-    fontFamily: 'Helvetica',
-    fontSize: 10,
-    color: '#1a1a1a',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-    paddingBottom: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: '#f97316', // laranja FREE SAFE
-  },
-  titulo: {
-    fontSize: 18,
-    fontFamily: 'Helvetica-Bold',
-    color: '#f97316',
-  },
-  subtitulo: {
-    fontSize: 9,
-    color: '#6b7280',
-    marginTop: 2,
-  },
-  secao: {
-    marginBottom: 16,
-  },
-  secaoTitulo: {
-    fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
-    color: '#6b7280',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-  },
-  grade: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-  },
-  campo: {
-    width: '48%',
-    backgroundColor: '#f9fafb',
-    padding: 8,
-    borderRadius: 4,
-    marginBottom: 4,
-  },
-  campoLabel: {
-    fontSize: 8,
-    color: '#9ca3af',
-    marginBottom: 2,
-  },
-  campoValor: {
-    fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
-    color: '#111827',
-  },
-  resultado: {
-    padding: 14,
-    borderRadius: 6,
-    marginTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  resultadoAprovado: {
-    backgroundColor: '#d1fae5',
-  },
-  resultadoReprovado: {
-    backgroundColor: '#fee2e2',
-  },
-  resultadoTexto: {
-    fontSize: 14,
-    fontFamily: 'Helvetica-Bold',
-  },
-  resultadoAprovadoTexto: {
-    color: '#065f46',
-  },
-  resultadoReprovadoTexto: {
-    color: '#7f1d1d',
-  },
-  rodape: {
-    position: 'absolute',
-    bottom: 30,
-    left: 40,
-    right: 40,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderTopWidth: 0.5,
-    borderTopColor: '#e5e7eb',
-    paddingTop: 8,
-  },
-  rodapeTexto: {
-    fontSize: 8,
-    color: '#9ca3af',
-  },
-});
+export class RAQPrismaRepository implements RAQRepository {
+  constructor(private readonly db: PrismaClient) {}
 
-function RAQDocument({ raq, posto }: { raq: RAQ; posto: Posto }) {
-  const aprovado = raq.estaAprovado;
-  const dataFormatada = raq.criadoEm.toLocaleDateString('pt-BR', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-  });
-  const horaFormatada = raq.criadoEm.toLocaleTimeString('pt-BR', {
-    hour: '2-digit', minute: '2-digit',
-  });
-
-  return React.createElement(
-    Document,
-    { title: `RAQ — ${raq.produto} — ${dataFormatada}` },
-    React.createElement(
-      Page,
-      { size: 'A4', style: styles.page },
-      // Cabeçalho
-      React.createElement(
-        View,
-        { style: styles.header },
-        React.createElement(
-          View,
-          null,
-          React.createElement(Text, { style: styles.titulo }, 'FREE SAFE'),
-          React.createElement(Text, { style: styles.subtitulo }, 'Registro de Análise da Qualidade — RAQ'),
-        ),
-        React.createElement(
-          View,
-          { style: { alignItems: 'flex-end' } },
-          React.createElement(Text, { style: { fontSize: 9, color: '#6b7280' } }, `Data: ${dataFormatada}`),
-          React.createElement(Text, { style: { fontSize: 9, color: '#6b7280' } }, `Hora: ${horaFormatada}`),
-          React.createElement(Text, { style: { fontSize: 9, color: '#6b7280' } }, `ID: ${raq.id.slice(0, 8).toUpperCase()}`),
-        ),
-      ),
-      // Dados do Posto
-      React.createElement(
-        View,
-        { style: styles.secao },
-        React.createElement(Text, { style: styles.secaoTitulo }, 'Dados do Posto'),
-        React.createElement(
-          View,
-          { style: styles.grade },
-          campo('Posto', posto.nome),
-          campo('CNPJ', posto.cnpj),
-          campo('Cidade/UF', `${posto.cidade}/${posto.uf}`),
-          campo('Distribuidora', raq.distribuidora ?? '—'),
-          campo('Nota Fiscal', raq.notaFiscal ?? '—'),
-          campo('Placa do Caminhão', raq.placaCaminhao ?? '—'),
-          campo('Tanque de Destino', raq.tanqueDestino ?? '—'),
-        ),
-      ),
-      // Dados da Análise
-      React.createElement(
-        View,
-        { style: styles.secao },
-        React.createElement(Text, { style: styles.secaoTitulo }, 'Dados da Análise'),
-        React.createElement(
-          View,
-          { style: styles.grade },
-          campo('Produto', raq.produto.replace(/_/g, ' ')),
-          campo('Temperatura observada', `${raq.temperaturaObservada} °C`),
-          campo('Densidade observada', raq.densidadeObservada.toString()),
-          campo('Aspecto', raq.aspecto.replace(/_/g, ' ')),
-          campo('Cor', raq.cor),
-          raq.faseAquosa ? campo('Fase aquosa (mL)', raq.faseAquosa.toString()) : null,
-          raq.teorAlcoolico ? campo('Teor alcoólico (INPM)', raq.teorAlcoolico.toString()) : null,
-        ),
-      ),
-      // Resultado
-      React.createElement(
-        View,
-        { style: [styles.resultado, aprovado ? styles.resultadoAprovado : styles.resultadoReprovado] },
-        React.createElement(
-          Text,
-          { style: [styles.resultadoTexto, aprovado ? styles.resultadoAprovadoTexto : styles.resultadoReprovadoTexto] },
-          aprovado ? '✓ APROVADO' : '✗ REPROVADO',
-        ),
-        React.createElement(
-          Text,
-          { style: { fontSize: 9, color: aprovado ? '#065f46' : '#7f1d1d', marginTop: 2 } },
-          aprovado
-            ? 'Combustível dentro dos parâmetros da ANP.'
-            : 'Combustível fora dos parâmetros. Comunicar distribuidora e suspender abastecimento.',
-        ),
-      ),
-      // Rodapé
-      React.createElement(
-        View,
-        { style: styles.rodape },
-        React.createElement(Text, { style: styles.rodapeTexto }, 'FREE SAFE — Plataforma de Qualidade e Conformidade — Rede Free'),
-        React.createElement(Text, { style: styles.rodapeTexto }, `Emitido em ${dataFormatada} às ${horaFormatada}`),
-      ),
-    ),
-  );
-}
-
-function campo(label: string, valor: string) {
-  return React.createElement(
-    View,
-    { style: styles.campo },
-    React.createElement(Text, { style: styles.campoLabel }, label),
-    React.createElement(Text, { style: styles.campoValor }, valor),
-  );
-}
-
-export class ReactPDFAdapter implements PDFPort {
-  async gerarRAQ(raq: RAQ, posto: Posto): Promise<Buffer> {
-    const element = React.createElement(RAQDocument, { raq, posto });
-    return renderToBuffer(element);
-  }
-}
-```
-
-## Adaptador de e-mail com Resend
-
-```typescript
-// src/infrastructure/email/resend-email.adapter.ts
-
-import { Resend } from 'resend';
-import type { EmailPort, EnviarAlertaInput } from '@/domain/ports/email.port';
-import { env } from '@/lib/env';
-
-export class ResendEmailAdapter implements EmailPort {
-  private readonly client = new Resend(env.RESEND_API_KEY);
-
-  async enviarAlerta(input: EnviarAlertaInput): Promise<void> {
-    await this.client.emails.send({
-      from:    'FREE SAFE <alertas@freesafe.com.br>',
-      to:      input.para,
-      subject: input.assunto,
-      html:    this.template(input.assunto, input.corpo),
+  async salvar(raq: RAQ): Promise<void> {
+    await this.db.rAQ.upsert({
+      where: { id: raq.id },
+      create: RAQMapper.toPrisma(raq),
+      update: RAQMapper.toPrisma(raq),
     });
   }
 
-  async enviarDocumentoVencendo(input: {
-    para: string;
-    nomePosto: string;
-    tipoDocumento: string;
-    dataVencimento: Date;
-  }): Promise<void> {
-    const dias = Math.ceil(
-      (input.dataVencimento.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-    );
+  async buscarPorId(id: string): Promise<RAQ | null> {
+    const raw = await this.db.rAQ.findUnique({ where: { id } });
+    if (!raw) return null;
+    return RAQMapper.toDomain(raw);
+  }
 
-    await this.client.emails.send({
-      from:    'FREE SAFE <alertas@freesafe.com.br>',
-      to:      input.para,
-      subject: `⚠️ Documento vencendo em ${dias} dias — ${input.nomePosto}`,
-      html:    this.template(
-        `Documento vencendo: ${input.tipoDocumento}`,
-        `O documento <strong>${input.tipoDocumento}</strong> do posto <strong>${input.nomePosto}</strong> vence em <strong>${dias} dias</strong> (${input.dataVencimento.toLocaleDateString('pt-BR')}).<br><br>Acesse o FREE SAFE para renovar.`,
-      ),
+  async listar(filtros: FiltrosRAQ): Promise<RAQ[]> {
+    const registros = await this.db.rAQ.findMany({
+      where: {
+        ...(filtros.postoId && { postoId: filtros.postoId }),
+        ...(filtros.produto && { produto: filtros.produto as any }),
+        ...(filtros.resultado && { resultado: filtros.resultado as any }),
+        ...(filtros.dataInicio || filtros.dataFim
+          ? {
+              data: {
+                ...(filtros.dataInicio && { gte: filtros.dataInicio }),
+                ...(filtros.dataFim && { lte: filtros.dataFim }),
+              },
+            }
+          : {}),
+      },
+      orderBy: { data: 'desc' },
+    });
+    return registros.map(RAQMapper.toDomain);
+  }
+
+  async contarPorPosto(postoId: string): Promise<number> {
+    return this.db.rAQ.count({ where: { postoId } });
+  }
+
+  async contarSemBoletim(): Promise<number> {
+    return this.db.rAQ.count({ where: { boletimUrl: null } });
+  }
+}
+```
+
+## Padrão de mapper
+
+```typescript
+// src/infrastructure/database/mappers/raq.mapper.ts
+
+import type { RAQ as PrismaRAQ } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+import { RAQ } from '@/domain/entities/raq.entity';
+
+export class RAQMapper {
+  static toDomain(raw: PrismaRAQ): RAQ {
+    return RAQ.reconstituir({
+      id:                  raw.id,
+      postoId:             raw.postoId,
+      responsavelId:       raw.responsavelId,
+      produto:             raw.produto as any,
+      temperaturaObservada: raw.temperaturaObservada,
+      densidadeObservada:  raw.densidadeObservada,
+      aspecto:             raw.aspecto as any,
+      cor:                 raw.cor as any,
+      faseAquosa:          raw.faseAquosa ?? undefined,
+      teorAlcoolico:       raw.teorAlcoolico ?? undefined,
+      distribuidora:       raw.distribuidora ?? undefined,
+      notaFiscal:          raw.notaFiscal ?? undefined,
+      placaCaminhao:       raw.placaCaminhao ?? undefined,
+      tanqueDestino:       raw.tanqueDestino ?? undefined,
+      resultado:           raw.resultado as any,
+      boletimUrl:          raw.boletimUrl ?? undefined,
+      fotoProvetaUrl:      raw.fotoProvetaUrl ?? undefined,
+      criadoEm:            raw.criadoEm,
     });
   }
 
-  private template(titulo: string, corpo: string): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: #f97316; padding: 20px; border-radius: 8px 8px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 20px;">FREE SAFE</h1>
-            <p style="color: rgba(255,255,255,0.8); margin: 4px 0 0; font-size: 13px;">Plataforma de Qualidade e Conformidade</p>
-          </div>
-          <div style="background: #fff; border: 1px solid #e5e7eb; border-top: none; padding: 24px; border-radius: 0 0 8px 8px;">
-            <h2 style="color: #111827; font-size: 16px;">${titulo}</h2>
-            <p style="color: #374151; line-height: 1.6;">${corpo}</p>
-            <a href="${env.NEXTAUTH_URL}" style="display: inline-block; background: #f97316; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; margin-top: 16px;">Acessar FREE SAFE</a>
-          </div>
-          <p style="color: #9ca3af; font-size: 11px; text-align: center; margin-top: 16px;">Rede Free — Todos os direitos reservados</p>
-        </body>
-      </html>
-    `;
+  static toPrisma(raq: RAQ): Prisma.RAQCreateInput {
+    return {
+      id:                  raq.id,
+      posto:               { connect: { id: raq.postoId } },
+      responsavel:         { connect: { id: raq.responsavelId } },
+      produto:             raq.produto,
+      temperaturaObservada: raq.temperaturaObservada,
+      densidadeObservada:  raq.densidadeObservada,
+      aspecto:             raq.aspecto,
+      cor:                 raq.cor,
+      faseAquosa:          raq.faseAquosa ?? null,
+      teorAlcoolico:       raq.teorAlcoolico ?? null,
+      distribuidora:       raq.distribuidora ?? null,
+      notaFiscal:          raq.notaFiscal ?? null,
+      placaCaminhao:       raq.placaCaminhao ?? null,
+      tanqueDestino:       raq.tanqueDestino ?? null,
+      resultado:           raq.resultado,
+      boletimUrl:          raq.boletimUrl ?? null,
+      fotoProvetaUrl:      raq.fotoProvetaUrl ?? null,
+      criadoEm:            raq.criadoEm,
+    };
   }
 }
 ```
 
-## Port de e-mail (para o domínio referenciar)
+## Seed dos 19 postos
 
 ```typescript
-// src/domain/ports/email.port.ts
+// prisma/seeds/postos.seed.ts
 
-export interface EnviarAlertaInput {
-  para: string;
-  assunto: string;
-  corpo: string;
-}
+import type { PrismaClient } from '@prisma/client';
 
-export interface EmailPort {
-  enviarAlerta(input: EnviarAlertaInput): Promise<void>;
+export const postosSeed = [
+  { nome: 'Free Rosendo',          razaoSocial: 'Free Rosendo Combustíveis LTDA',      cnpj: '00.000.001/0001-01', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free M.A.',             razaoSocial: 'Free M.A. Combustíveis LTDA',         cnpj: '00.000.002/0001-02', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Atacadão',         razaoSocial: 'Free Atacadão Combustíveis LTDA',     cnpj: '00.000.003/0001-03', cidade: 'Várzea Grande',       uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Vitória',          razaoSocial: 'Free Vitória Combustíveis LTDA',      cnpj: '00.000.004/0001-04', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Inovar',           razaoSocial: 'Free Inovar Combustíveis LTDA',       cnpj: '00.000.005/0001-05', cidade: 'Várzea Grande',       uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Realeza',          razaoSocial: 'Free Realeza Combustíveis LTDA',      cnpj: '00.000.006/0001-06', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free XV',               razaoSocial: 'Free XV Combustíveis LTDA',           cnpj: '00.000.007/0001-07', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free VEM',              razaoSocial: 'Free VEM Combustíveis LTDA',          cnpj: '00.000.008/0001-08', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Brauna',           razaoSocial: 'Free Brauna Combustíveis LTDA',       cnpj: '00.000.009/0001-09', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Foz',              razaoSocial: 'Free Foz Combustíveis LTDA',          cnpj: '00.000.010/0001-10', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Palmeiras',        razaoSocial: 'Free Palmeiras Combustíveis LTDA',    cnpj: '00.000.011/0001-11', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Torres',           razaoSocial: 'Free Torres Combustíveis LTDA',       cnpj: '00.000.012/0001-12', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Dakar',            razaoSocial: 'Free Dakar Combustíveis LTDA',        cnpj: '00.000.013/0001-13', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Viena',            razaoSocial: 'Free Viena Combustíveis LTDA',        cnpj: '00.000.014/0001-14', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Riviera',          razaoSocial: 'Free Riviera Combustíveis LTDA',      cnpj: '00.000.015/0001-15', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Alphaville',       razaoSocial: 'Free Alphaville Combustíveis LTDA',   cnpj: '00.000.016/0001-16', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Petro Chapadão',   razaoSocial: 'Free Petro Chapadão Combustíveis LTDA', cnpj: '00.000.017/0001-17', cidade: 'Chapadão do Sul', uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Point',            razaoSocial: 'Free Point Combustíveis LTDA',        cnpj: '00.000.018/0001-18', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
+  { nome: 'Free Lucas do Rio Verde', razaoSocial: 'Free Lucas Combustíveis LTDA',     cnpj: '00.000.019/0001-19', cidade: 'Lucas do Rio Verde',  uf: 'MT', endereco: 'A definir' },
+];
+
+export async function seedPostos(db: PrismaClient) {
+  for (const posto of postosSeed) {
+    await db.posto.upsert({
+      where:  { cnpj: posto.cnpj },
+      create: posto,
+      update: { nome: posto.nome, cidade: posto.cidade },
+    });
+  }
+  console.log(`✅ ${postosSeed.length} postos inseridos/atualizados`);
 }
 ```
 
-## Port de PDF
+## Regras que o Codex deve seguir nesta camada
 
-```typescript
-// src/domain/ports/pdf.port.ts
-
-import type { RAQ } from '@/domain/entities/raq.entity';
-import type { Posto } from '@/domain/entities/posto.entity';
-
-export interface PDFPort {
-  gerarRAQ(raq: RAQ, posto: Posto): Promise<Buffer>;
-}
-```
-
-## Port de storage
-
-```typescript
-// src/domain/ports/storage.port.ts
-
-export interface StoragePort {
-  upload(caminho: string, arquivo: Buffer, tipo: string): Promise<string>;
-  deletar(caminho: string): Promise<void>;
-}
-```
-
-## Regras que o Codex deve seguir nos adaptadores
-
-1. Adaptador importa o port do domínio e o implementa — nunca o contrário
-2. Credenciais sempre via `env` de `@/lib/env` — nunca `process.env` direto
-3. E-mail com falha não propaga para o caso de uso — o chamador usa `.catch(() => {})`
-4. PDF retorna `Buffer` — não escreve arquivo em disco
-5. Storage retorna a URL pública — o repositório salva a URL no banco
-6. Buckets do Supabase são separados por tipo de conteúdo (raq-anexos, certificados, etc.)
-7. `upsert: true` no upload do Storage — substitui arquivo existente pelo mesmo caminho
+1. Campos em `snake_case` no banco, `camelCase` no TypeScript — sempre usar `@map()`
+2. Relações sempre com `@relation` explícito — sem relações implícitas
+3. `upsert` em vez de `create` nos repositórios — idempotência
+4. Mapper nunca acessa banco — só converte tipos
+5. Nunca usar `prisma.xyz` direto nos casos de uso — sempre via repositório
+6. `null` do banco vira `undefined` no domínio — mapper faz a conversão com `?? undefined`
+7. `undefined` do domínio vira `null` no banco — mapper faz a conversão com `?? null`
+8. Queries de listagem sempre com `orderBy` explícito
+9. Seed usa `upsert` — pode rodar múltiplas vezes sem erro
