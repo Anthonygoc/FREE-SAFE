@@ -13,7 +13,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    let message = `Erro HTTP ${response.status}`;
+    let message = `HTTP ${response.status}`;
 
     try {
       const body = await response.json();
@@ -31,7 +31,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     return undefined as T;
   }
 
-  return response.json() as Promise<T>;
+  const json = (await response.json()) as { data?: T };
+  return (json.data ?? (json as T)) as T;
 }
 
 export const apiClient = {

@@ -1,0 +1,20 @@
+'use client';
+
+import { useQuery } from '@tanstack/react-query';
+
+import { apiClient } from '@/lib/api-client';
+
+export interface Posto {
+  id: string;
+  nome: string;
+  cidade: string;
+  uf: string;
+  conformidade: number;
+}
+
+export function usePostos() {
+  return useQuery({
+    queryKey: ['postos'],
+    queryFn: () => apiClient.get<Posto[]>('/api/postos'),
+  });
+}
