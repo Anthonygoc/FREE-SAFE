@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const PUBLIC_PATHS = ['/login', '/api/auth', '/_next', '/favicon'];
+const PUBLIC_PATHS = ['/login', '/api/auth', '/api/health', '/_next', '/favicon'];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -9,17 +9,12 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Log todos os cookies para debug
-  const allCookies = req.cookies.getAll();
-  console.log('[middleware] pathname:', pathname);
-  console.log('[middleware] cookies:', allCookies.map(c => c.name));
-
   const hasSession =
     req.cookies.has('authjs.session-token') ||
     req.cookies.has('__Secure-authjs.session-token') ||
     req.cookies.has('__Host-authjs.session-token');
 
-  console.log('[middleware] hasSession:', hasSession);
+  console.log('[middleware] pathname:', pathname, 'hasSession:', hasSession);
 
   if (!hasSession) {
     const url = req.nextUrl.clone();
