@@ -251,7 +251,7 @@ function FieldRow({ label, value, valueStyle = styles.valueCell }: FieldRowProps
     View,
     { style: styles.row },
     React.createElement(Text, { style: styles.labelCell }, label),
-    React.createElement(Text, { style: valueStyle }, value || ' '),
+    React.createElement(Text, { style: valueStyle as any }, value || ' '),
   );
 }
 
