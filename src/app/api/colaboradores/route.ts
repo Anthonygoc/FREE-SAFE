@@ -26,7 +26,7 @@ const createColaboradorSchema = z.object({
   endereco: z.string().max(300).optional(),
 });
 
-function getUsuarioAutenticado(session: Awaited<ReturnType<typeof auth>>): UsuarioAutenticado {
+function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
     throw new DomainError('Não autenticado');
   }

@@ -9,7 +9,7 @@ import { handleApiError } from '@/lib/handle-api-error';
 
 const idSchema = z.string().uuid();
 
-function getUsuarioAutenticado(session: Awaited<ReturnType<typeof auth>>): UsuarioAutenticado {
+function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
     throw new DomainError('Não autenticado');
   }

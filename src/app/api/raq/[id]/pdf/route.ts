@@ -9,7 +9,7 @@ import { handleApiError } from '@/lib/handle-api-error';
 
 const idSchema = z.string().uuid();
 
-function getUsuarioAutenticado(session: Awaited<ReturnType<typeof auth>>): UsuarioAutenticado {
+function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
     throw new DomainError('Não autenticado');
   }
@@ -44,7 +44,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       raqId: parsed.data,
     });
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',

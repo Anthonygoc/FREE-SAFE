@@ -26,7 +26,7 @@ const createAfericaoSchema = z.object({
   medidaPadrao: z.number().default(20).optional(),
 });
 
-function getUsuarioAutenticado(session: Awaited<ReturnType<typeof auth>>): UsuarioAutenticado {
+function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
     throw new DomainError('Não autenticado');
   }

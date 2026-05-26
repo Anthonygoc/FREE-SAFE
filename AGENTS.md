@@ -61,102 +61,102 @@ import { PermissionGuard } from '@/application/authorization/permission.guard';
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
 
 export interface CreateRAQInput {
-  usuario: UsuarioAutenticado;
-  postoId: string;
-  produto: string;
-  temperaturaObservada: number;
-  densidadeObservada: number;
-  aspecto: string;
-  cor: string;
-  faseAquosa?: number;
-  teorAlcoolico?: number;
-  distribuidora?: string;
-  notaFiscal?: string;
-  placaCaminhao?: string;
-  tanqueDestino?: string;
-  boletimArquivo?: { buffer: Buffer; tipo: string };
-  fotoProvetaArquivo?: { buffer: Buffer; tipo: string };
+    usuario: UsuarioAutenticado;
+    postoId: string;
+    produto: string;
+    temperaturaObservada: number;
+    densidadeObservada: number;
+    aspecto: string;
+    cor: string;
+    faseAquosa?: number;
+    teorAlcoolico?: number;
+    distribuidora?: string;
+    notaFiscal?: string;
+    placaCaminhao?: string;
+    tanqueDestino?: string;
+    boletimArquivo?: { buffer: Buffer; tipo: string };
+    fotoProvetaArquivo?: { buffer: Buffer; tipo: string };
 }
 
 export interface CreateRAQOutput {
-  raqId: string;
-  aprovado: boolean;
-  resultado: 'APROVADO' | 'REPROVADO';
+    raqId: string;
+    aprovado: boolean;
+    resultado: 'APROVADO' | 'REPROVADO';
 }
 
 export class CreateRAQUseCase {
-  constructor(
-    private readonly raqRepo: RAQRepository,
-    private readonly storagePort: StoragePort,
-    private readonly emailPort: EmailPort,
-  ) {}
+    constructor(
+        private readonly raqRepo: RAQRepository,
+        private readonly storagePort: StoragePort,
+        private readonly emailPort: EmailPort,
+    ) {}
 
-  async execute(input: CreateRAQInput): Promise<CreateRAQOutput> {
-    // 1. Autorização
-    PermissionGuard.verificar(input.usuario, 'escrever', 'raq');
+    async execute(input: CreateRAQInput): Promise<CreateRAQOutput> {
+        // 1. Autorização
+        PermissionGuard.verificar(input.usuario, 'escrever', 'raq');
 
-    // Gerente só registra RAQ do próprio posto
-    if (
-      input.usuario.perfil === 'GERENTE' &&
-      input.usuario.postoId !== input.postoId
-    ) {
-      PermissionGuard.negar();
+        // Gerente só registra RAQ do próprio posto
+        if (
+            input.usuario.perfil === 'GERENTE' &&
+            input.usuario.postoId !== input.postoId
+        ) {
+            PermissionGuard.negar();
+        }
+
+        // 2. Criar entidade (regras de negócio ficam na entidade)
+        const raq = RAQ.criar({
+            postoId: input.postoId,
+            responsavelId: input.usuario.id,
+            produto: input.produto as any,
+            temperaturaObservada: input.temperaturaObservada,
+            densidadeObservada: input.densidadeObservada,
+            aspecto: input.aspecto as any,
+            cor: input.cor as any,
+            faseAquosa: input.faseAquosa,
+            teorAlcoolico: input.teorAlcoolico,
+            distribuidora: input.distribuidora,
+            notaFiscal: input.notaFiscal,
+            placaCaminhao: input.placaCaminhao,
+            tanqueDestino: input.tanqueDestino,
+        });
+
+        // 3. Persistir
+        await this.raqRepo.salvar(raq);
+
+        // 4. Uploads opcionais (não bloqueia o resultado)
+        if (input.boletimArquivo) {
+            await this.storagePort.upload(
+                `raq/${raq.id}/boletim`,
+                input.boletimArquivo.buffer,
+                input.boletimArquivo.tipo,
+            );
+        }
+
+        if (input.fotoProvetaArquivo) {
+            await this.storagePort.upload(
+                `raq/${raq.id}/foto-proveta`,
+                input.fotoProvetaArquivo.buffer,
+                input.fotoProvetaArquivo.tipo,
+            );
+        }
+
+        // 5. Notificação (falha silenciosa — não propaga erro de e-mail)
+        if (!raq.estaAprovado) {
+            await this.emailPort
+                .enviarAlerta({
+                    para: input.usuario.email,
+                    assunto: `RAQ reprovada — ${input.produto}`,
+                    corpo: `A análise do produto ${input.produto} foi reprovada no posto ${input.postoId}.`,
+                })
+                .catch(() => {}); // falha silenciosa intencional
+        }
+
+        return {
+            raqId: raq.id,
+            aprovado: raq.estaAprovado,
+            resultado: raq.resultado,
+        };
     }
-
-    // 2. Criar entidade (regras de negócio ficam na entidade)
-    const raq = RAQ.criar({
-      postoId: input.postoId,
-      responsavelId: input.usuario.id,
-      produto: input.produto as any,
-      temperaturaObservada: input.temperaturaObservada,
-      densidadeObservada: input.densidadeObservada,
-      aspecto: input.aspecto as any,
-      cor: input.cor as any,
-      faseAquosa: input.faseAquosa,
-      teorAlcoolico: input.teorAlcoolico,
-      distribuidora: input.distribuidora,
-      notaFiscal: input.notaFiscal,
-      placaCaminhao: input.placaCaminhao,
-      tanqueDestino: input.tanqueDestino,
-    });
-
-    // 3. Persistir
-    await this.raqRepo.salvar(raq);
-
-    // 4. Uploads opcionais (não bloqueia o resultado)
-    if (input.boletimArquivo) {
-      await this.storagePort.upload(
-        `raq/${raq.id}/boletim`,
-        input.boletimArquivo.buffer,
-        input.boletimArquivo.tipo,
-      );
-    }
-
-    if (input.fotoProvetaArquivo) {
-      await this.storagePort.upload(
-        `raq/${raq.id}/foto-proveta`,
-        input.fotoProvetaArquivo.buffer,
-        input.fotoProvetaArquivo.tipo,
-      );
-    }
-
-    // 5. Notificação (falha silenciosa — não propaga erro de e-mail)
-    if (!raq.estaAprovado) {
-      await this.emailPort
-        .enviarAlerta({
-          para: input.usuario.email,
-          assunto: `RAQ reprovada — ${input.produto}`,
-          corpo: `A análise do produto ${input.produto} foi reprovada no posto ${input.postoId}.`,
-        })
-        .catch(() => {}); // falha silenciosa intencional
-    }
-
-    return {
-      raqId: raq.id,
-      aprovado: raq.estaAprovado,
-      resultado: raq.resultado,
-    };
-  }
 }
 ```
 
@@ -170,50 +170,50 @@ import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
 
 type Acao = 'ler' | 'escrever';
 type Recurso =
-  | 'raq' | 'afericao' | 'colaboradores' | 'treinamentos'
-  | 'entrevistas' | 'documentos' | 'manutencao' | 'drenagem'
-  | 'auditorias' | 'relatorios' | 'postos' | 'usuarios';
+    | 'raq' | 'afericao' | 'colaboradores' | 'treinamentos'
+    | 'entrevistas' | 'documentos' | 'manutencao' | 'drenagem'
+    | 'auditorias' | 'relatorios' | 'postos' | 'usuarios';
 
 type MatrizPermissoes = Record<string, Record<Acao, Recurso[] | ['*']>>;
 
 const PERMISSOES: MatrizPermissoes = {
-  ADMIN: {
-    ler:      ['*'],
-    escrever: ['*'],
-  },
-  GERENTE: {
-    ler:      ['colaboradores', 'raq', 'afericao', 'documentos', 'manutencao', 'drenagem', 'treinamentos'],
-    escrever: ['raq', 'afericao', 'manutencao', 'drenagem', 'entrevistas'],
-  },
-  RH: {
-    ler:      ['colaboradores', 'entrevistas', 'treinamentos', 'relatorios'],
-    escrever: ['entrevistas', 'colaboradores'],
-  },
-  COLABORADOR: {
-    ler:      ['treinamentos'],
-    escrever: [],
-  },
-  MANUTENCAO: {
-    ler:      ['manutencao', 'drenagem'],
-    escrever: ['manutencao', 'drenagem'],
-  },
+    ADMIN: {
+        ler:      ['*'],
+        escrever: ['*'],
+    },
+    GERENTE: {
+        ler:      ['colaboradores', 'raq', 'afericao', 'documentos', 'manutencao', 'drenagem', 'treinamentos'],
+        escrever: ['raq', 'afericao', 'manutencao', 'drenagem', 'entrevistas'],
+    },
+    RH: {
+        ler:      ['colaboradores', 'entrevistas', 'treinamentos', 'relatorios'],
+        escrever: ['entrevistas', 'colaboradores'],
+    },
+    COLABORADOR: {
+        ler:      ['treinamentos'],
+        escrever: [],
+    },
+    MANUTENCAO: {
+        ler:      ['manutencao', 'drenagem'],
+        escrever: ['manutencao', 'drenagem'],
+    },
 };
 
 export class PermissionGuard {
-  static verificar(usuario: UsuarioAutenticado, acao: Acao, recurso: Recurso): void {
-    const permissoes = PERMISSOES[usuario.perfil];
-    if (!permissoes) throw new UnauthorizedError();
+    static verificar(usuario: UsuarioAutenticado, acao: Acao, recurso: Recurso): void {
+        const permissoes = PERMISSOES[usuario.perfil];
+        if (!permissoes) throw new UnauthorizedError();
 
-    const lista = permissoes[acao];
-    if (!lista) throw new UnauthorizedError();
+        const lista = permissoes[acao];
+        if (!lista) throw new UnauthorizedError();
 
-    const permitido = lista.includes('*') || lista.includes(recurso);
-    if (!permitido) throw new UnauthorizedError();
-  }
+        const permitido = lista.includes('*') || lista.includes(recurso);
+        if (!permitido) throw new UnauthorizedError();
+    }
 
-  static negar(): never {
-    throw new UnauthorizedError();
-  }
+    static negar(): never {
+        throw new UnauthorizedError();
+    }
 }
 ```
 
@@ -225,11 +225,11 @@ export class PermissionGuard {
 export type PerfilUsuario = 'ADMIN' | 'GERENTE' | 'RH' | 'COLABORADOR' | 'MANUTENCAO';
 
 export interface UsuarioAutenticado {
-  id: string;
-  nome: string;
-  email: string;
-  perfil: PerfilUsuario;
-  postoId: string | null; // null = admin geral (acesso a todos)
+    id: string;
+    nome: string;
+    email: string;
+    perfil: PerfilUsuario;
+    postoId: string | null; // null = admin geral (acesso a todos)
 }
 ```
 
@@ -239,53 +239,53 @@ export interface UsuarioAutenticado {
 // src/application/use-cases/dashboard/get-dashboard-kpis.use-case.ts
 
 export interface GetDashboardKPIsOutput {
-  totalPostos: number;
-  totalColaboradores: number;
-  mediaConformidade: number;
-  totalPendencias: number;
-  alertas: AlertaItem[];
+    totalPostos: number;
+    totalColaboradores: number;
+    mediaConformidade: number;
+    totalPendencias: number;
+    alertas: AlertaItem[];
 }
 
 export class GetDashboardKPIsUseCase {
-  constructor(
-    private readonly postoRepo: PostoRepository,
-    private readonly colaboradorRepo: ColaboradorRepository,
-    private readonly raqRepo: RAQRepository,
-    private readonly documentoRepo: DocumentoRepository,
-  ) {}
+    constructor(
+        private readonly postoRepo: PostoRepository,
+        private readonly colaboradorRepo: ColaboradorRepository,
+        private readonly raqRepo: RAQRepository,
+        private readonly documentoRepo: DocumentoRepository,
+    ) {}
 
-  async execute(usuario: UsuarioAutenticado): Promise<GetDashboardKPIsOutput> {
-    PermissionGuard.verificar(usuario, 'ler', 'relatorios');
+    async execute(usuario: UsuarioAutenticado): Promise<GetDashboardKPIsOutput> {
+        PermissionGuard.verificar(usuario, 'ler', 'relatorios');
 
-    // Queries paralelas — nunca sequenciais
-    const [postos, totalColaboradores, raqsSemBoletim, documentosVencendo] =
-      await Promise.all([
-        this.postoRepo.listar(),
-        this.colaboradorRepo.contarAtivos(),
-        this.raqRepo.contarSemBoletim(),
-        this.documentoRepo.listarVencendoEm(30),
-      ]);
+        // Queries paralelas — nunca sequenciais
+        const [postos, totalColaboradores, raqsSemBoletim, documentosVencendo] =
+            await Promise.all([
+                this.postoRepo.listar(),
+                this.colaboradorRepo.contarAtivos(),
+                this.raqRepo.contarSemBoletim(),
+                this.documentoRepo.listarVencendoEm(30),
+            ]);
 
-    const mediaConformidade =
-      postos.reduce((sum, p) => sum + p.conformidade, 0) / postos.length;
+        const mediaConformidade =
+            postos.reduce((sum, p) => sum + p.conformidade, 0) / postos.length;
 
-    const alertas: AlertaItem[] = [
-      ...(raqsSemBoletim > 0
-        ? [{ tipo: 'RAQ sem boletim', quantidade: raqsSemBoletim, nivel: 'critico' as const }]
-        : []),
-      ...(documentosVencendo.length > 0
-        ? [{ tipo: 'Documentos vencendo', quantidade: documentosVencendo.length, nivel: 'atencao' as const }]
-        : []),
-    ];
+        const alertas: AlertaItem[] = [
+            ...(raqsSemBoletim > 0
+                ? [{ tipo: 'RAQ sem boletim', quantidade: raqsSemBoletim, nivel: 'critico' as const }]
+                : []),
+            ...(documentosVencendo.length > 0
+                ? [{ tipo: 'Documentos vencendo', quantidade: documentosVencendo.length, nivel: 'atencao' as const }]
+                : []),
+        ];
 
-    return {
-      totalPostos: postos.length,
-      totalColaboradores,
-      mediaConformidade: Math.round(mediaConformidade),
-      totalPendencias: alertas.reduce((sum, a) => sum + a.quantidade, 0),
-      alertas,
-    };
-  }
+        return {
+            totalPostos: postos.length,
+            totalColaboradores,
+            mediaConformidade: Math.round(mediaConformidade),
+            totalPendencias: alertas.reduce((sum, a) => sum + a.quantidade, 0),
+            alertas,
+        };
+    }
 }
 ```
 

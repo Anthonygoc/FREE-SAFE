@@ -7,6 +7,7 @@ import { EmitRAQPdfUseCase } from '@/application/use-cases/raq/emit-raq-pdf.use-
 import { ListRAQByPostoUseCase } from '@/application/use-cases/raq/list-raq-by-posto.use-case';
 import { AfericaoPrismaRepository } from '@/infrastructure/database/prisma/repositories/afericao.prisma-repository';
 import { ColaboradorPrismaRepository } from '@/infrastructure/database/prisma/repositories/colaborador.prisma-repository';
+import { DocumentoPrismaRepository } from '@/infrastructure/database/prisma/repositories/documento.prisma-repository';
 import { PostoPrismaRepository } from '@/infrastructure/database/prisma/repositories/posto.prisma-repository';
 import { RAQPrismaRepository } from '@/infrastructure/database/prisma/repositories/raq.prisma-repository';
 import { ReactPDFAdapter } from '@/infrastructure/pdf/react-pdf.adapter';
@@ -46,4 +47,8 @@ export function getDashboardKPIsUseCase(): GetDashboardKPIsUseCase {
     new RAQPrismaRepository(),
     new AfericaoPrismaRepository(),
   );
+}
+
+export function documentoRepository(): DocumentoPrismaRepository {
+  return new DocumentoPrismaRepository();
 }
