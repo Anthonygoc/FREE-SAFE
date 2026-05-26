@@ -1,335 +1,413 @@
 ---
-name: free-safe-api-routes
-description: Use esta skill ao criar rotas de API (app/api/*) do FREE SAFE. Cobre o padrão de rota fina, validação Zod, autenticação, tratamento de erros e upload de arquivos. A rota nunca contém regra de negócio — só coordena.
+name: free-safe-adapters
+description: Use esta skill ao criar adaptadores de infraestrutura do FREE SAFE: Supabase Storage, geração de PDF com @react-pdf/renderer e envio de e-mail com Resend. Cada adaptador implementa um port do domínio.
 ---
 
-# FREE SAFE — API Routes (Next.js 14 App Router)
+# FREE SAFE — Adaptadores de Infraestrutura
 
-## Princípio fundamental
-
-A API Route é a borda do sistema. Ela faz exatamente quatro coisas e nada mais:
-1. Verifica a sessão
-2. Valida o body com Zod
-3. Chama o caso de uso
-4. Devolve o resultado
-
-Se você está escrevendo lógica de negócio dentro de uma rota, mova para o caso de uso.
-
-## Estrutura de pastas
-
-```
-app/api/
-├── auth/
-│   └── [...nextauth]/route.ts
-├── postos/
-│   ├── route.ts                    (GET lista, POST cria)
-│   └── [id]/
-│       └── route.ts                (GET detalhe, PATCH atualiza)
-├── colaboradores/
-│   ├── route.ts
-│   └── [id]/
-│       ├── route.ts
-│       └── ficha/route.ts
-├── raq/
-│   ├── route.ts
-│   └── [id]/
-│       ├── route.ts
-│       └── pdf/route.ts            (GET retorna PDF binário)
-├── afericao/
-│   ├── route.ts
-│   └── [id]/route.ts
-├── treinamentos/
-│   ├── route.ts
-│   └── [colaboradorId]/route.ts
-├── documentos/
-│   ├── route.ts
-│   └── [id]/route.ts
-└── dashboard/
-    └── kpis/route.ts
-```
-
-## Padrão de rota POST
+## Supabase Storage
 
 ```typescript
-// app/api/raq/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { z } from 'zod';
-import { authOptions } from '@/lib/auth';
-import { container } from '@/lib/container';
-import { handleApiError } from '@/lib/api-error-handler';
+// src/infrastructure/storage/supabase-storage.adapter.ts
 
-const CreateRAQSchema = z.object({
-  postoId:              z.string().uuid(),
-  produto:              z.enum(['GASOLINA_COMUM', 'GASOLINA_ADITIVADA', 'GASOLINA_PREMIUM', 'ETANOL_HIDRATADO', 'DIESEL_S10', 'DIESEL_S500']),
-  temperaturaObservada: z.number().min(-50).max(100),
-  densidadeObservada:   z.number().min(0.5).max(1.5),
-  aspecto:              z.enum(['LIQUIDO_E_ISENTO', 'TURVO', 'COM_IMPUREZAS']),
-  cor:                  z.enum(['CARACTERISTICA', 'ALTERADA']),
-  faseAquosa:           z.number().optional(),
-  teorAlcoolico:        z.number().optional(),
-  distribuidora:        z.string().max(100).optional(),
-  notaFiscal:           z.string().max(50).optional(),
-  placaCaminhao:        z.string().max(10).optional(),
-  tanqueDestino:        z.string().max(50).optional(),
-});
+import { createClient } from '@supabase/supabase-js';
+import type { StoragePort } from '@/domain/ports/storage.port';
+import { env } from '@/lib/env';
 
-export async function GET(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return NextResponse.json({ error: 'nao_autenticado' }, { status: 401 });
+// Buckets do projeto
+const BUCKETS = {
+  raq:           'raq-anexos',
+  certificados:  'certificados',
+  documentos:    'documentos-postos',
+  manutencao:    'manutencao-fotos',
+} as const;
 
-    const { searchParams } = new URL(req.url);
-    const postoId = searchParams.get('postoId') ?? undefined;
-    const dataInicio = searchParams.get('dataInicio')
-      ? new Date(searchParams.get('dataInicio')!)
-      : undefined;
-    const dataFim = searchParams.get('dataFim')
-      ? new Date(searchParams.get('dataFim')!)
-      : undefined;
+export class SupabaseStorageAdapter implements StoragePort {
+  private readonly client = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
 
-    const useCase = container.listRAQByPostoUseCase;
-    const result = await useCase.execute({
-      usuario: session.user,
-      filtros: { postoId, dataInicio, dataFim },
-    });
+  async upload(
+    caminho: string,
+    arquivo: Buffer,
+    tipo: string,
+  ): Promise<string> {
+    const bucket = this.inferirBucket(caminho);
 
-    return NextResponse.json(result);
-  } catch (error) {
-    return handleApiError(error);
+    const { error } = await this.client.storage
+      .from(bucket)
+      .upload(caminho, arquivo, {
+        contentType: tipo,
+        upsert: true,
+      });
+
+    if (error) throw new Error(`Falha no upload: ${error.message}`);
+
+    const { data } = this.client.storage
+      .from(bucket)
+      .getPublicUrl(caminho);
+
+    return data.publicUrl;
   }
-}
 
-export async function POST(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return NextResponse.json({ error: 'nao_autenticado' }, { status: 401 });
+  async deletar(caminho: string): Promise<void> {
+    const bucket = this.inferirBucket(caminho);
+    const { error } = await this.client.storage
+      .from(bucket)
+      .remove([caminho]);
 
-    const body = await req.json();
-    const parsed = CreateRAQSchema.safeParse(body);
+    if (error) throw new Error(`Falha ao deletar arquivo: ${error.message}`);
+  }
 
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: parsed.error.flatten() },
-        { status: 422 },
-      );
-    }
-
-    const useCase = container.createRAQUseCase;
-    const result = await useCase.execute({
-      usuario: session.user,
-      ...parsed.data,
-    });
-
-    return NextResponse.json(result, { status: 201 });
-  } catch (error) {
-    return handleApiError(error);
+  private inferirBucket(caminho: string): string {
+    if (caminho.startsWith('raq/'))          return BUCKETS.raq;
+    if (caminho.startsWith('certificados/')) return BUCKETS.certificados;
+    if (caminho.startsWith('documentos/'))   return BUCKETS.documentos;
+    if (caminho.startsWith('manutencao/'))   return BUCKETS.manutencao;
+    return BUCKETS.documentos; // fallback
   }
 }
 ```
 
-## Padrão de rota com upload de arquivo
+## Geração de PDF da RAQ
 
 ```typescript
-// app/api/raq/[id]/upload/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { container } from '@/lib/container';
-import { handleApiError } from '@/lib/api-error-handler';
+// src/infrastructure/pdf/react-pdf.adapter.ts
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } },
-) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return NextResponse.json({ error: 'nao_autenticado' }, { status: 401 });
-
-    const formData = await req.formData();
-    const boletim = formData.get('boletim') as File | null;
-    const fotoProveta = formData.get('fotoProveta') as File | null;
-
-    const boletimArquivo = boletim
-      ? { buffer: Buffer.from(await boletim.arrayBuffer()), tipo: boletim.type }
-      : undefined;
-
-    const fotoProvetaArquivo = fotoProveta
-      ? { buffer: Buffer.from(await fotoProveta.arrayBuffer()), tipo: fotoProveta.type }
-      : undefined;
-
-    const useCase = container.uploadAnexoRAQUseCase;
-    const result = await useCase.execute({
-      usuario: session.user,
-      raqId: params.id,
-      boletimArquivo,
-      fotoProvetaArquivo,
-    });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
-```
-
-## Padrão de rota que retorna PDF binário
-
-```typescript
-// app/api/raq/[id]/pdf/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { container } from '@/lib/container';
-import { handleApiError } from '@/lib/api-error-handler';
-
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } },
-) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return NextResponse.json({ error: 'nao_autenticado' }, { status: 401 });
-
-    const useCase = container.emitRAQPdfUseCase;
-    const pdfBuffer = await useCase.execute({ usuario: session.user, raqId: params.id });
-
-    return new NextResponse(pdfBuffer, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="raq-${params.id}.pdf"`,
-      },
-    });
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
-```
-
-## Tratamento centralizado de erros
-
-```typescript
-// src/lib/api-error-handler.ts
-import { NextResponse } from 'next/server';
+import React from 'react';
 import {
-  DomainError,
-  NotFoundError,
-  UnauthorizedError,
-  ValorInvalidoError,
-} from '@/domain/errors/domain.errors';
+  Document,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+  renderToBuffer,
+  Font,
+} from '@react-pdf/renderer';
+import type { PDFPort } from '@/domain/ports/pdf.port';
+import type { RAQ } from '@/domain/entities/raq.entity';
+import type { Posto } from '@/domain/entities/posto.entity';
 
-export function handleApiError(error: unknown): NextResponse {
-  if (error instanceof UnauthorizedError) {
-    return NextResponse.json({ error: error.code, mensagem: error.message }, { status: 403 });
-  }
-
-  if (error instanceof NotFoundError) {
-    return NextResponse.json({ error: error.code, mensagem: error.message }, { status: 404 });
-  }
-
-  if (error instanceof ValorInvalidoError) {
-    return NextResponse.json({ error: error.code, mensagem: error.message }, { status: 422 });
-  }
-
-  if (error instanceof DomainError) {
-    return NextResponse.json({ error: error.code, mensagem: error.message }, { status: 400 });
-  }
-
-  // Erro inesperado — log estruturado, nunca vazar detalhes ao client
-  console.error('[ERRO_NAO_TRATADO]', error);
-  return NextResponse.json({ error: 'erro_interno' }, { status: 500 });
-}
-```
-
-## Validação de variáveis de ambiente
-
-```typescript
-// src/lib/env.ts
-import { z } from 'zod';
-
-const EnvSchema = z.object({
-  DATABASE_URL:           z.string().url(),
-  NEXTAUTH_URL:           z.string().url(),
-  NEXTAUTH_SECRET:        z.string().min(32),
-  SUPABASE_URL:           z.string().url(),
-  SUPABASE_SERVICE_KEY:   z.string().min(10),
-  RESEND_API_KEY:         z.string().min(10),
+const styles = StyleSheet.create({
+  page: {
+    padding: 40,
+    fontFamily: 'Helvetica',
+    fontSize: 10,
+    color: '#1a1a1a',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#f97316', // laranja FREE SAFE
+  },
+  titulo: {
+    fontSize: 18,
+    fontFamily: 'Helvetica-Bold',
+    color: '#f97316',
+  },
+  subtitulo: {
+    fontSize: 9,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  secao: {
+    marginBottom: 16,
+  },
+  secaoTitulo: {
+    fontSize: 9,
+    fontFamily: 'Helvetica-Bold',
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  grade: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  campo: {
+    width: '48%',
+    backgroundColor: '#f9fafb',
+    padding: 8,
+    borderRadius: 4,
+    marginBottom: 4,
+  },
+  campoLabel: {
+    fontSize: 8,
+    color: '#9ca3af',
+    marginBottom: 2,
+  },
+  campoValor: {
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
+    color: '#111827',
+  },
+  resultado: {
+    padding: 14,
+    borderRadius: 6,
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  resultadoAprovado: {
+    backgroundColor: '#d1fae5',
+  },
+  resultadoReprovado: {
+    backgroundColor: '#fee2e2',
+  },
+  resultadoTexto: {
+    fontSize: 14,
+    fontFamily: 'Helvetica-Bold',
+  },
+  resultadoAprovadoTexto: {
+    color: '#065f46',
+  },
+  resultadoReprovadoTexto: {
+    color: '#7f1d1d',
+  },
+  rodape: {
+    position: 'absolute',
+    bottom: 30,
+    left: 40,
+    right: 40,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 0.5,
+    borderTopColor: '#e5e7eb',
+    paddingTop: 8,
+  },
+  rodapeTexto: {
+    fontSize: 8,
+    color: '#9ca3af',
+  },
 });
 
-const parsed = EnvSchema.safeParse(process.env);
+function RAQDocument({ raq, posto }: { raq: RAQ; posto: Posto }) {
+  const aprovado = raq.estaAprovado;
+  const dataFormatada = raq.criadoEm.toLocaleDateString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+  });
+  const horaFormatada = raq.criadoEm.toLocaleTimeString('pt-BR', {
+    hour: '2-digit', minute: '2-digit',
+  });
 
-if (!parsed.success) {
-  console.error('❌ Variáveis de ambiente inválidas:', parsed.error.flatten());
-  throw new Error('Variáveis de ambiente ausentes ou inválidas. Veja o .env.example');
+  return React.createElement(
+    Document,
+    { title: `RAQ — ${raq.produto} — ${dataFormatada}` },
+    React.createElement(
+      Page,
+      { size: 'A4', style: styles.page },
+      // Cabeçalho
+      React.createElement(
+        View,
+        { style: styles.header },
+        React.createElement(
+          View,
+          null,
+          React.createElement(Text, { style: styles.titulo }, 'FREE SAFE'),
+          React.createElement(Text, { style: styles.subtitulo }, 'Registro de Análise da Qualidade — RAQ'),
+        ),
+        React.createElement(
+          View,
+          { style: { alignItems: 'flex-end' } },
+          React.createElement(Text, { style: { fontSize: 9, color: '#6b7280' } }, `Data: ${dataFormatada}`),
+          React.createElement(Text, { style: { fontSize: 9, color: '#6b7280' } }, `Hora: ${horaFormatada}`),
+          React.createElement(Text, { style: { fontSize: 9, color: '#6b7280' } }, `ID: ${raq.id.slice(0, 8).toUpperCase()}`),
+        ),
+      ),
+      // Dados do Posto
+      React.createElement(
+        View,
+        { style: styles.secao },
+        React.createElement(Text, { style: styles.secaoTitulo }, 'Dados do Posto'),
+        React.createElement(
+          View,
+          { style: styles.grade },
+          campo('Posto', posto.nome),
+          campo('CNPJ', posto.cnpj),
+          campo('Cidade/UF', `${posto.cidade}/${posto.uf}`),
+          campo('Distribuidora', raq.distribuidora ?? '—'),
+          campo('Nota Fiscal', raq.notaFiscal ?? '—'),
+          campo('Placa do Caminhão', raq.placaCaminhao ?? '—'),
+          campo('Tanque de Destino', raq.tanqueDestino ?? '—'),
+        ),
+      ),
+      // Dados da Análise
+      React.createElement(
+        View,
+        { style: styles.secao },
+        React.createElement(Text, { style: styles.secaoTitulo }, 'Dados da Análise'),
+        React.createElement(
+          View,
+          { style: styles.grade },
+          campo('Produto', raq.produto.replace(/_/g, ' ')),
+          campo('Temperatura observada', `${raq.temperaturaObservada} °C`),
+          campo('Densidade observada', raq.densidadeObservada.toString()),
+          campo('Aspecto', raq.aspecto.replace(/_/g, ' ')),
+          campo('Cor', raq.cor),
+          raq.faseAquosa ? campo('Fase aquosa (mL)', raq.faseAquosa.toString()) : null,
+          raq.teorAlcoolico ? campo('Teor alcoólico (INPM)', raq.teorAlcoolico.toString()) : null,
+        ),
+      ),
+      // Resultado
+      React.createElement(
+        View,
+        { style: [styles.resultado, aprovado ? styles.resultadoAprovado : styles.resultadoReprovado] },
+        React.createElement(
+          Text,
+          { style: [styles.resultadoTexto, aprovado ? styles.resultadoAprovadoTexto : styles.resultadoReprovadoTexto] },
+          aprovado ? '✓ APROVADO' : '✗ REPROVADO',
+        ),
+        React.createElement(
+          Text,
+          { style: { fontSize: 9, color: aprovado ? '#065f46' : '#7f1d1d', marginTop: 2 } },
+          aprovado
+            ? 'Combustível dentro dos parâmetros da ANP.'
+            : 'Combustível fora dos parâmetros. Comunicar distribuidora e suspender abastecimento.',
+        ),
+      ),
+      // Rodapé
+      React.createElement(
+        View,
+        { style: styles.rodape },
+        React.createElement(Text, { style: styles.rodapeTexto }, 'FREE SAFE — Plataforma de Qualidade e Conformidade — Rede Free'),
+        React.createElement(Text, { style: styles.rodapeTexto }, `Emitido em ${dataFormatada} às ${horaFormatada}`),
+      ),
+    ),
+  );
 }
 
-export const env = parsed.data;
+function campo(label: string, valor: string) {
+  return React.createElement(
+    View,
+    { style: styles.campo },
+    React.createElement(Text, { style: styles.campoLabel }, label),
+    React.createElement(Text, { style: styles.campoValor }, valor),
+  );
+}
+
+export class ReactPDFAdapter implements PDFPort {
+  async gerarRAQ(raq: RAQ, posto: Posto): Promise<Buffer> {
+    const element = React.createElement(RAQDocument, { raq, posto });
+    return renderToBuffer(element);
+  }
+}
 ```
 
-## Container de dependências
+## Adaptador de e-mail com Resend
 
 ```typescript
-// src/lib/container.ts
-import { PrismaClient } from '@prisma/client';
-import { RAQPrismaRepository } from '@/infrastructure/database/prisma/repositories/raq.prisma-repository';
-import { ColaboradorPrismaRepository } from '@/infrastructure/database/prisma/repositories/colaborador.prisma-repository';
-import { PostoPrismaRepository } from '@/infrastructure/database/prisma/repositories/posto.prisma-repository';
-import { DocumentoPrismaRepository } from '@/infrastructure/database/prisma/repositories/documento.prisma-repository';
-import { SupabaseStorageAdapter } from '@/infrastructure/storage/supabase-storage.adapter';
-import { ResendEmailAdapter } from '@/infrastructure/email/resend-email.adapter';
-import { ReactPDFAdapter } from '@/infrastructure/pdf/react-pdf.adapter';
-import { CreateRAQUseCase } from '@/application/use-cases/raq/create-raq.use-case';
-import { EmitRAQPdfUseCase } from '@/application/use-cases/raq/emit-raq-pdf.use-case';
-import { ListRAQByPostoUseCase } from '@/application/use-cases/raq/list-raq-by-posto.use-case';
-import { GetDashboardKPIsUseCase } from '@/application/use-cases/dashboard/get-dashboard-kpis.use-case';
+// src/infrastructure/email/resend-email.adapter.ts
 
-// Singleton do Prisma (padrão Next.js para evitar múltiplas conexões em dev)
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma ?? new PrismaClient();
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+import { Resend } from 'resend';
+import type { EmailPort, EnviarAlertaInput } from '@/domain/ports/email.port';
+import { env } from '@/lib/env';
 
-// Repositórios
-const raqRepo           = new RAQPrismaRepository(prisma);
-const colaboradorRepo   = new ColaboradorPrismaRepository(prisma);
-const postoRepo         = new PostoPrismaRepository(prisma);
-const documentoRepo     = new DocumentoPrismaRepository(prisma);
+export class ResendEmailAdapter implements EmailPort {
+  private readonly client = new Resend(env.RESEND_API_KEY);
 
-// Adapters de serviços externos
-const storageAdapter = new SupabaseStorageAdapter();
-const emailAdapter   = new ResendEmailAdapter();
-const pdfAdapter     = new ReactPDFAdapter();
+  async enviarAlerta(input: EnviarAlertaInput): Promise<void> {
+    await this.client.emails.send({
+      from:    'FREE SAFE <alertas@freesafe.com.br>',
+      to:      input.para,
+      subject: input.assunto,
+      html:    this.template(input.assunto, input.corpo),
+    });
+  }
 
-// Casos de uso (instâncias frescas por request — sem estado compartilhado)
-export const container = {
-  get createRAQUseCase()        { return new CreateRAQUseCase(raqRepo, storageAdapter, emailAdapter); },
-  get emitRAQPdfUseCase()       { return new EmitRAQPdfUseCase(raqRepo, postoRepo, pdfAdapter); },
-  get listRAQByPostoUseCase()   { return new ListRAQByPostoUseCase(raqRepo); },
-  get getDashboardKPIsUseCase() { return new GetDashboardKPIsUseCase(postoRepo, colaboradorRepo, raqRepo, documentoRepo); },
-};
+  async enviarDocumentoVencendo(input: {
+    para: string;
+    nomePosto: string;
+    tipoDocumento: string;
+    dataVencimento: Date;
+  }): Promise<void> {
+    const dias = Math.ceil(
+      (input.dataVencimento.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+    );
+
+    await this.client.emails.send({
+      from:    'FREE SAFE <alertas@freesafe.com.br>',
+      to:      input.para,
+      subject: `⚠️ Documento vencendo em ${dias} dias — ${input.nomePosto}`,
+      html:    this.template(
+        `Documento vencendo: ${input.tipoDocumento}`,
+        `O documento <strong>${input.tipoDocumento}</strong> do posto <strong>${input.nomePosto}</strong> vence em <strong>${dias} dias</strong> (${input.dataVencimento.toLocaleDateString('pt-BR')}).<br><br>Acesse o FREE SAFE para renovar.`,
+      ),
+    });
+  }
+
+  private template(titulo: string, corpo: string): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: #f97316; padding: 20px; border-radius: 8px 8px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 20px;">FREE SAFE</h1>
+            <p style="color: rgba(255,255,255,0.8); margin: 4px 0 0; font-size: 13px;">Plataforma de Qualidade e Conformidade</p>
+          </div>
+          <div style="background: #fff; border: 1px solid #e5e7eb; border-top: none; padding: 24px; border-radius: 0 0 8px 8px;">
+            <h2 style="color: #111827; font-size: 16px;">${titulo}</h2>
+            <p style="color: #374151; line-height: 1.6;">${corpo}</p>
+            <a href="${env.NEXTAUTH_URL}" style="display: inline-block; background: #f97316; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; margin-top: 16px;">Acessar FREE SAFE</a>
+          </div>
+          <p style="color: #9ca3af; font-size: 11px; text-align: center; margin-top: 16px;">Rede Free — Todos os direitos reservados</p>
+        </body>
+      </html>
+    `;
+  }
+}
 ```
 
-## Convenções de rotas
+## Port de e-mail (para o domínio referenciar)
 
-| Método | Rota                          | Ação                          |
-|--------|-------------------------------|-------------------------------|
-| GET    | /api/raq                      | Listar RAQs (com filtros)     |
-| POST   | /api/raq                      | Criar nova RAQ                |
-| GET    | /api/raq/[id]                 | Buscar RAQ por ID             |
-| GET    | /api/raq/[id]/pdf             | Emitir PDF da RAQ             |
-| POST   | /api/raq/[id]/upload          | Anexar boletim/foto           |
-| GET    | /api/colaboradores            | Listar colaboradores          |
-| POST   | /api/colaboradores            | Cadastrar colaborador         |
-| PATCH  | /api/colaboradores/[id]       | Atualizar colaborador         |
-| GET    | /api/colaboradores/[id]/ficha | Ficha completa do colaborador |
-| GET    | /api/dashboard/kpis           | KPIs consolidados             |
+```typescript
+// src/domain/ports/email.port.ts
 
-## Regras que o Codex deve seguir nas rotas
+export interface EnviarAlertaInput {
+  para: string;
+  assunto: string;
+  corpo: string;
+}
 
-1. Sempre `try/catch` com `handleApiError` no catch — nunca deixar erro vazar sem tratamento
-2. Sempre verificar `session?.user` antes de qualquer operação
-3. Validação Zod com `safeParse` — nunca `parse` (que lança exceção sem controle)
-4. Parâmetros de query via `new URL(req.url).searchParams` — nunca `req.nextUrl.searchParams` (falha em alguns contextos)
-5. Nunca importar Prisma ou repositório diretamente na rota — use `container`
-6. Rotas de upload usam `req.formData()` — nunca `req.json()` com arquivo
-7. PDF retorna `new NextResponse(buffer, { headers: { 'Content-Type': 'application/pdf' } })`
-8. Status codes: 201 para criação, 200 para leitura, 422 para validação, 403 para acesso negado, 404 para não encontrado, 500 para erro interno
+export interface EmailPort {
+  enviarAlerta(input: EnviarAlertaInput): Promise<void>;
+}
+```
+
+## Port de PDF
+
+```typescript
+// src/domain/ports/pdf.port.ts
+
+import type { RAQ } from '@/domain/entities/raq.entity';
+import type { Posto } from '@/domain/entities/posto.entity';
+
+export interface PDFPort {
+  gerarRAQ(raq: RAQ, posto: Posto): Promise<Buffer>;
+}
+```
+
+## Port de storage
+
+```typescript
+// src/domain/ports/storage.port.ts
+
+export interface StoragePort {
+  upload(caminho: string, arquivo: Buffer, tipo: string): Promise<string>;
+  deletar(caminho: string): Promise<void>;
+}
+```
+
+## Regras que o Codex deve seguir nos adaptadores
+
+1. Adaptador importa o port do domínio e o implementa — nunca o contrário
+2. Credenciais sempre via `env` de `@/lib/env` — nunca `process.env` direto
+3. E-mail com falha não propaga para o caso de uso — o chamador usa `.catch(() => {})`
+4. PDF retorna `Buffer` — não escreve arquivo em disco
+5. Storage retorna a URL pública — o repositório salva a URL no banco
+6. Buckets do Supabase são separados por tipo de conteúdo (raq-anexos, certificados, etc.)
+7. `upsert: true` no upload do Storage — substitui arquivo existente pelo mesmo caminho

@@ -1,0 +1,55 @@
+import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { Afericao, type SituacaoAfericao } from '@/domain/entities/afericao.entity';
+import type { ProdutoCombustivel } from '@/domain/entities/raq.entity';
+import { UnauthorizedError } from '@/domain/errors/domain.errors';
+import type { AfericaoRepository } from '@/domain/ports/afericao.repository';
+
+export interface CreateAfericaoInput {
+  usuario: UsuarioAutenticado;
+  postoId: string;
+  produto: ProdutoCombustivel;
+  bomba: number;
+  bico: number;
+  resultadoMl: number;
+  observacoes?: string;
+  medidaPadrao?: number;
+}
+
+export interface CreateAfericaoOutput {
+  afericaoId: string;
+  situacao: SituacaoAfericao;
+  dentro: boolean;
+}
+
+export class CreateAfericaoUseCase {
+  constructor(private readonly afericaoRepo: AfericaoRepository) {}
+
+  async execute(input: CreateAfericaoInput): Promise<CreateAfericaoOutput> {
+    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
+      throw new UnauthorizedError();
+    }
+
+    if (input.usuario.perfil === 'GERENTE' && input.usuario.postoId !== input.postoId) {
+      throw new UnauthorizedError('Gerente só pode registrar aferição no próprio posto');
+    }
+
+    const afericao = Afericao.criar({
+      postoId: input.postoId,
+      responsavelId: input.usuario.id,
+      produto: input.produto,
+      bomba: input.bomba,
+      bico: input.bico,
+      resultadoMl: input.resultadoMl,
+      observacoes: input.observacoes,
+      medidaPadrao: input.medidaPadrao,
+    });
+
+    await this.afericaoRepo.salvar(afericao);
+
+    return {
+      afericaoId: afericao.id,
+      situacao: afericao.situacao,
+      dentro: afericao.situacao === 'DENTRO_DA_LEGISLACAO',
+    };
+  }
+}
