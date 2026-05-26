@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { useCreateAfericao } from '@/hooks/use-afericao';
+import { useAfericoesByPosto, useCreateAfericao } from '@/hooks/use-afericao';
 import { usePostos } from '@/hooks/use-postos';
 
 const animation = {
@@ -32,6 +32,7 @@ export default function InmetroPage() {
     }
   }, [postos, postoId]);
 
+  const { data: historico, isLoading: loadingHistorico } = useAfericoesByPosto(postoId);
   const dentro = Number(resultadoMl || 0) >= -100 && Number(resultadoMl || 0) <= 100;
 
   function handleRegistrar() {
@@ -46,7 +47,7 @@ export default function InmetroPage() {
     });
   }
 
-  if (loadingPostos) {
+  if (loadingPostos || loadingHistorico) {
     return (
       <div className="flex h-64 items-center justify-center">
         <LoadingSpinner size={30} />
@@ -118,6 +119,29 @@ export default function InmetroPage() {
           </div>
         </div>
       </div>
+
+      <CardBase>
+        <h2 className="text-lg font-bold text-zinc-900">Histórico de aferições</h2>
+        <div className="mt-4 space-y-3">
+          {(historico ?? []).map((item) => (
+            <div key={item.id} className="rounded-xl border border-zinc-200 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-zinc-900">
+                  {item.produto} • Bomba {item.bomba} • Bico {item.bico}
+                </p>
+                <BadgeStatus
+                  label={item.situacao}
+                  tone={item.situacao === 'DENTRO_DA_LEGISLACAO' ? 'green' : 'red'}
+                />
+              </div>
+              <p className="mt-1 text-sm text-zinc-600">Resultado: {item.resultadoMl} ml</p>
+            </div>
+          ))}
+          {(historico ?? []).length === 0 ? (
+            <p className="text-sm text-zinc-500">Nenhuma aferição registrada para o posto selecionado.</p>
+          ) : null}
+        </div>
+      </CardBase>
     </motion.div>
   );
 }
