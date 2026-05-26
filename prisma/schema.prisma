@@ -221,6 +221,7 @@ model RAQ {
   responsavelId        String             @map("responsavel_id")
   produto              ProdutoCombustivel
   data                 DateTime           @default(now())
+  volumeRecebido       Float?             @map("volume_recebido")
   temperaturaObservada Float              @map("temperatura_observada")
   densidadeObservada   Float              @map("densidade_observada")
   massa20c             Float?             @map("massa_20c")
@@ -234,9 +235,15 @@ model RAQ {
   fotoProvetaUrl       String?            @map("foto_proveta_url") @db.VarChar(500)
   fotoAmostraUrl       String?            @map("foto_amostra_url") @db.VarChar(500)
   distribuidora        String?            @db.VarChar(100)
+  cnpjDistribuidora    String?            @map("cnpj_distribuidora") @db.VarChar(18)
+  transportador        String?            @db.VarChar(150)
+  cnpjTransportador    String?            @map("cnpj_transportador") @db.VarChar(18)
   notaFiscal           String?            @map("nota_fiscal") @db.VarChar(50)
   placaCaminhao        String?            @map("placa_caminhao") @db.VarChar(10)
+  nomeMotorista        String?            @map("nome_motorista") @db.VarChar(150)
+  cpfMotorista         String?            @map("cpf_motorista") @db.VarChar(14)
   tanqueDestino        String?            @map("tanque_destino") @db.VarChar(50)
+  nomeAnalista         String?            @map("nome_analista") @db.VarChar(150)
   pdfUrl               String?            @map("pdf_url") @db.VarChar(500)
   criadoEm            DateTime            @default(now()) @map("criado_em")
 

@@ -1,27 +1,22 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import type { ProdutoCombustivel, ResultadoAnalise } from '@/domain/entities/raq.entity';
-import { UnauthorizedError } from '@/domain/errors/domain.errors';
+import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
 import type { RAQRepository } from '@/domain/ports/raq.repository';
 
-export interface ListRAQByPostoInput {
+export interface GetRAQByIdInput {
   usuario: UsuarioAutenticado;
-  postoId: string;
-  produto?: ProdutoCombustivel;
-  resultado?: ResultadoAnalise;
-  dataInicio?: Date;
-  dataFim?: Date;
+  raqId: string;
 }
 
-export interface ListRAQByPostoOutputItem {
+export interface GetRAQByIdOutput {
   id: string;
   postoId: string;
   responsavelId: string;
-  produto: ProdutoCombustivel;
+  produto: string;
   volumeRecebido?: number;
   temperaturaObservada: number;
   densidadeObservada: number;
   massa20c?: number;
-  aspecto: 'LIQUIDO_E_ISENTO' | 'TURVO' | 'COM_IMPUREZAS';
+  aspecto: string;
   cor: 'CARACTERISTICA' | 'ALTERADA';
   faseAquosa?: number;
   teorEtanol?: number;
@@ -36,33 +31,28 @@ export interface ListRAQByPostoOutputItem {
   cpfMotorista?: string;
   tanqueDestino?: string;
   nomeAnalista?: string;
-  resultado: ResultadoAnalise;
-  boletimUrl?: string;
-  fotoProvetaUrl?: string;
+  resultado: 'APROVADO' | 'REPROVADO';
   criadoEm: Date;
 }
 
-export class ListRAQByPostoUseCase {
+export class GetRAQByIdUseCase {
   constructor(private readonly raqRepo: RAQRepository) {}
 
-  async execute(input: ListRAQByPostoInput): Promise<ListRAQByPostoOutputItem[]> {
+  async execute(input: GetRAQByIdInput): Promise<GetRAQByIdOutput> {
     if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
       throw new UnauthorizedError();
     }
 
-    if (input.usuario.perfil === 'GERENTE' && input.usuario.postoId !== input.postoId) {
-      throw new UnauthorizedError('Gerente só pode visualizar RAQs do próprio posto');
+    const raq = await this.raqRepo.buscarPorId(input.raqId);
+    if (!raq) {
+      throw new DomainError('RAQ não encontrada');
     }
 
-    const raqs = await this.raqRepo.listar({
-      postoId: input.postoId,
-      produto: input.produto,
-      resultado: input.resultado,
-      dataInicio: input.dataInicio,
-      dataFim: input.dataFim,
-    });
+    if (input.usuario.perfil === 'GERENTE' && input.usuario.postoId !== raq.postoId) {
+      throw new UnauthorizedError('Gerente só pode visualizar RAQ do próprio posto');
+    }
 
-    return raqs.map((raq) => ({
+    return {
       id: raq.id,
       postoId: raq.postoId,
       responsavelId: raq.responsavelId,
@@ -87,9 +77,7 @@ export class ListRAQByPostoUseCase {
       tanqueDestino: raq.tanqueDestino,
       nomeAnalista: raq.nomeAnalista,
       resultado: raq.resultado,
-      boletimUrl: raq.boletimUrl,
-      fotoProvetaUrl: raq.fotoProvetaUrl,
       criadoEm: raq.criadoEm,
-    }));
+    };
   }
 }

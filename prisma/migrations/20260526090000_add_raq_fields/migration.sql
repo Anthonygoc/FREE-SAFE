@@ -1,0 +1,8 @@
+ALTER TABLE "raqs"
+  ADD COLUMN IF NOT EXISTS "volume_recebido" DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS "cnpj_distribuidora" VARCHAR(18),
+  ADD COLUMN IF NOT EXISTS "transportador" VARCHAR(150),
+  ADD COLUMN IF NOT EXISTS "cnpj_transportador" VARCHAR(18),
+  ADD COLUMN IF NOT EXISTS "nome_motorista" VARCHAR(150),
+  ADD COLUMN IF NOT EXISTS "cpf_motorista" VARCHAR(14),
+  ADD COLUMN IF NOT EXISTS "nome_analista" VARCHAR(150);

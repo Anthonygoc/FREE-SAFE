@@ -16,16 +16,25 @@ export interface CriarRAQProps {
   postoId: string;
   responsavelId: string;
   produto: ProdutoCombustivel;
+  volumeRecebido?: number;
   temperaturaObservada: number;
   densidadeObservada: number;
+  massa20c?: number;
   aspecto: AspectoCombustivel;
   cor: 'CARACTERISTICA' | 'ALTERADA';
   faseAquosa?: number;
+  teorEtanol?: number;
   teorAlcoolico?: number;
   distribuidora?: string;
+  cnpjDistribuidora?: string;
+  transportador?: string;
+  cnpjTransportador?: string;
   notaFiscal?: string;
   placaCaminhao?: string;
+  nomeMotorista?: string;
+  cpfMotorista?: string;
   tanqueDestino?: string;
+  nomeAnalista?: string;
 }
 
 export interface ReconstituirRAQProps extends CriarRAQProps {
@@ -41,16 +50,25 @@ export class RAQ {
   readonly postoId: string;
   readonly responsavelId: string;
   readonly produto: ProdutoCombustivel;
+  readonly volumeRecebido?: number;
   readonly temperaturaObservada: number;
   readonly densidadeObservada: number;
+  readonly massa20c?: number;
   readonly aspecto: AspectoCombustivel;
   readonly cor: 'CARACTERISTICA' | 'ALTERADA';
   readonly faseAquosa?: number;
+  readonly teorEtanol?: number;
   readonly teorAlcoolico?: number;
   readonly distribuidora?: string;
+  readonly cnpjDistribuidora?: string;
+  readonly transportador?: string;
+  readonly cnpjTransportador?: string;
   readonly notaFiscal?: string;
   readonly placaCaminhao?: string;
+  readonly nomeMotorista?: string;
+  readonly cpfMotorista?: string;
   readonly tanqueDestino?: string;
+  readonly nomeAnalista?: string;
   readonly resultado: ResultadoAnalise;
   readonly boletimUrl?: string;
   readonly fotoProvetaUrl?: string;
@@ -61,16 +79,25 @@ export class RAQ {
     this.postoId = props.postoId;
     this.responsavelId = props.responsavelId;
     this.produto = props.produto;
+    this.volumeRecebido = props.volumeRecebido;
     this.temperaturaObservada = props.temperaturaObservada;
     this.densidadeObservada = props.densidadeObservada;
+    this.massa20c = props.massa20c;
     this.aspecto = props.aspecto;
     this.cor = props.cor;
     this.faseAquosa = props.faseAquosa;
+    this.teorEtanol = props.teorEtanol;
     this.teorAlcoolico = props.teorAlcoolico;
     this.distribuidora = props.distribuidora;
+    this.cnpjDistribuidora = props.cnpjDistribuidora;
+    this.transportador = props.transportador;
+    this.cnpjTransportador = props.cnpjTransportador;
     this.notaFiscal = props.notaFiscal;
     this.placaCaminhao = props.placaCaminhao;
+    this.nomeMotorista = props.nomeMotorista;
+    this.cpfMotorista = props.cpfMotorista;
     this.tanqueDestino = props.tanqueDestino;
+    this.nomeAnalista = props.nomeAnalista;
     this.resultado = props.resultado;
     this.boletimUrl = props.boletimUrl;
     this.fotoProvetaUrl = props.fotoProvetaUrl;
@@ -85,6 +112,7 @@ export class RAQ {
 
     return new RAQ({
       ...props,
+      teorEtanol: props.teorEtanol ?? RAQ.calcularTeorEtanol(props.produto, props.faseAquosa),
       id: crypto.randomUUID(),
       resultado,
       criadoEm: new Date(),
@@ -119,6 +147,25 @@ export class RAQ {
       default:
         return 'REPROVADO';
     }
+  }
+
+  private static calcularTeorEtanol(
+    produto: ProdutoCombustivel,
+    faseAquosa: number | undefined,
+  ): number | undefined {
+    if (
+      produto !== 'GASOLINA_COMUM' &&
+      produto !== 'GASOLINA_ADITIVADA' &&
+      produto !== 'GASOLINA_PREMIUM'
+    ) {
+      return undefined;
+    }
+
+    if (faseAquosa === undefined || isNaN(faseAquosa)) {
+      return undefined;
+    }
+
+    return (faseAquosa - 50) * 2 + 1;
   }
 
   private static avaliarGasolina(

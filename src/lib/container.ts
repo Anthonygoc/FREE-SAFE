@@ -4,6 +4,8 @@ import { ListAfericoesByPostoUseCase } from '@/application/use-cases/afericao/li
 import { GetDashboardKPIsUseCase } from '@/application/use-cases/dashboard/get-dashboard-kpis.use-case';
 import { CreateRAQUseCase } from '@/application/use-cases/raq/create-raq.use-case';
 import { EmitRAQPdfUseCase } from '@/application/use-cases/raq/emit-raq-pdf.use-case';
+import { EmitRAQXlsxUseCase } from '@/application/use-cases/raq/emit-raq-xlsx.use-case';
+import { GetRAQByIdUseCase } from '@/application/use-cases/raq/get-raq-by-id.use-case';
 import { ListRAQByPostoUseCase } from '@/application/use-cases/raq/list-raq-by-posto.use-case';
 import { AfericaoPrismaRepository } from '@/infrastructure/database/prisma/repositories/afericao.prisma-repository';
 import { ColaboradorPrismaRepository } from '@/infrastructure/database/prisma/repositories/colaborador.prisma-repository';
@@ -18,6 +20,10 @@ export function createRAQUseCase(): CreateRAQUseCase {
 
 export function listRAQByPostoUseCase(): ListRAQByPostoUseCase {
   return new ListRAQByPostoUseCase(new RAQPrismaRepository());
+}
+
+export function getRAQByIdUseCase(): GetRAQByIdUseCase {
+  return new GetRAQByIdUseCase(new RAQPrismaRepository());
 }
 
 export function createAfericaoUseCase(): CreateAfericaoUseCase {
@@ -37,6 +43,13 @@ export function emitRAQPdfUseCase(): EmitRAQPdfUseCase {
     new RAQPrismaRepository(),
     new PostoPrismaRepository(),
     new ReactPDFAdapter(),
+  );
+}
+
+export function emitRAQXlsxUseCase(): EmitRAQXlsxUseCase {
+  return new EmitRAQXlsxUseCase(
+    new RAQPrismaRepository(),
+    new PostoPrismaRepository(),
   );
 }
 

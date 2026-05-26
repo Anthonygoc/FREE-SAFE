@@ -7,6 +7,9 @@ import { apiClient } from '@/lib/api-client';
 export interface Posto {
   id: string;
   nome: string;
+  razaoSocial: string;
+  cnpj: string;
+  endereco: string;
   cidade: string;
   uf: string;
   conformidade: number;

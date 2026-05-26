@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
 import { DomainError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
-import { getRAQByIdUseCase } from '@/lib/container';
+import { emitRAQXlsxUseCase } from '@/lib/container';
 import { handleApiError } from '@/lib/handle-api-error';
 
 const idSchema = z.string().uuid();
@@ -38,13 +38,20 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       );
     }
 
-    const useCase = getRAQByIdUseCase();
-    const data = await useCase.execute({
+    const useCase = emitRAQXlsxUseCase();
+    const xlsxBuffer = await useCase.execute({
       usuario,
       raqId: parsed.data,
     });
 
-    return NextResponse.json({ data }, { status: 200 });
+    return new NextResponse(new Uint8Array(xlsxBuffer), {
+      status: 200,
+      headers: {
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="raq-${parsed.data}.xlsx"`,
+      },
+    });
   } catch (error) {
     return handleApiError(error);
   }

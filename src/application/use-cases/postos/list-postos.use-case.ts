@@ -5,6 +5,9 @@ import type { PostoRepository } from '@/domain/ports/posto.repository';
 export interface ListPostosOutputItem {
   id: string;
   nome: string;
+  razaoSocial: string;
+  cnpj: string;
+  endereco: string;
   cidade: string;
   uf: string;
   conformidade: number;
@@ -19,6 +22,9 @@ export class ListPostosUseCase {
       return postos.map((posto) => ({
         id: posto.id,
         nome: posto.nome,
+        razaoSocial: posto.razaoSocial,
+        cnpj: posto.cnpj,
+        endereco: posto.endereco,
         cidade: posto.cidade,
         uf: posto.uf,
         conformidade: this.calcularConformidade(posto.ativo),
@@ -39,6 +45,9 @@ export class ListPostosUseCase {
         {
           id: posto.id,
           nome: posto.nome,
+          razaoSocial: posto.razaoSocial,
+          cnpj: posto.cnpj,
+          endereco: posto.endereco,
           cidade: posto.cidade,
           uf: posto.uf,
           conformidade: this.calcularConformidade(posto.ativo),

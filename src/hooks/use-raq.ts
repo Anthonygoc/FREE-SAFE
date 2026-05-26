@@ -20,16 +20,25 @@ export interface RAQ {
   postoId: string;
   responsavelId: string;
   produto: ProdutoCombustivel;
+  volumeRecebido?: number;
   temperaturaObservada: number;
   densidadeObservada: number;
+  massa20c?: number;
   aspecto: 'LIQUIDO_E_ISENTO' | 'TURVO' | 'COM_IMPUREZAS';
   cor: 'CARACTERISTICA' | 'ALTERADA';
   faseAquosa?: number;
+  teorEtanol?: number;
   teorAlcoolico?: number;
   distribuidora?: string;
+  cnpjDistribuidora?: string;
+  transportador?: string;
+  cnpjTransportador?: string;
   notaFiscal?: string;
   placaCaminhao?: string;
+  nomeMotorista?: string;
+  cpfMotorista?: string;
   tanqueDestino?: string;
+  nomeAnalista?: string;
   resultado: ResultadoAnalise;
   criadoEm: string;
 }
@@ -37,16 +46,25 @@ export interface RAQ {
 export interface CreateRAQInput {
   postoId: string;
   produto: ProdutoCombustivel;
+  volumeRecebido?: number;
   temperaturaObservada: number;
   densidadeObservada: number;
+  massa20c?: number;
   aspecto: 'LIQUIDO_E_ISENTO' | 'TURVO' | 'COM_IMPUREZAS';
   cor: 'CARACTERISTICA' | 'ALTERADA';
   faseAquosa?: number;
+  teorEtanol?: number;
   teorAlcoolico?: number;
   distribuidora?: string;
+  cnpjDistribuidora?: string;
+  transportador?: string;
+  cnpjTransportador?: string;
   notaFiscal?: string;
   placaCaminhao?: string;
+  nomeMotorista?: string;
+  cpfMotorista?: string;
   tanqueDestino?: string;
+  nomeAnalista?: string;
 }
 
 export interface CreateRAQOutput {
@@ -71,6 +89,9 @@ export function useCreateRAQ() {
     onSuccess: (output) => {
       queryClient.invalidateQueries({ queryKey: ['raq'] });
       toast.success(`RAQ registrado com resultado ${output.resultado}.`);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Erro ao registrar RAQ.');
     },
   });
 }
