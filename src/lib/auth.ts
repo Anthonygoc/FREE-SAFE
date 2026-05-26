@@ -2,7 +2,6 @@ import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-
 import { prisma } from '@/lib/prisma';
 
 const credentialsSchema = z.object({
@@ -11,6 +10,8 @@ const credentialsSchema = z.object({
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: 'jwt',
   },
@@ -23,24 +24,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(rawCredentials) {
         const parsed = credentialsSchema.safeParse(rawCredentials);
-        if (!parsed.success) {
-          return null;
-        }
+        if (!parsed.success) return null;
 
         const { email, password } = parsed.data;
+        const user = await prisma.user.findUnique({ where: { email } });
 
-        const user = await prisma.user.findUnique({
-          where: { email },
-        });
-
-        if (!user || !user.ativo) {
-          return null;
-        }
+        if (!user || !user.ativo) return null;
 
         const passwordMatches = await bcrypt.compare(password, user.senhaHash);
-        if (!passwordMatches) {
-          return null;
-        }
+        if (!passwordMatches) return null;
 
         return {
           id: user.id,
@@ -61,7 +53,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.perfil = (user as { perfil?: string }).perfil;
         token.postoId = (user as { postoId?: string | null }).postoId ?? null;
       }
-
       return token;
     },
     async session({ session, token }) {
@@ -73,7 +64,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         perfil: token.perfil as string,
         postoId: (token.postoId as string | null) ?? null,
       };
-
       return session;
     },
   },
