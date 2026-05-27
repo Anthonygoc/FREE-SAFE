@@ -4,7 +4,10 @@ import { ListAfericoesByPostoUseCase } from '@/application/use-cases/afericao/li
 import { GetDashboardKPIsUseCase } from '@/application/use-cases/dashboard/get-dashboard-kpis.use-case';
 import { GetCursoByIdUseCase } from '@/application/use-cases/cursos/get-curso-by-id.use-case';
 import { GetCursoConteudoUseCase } from '@/application/use-cases/cursos/get-curso-conteudo.use-case';
+import { GetCursoQuestoesUseCase } from '@/application/use-cases/cursos/get-curso-questoes.use-case';
+import { GetResultadoProvaUseCase } from '@/application/use-cases/cursos/get-resultado-prova.use-case';
 import { ListCursosUseCase } from '@/application/use-cases/cursos/list-cursos.use-case';
+import { SubmitProvaUseCase } from '@/application/use-cases/cursos/submit-prova.use-case';
 import { CreateRAQUseCase } from '@/application/use-cases/raq/create-raq.use-case';
 import { EmitRAQPdfUseCase } from '@/application/use-cases/raq/emit-raq-pdf.use-case';
 import { EmitRAQXlsxUseCase } from '@/application/use-cases/raq/emit-raq-xlsx.use-case';
@@ -14,7 +17,9 @@ import { AfericaoPrismaRepository } from '@/infrastructure/database/prisma/repos
 import { ColaboradorPrismaRepository } from '@/infrastructure/database/prisma/repositories/colaborador.prisma-repository';
 import { CursoConteudoPrismaRepository } from '@/infrastructure/database/prisma/repositories/curso-conteudo.prisma-repository';
 import { CursoPrismaRepository } from '@/infrastructure/database/prisma/repositories/curso.prisma-repository';
+import { CursoQuestaoPrismaRepository } from '@/infrastructure/database/prisma/repositories/curso-questao.prisma-repository';
 import { ProvaAttemptPrismaRepository } from '@/infrastructure/database/prisma/repositories/prova-attempt.prisma-repository';
+import { TreinamentoPrismaRepository } from '@/infrastructure/database/prisma/repositories/treinamento.prisma-repository';
 import { DocumentoPrismaRepository } from '@/infrastructure/database/prisma/repositories/documento.prisma-repository';
 import { PostoPrismaRepository } from '@/infrastructure/database/prisma/repositories/posto.prisma-repository';
 import { RAQPrismaRepository } from '@/infrastructure/database/prisma/repositories/raq.prisma-repository';
@@ -92,5 +97,31 @@ export function getCursoConteudoUseCase(): GetCursoConteudoUseCase {
   return new GetCursoConteudoUseCase(
     new CursoPrismaRepository(),
     new CursoConteudoPrismaRepository(),
+  );
+}
+
+export function getCursoQuestoesUseCase(): GetCursoQuestoesUseCase {
+  return new GetCursoQuestoesUseCase(
+    new CursoPrismaRepository(),
+    new CursoQuestaoPrismaRepository(),
+    new ColaboradorPrismaRepository(),
+  );
+}
+
+export function submitProvaUseCase(): SubmitProvaUseCase {
+  return new SubmitProvaUseCase(
+    new CursoPrismaRepository(),
+    new CursoQuestaoPrismaRepository(),
+    new ProvaAttemptPrismaRepository(),
+    new ColaboradorPrismaRepository(),
+    new TreinamentoPrismaRepository(),
+  );
+}
+
+export function getResultadoProvaUseCase(): GetResultadoProvaUseCase {
+  return new GetResultadoProvaUseCase(
+    new CursoPrismaRepository(),
+    new ProvaAttemptPrismaRepository(),
+    new ColaboradorPrismaRepository(),
   );
 }
