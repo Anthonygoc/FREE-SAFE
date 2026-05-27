@@ -26,6 +26,11 @@ export class ColaboradorPrismaRepository implements ColaboradorRepository {
     return raw ? ColaboradorMapper.toDomain(raw) : null;
   }
 
+  async buscarPorUserId(userId: string): Promise<Colaborador | null> {
+    const raw = await this.db.colaborador.findFirst({ where: { userId } });
+    return raw ? ColaboradorMapper.toDomain(raw) : null;
+  }
+
   async salvar(colaborador: Colaborador): Promise<void> {
     await this.db.colaborador.upsert({
       where: { id: colaborador.id },
