@@ -15,9 +15,10 @@ export interface Posto {
   conformidade: number;
 }
 
-export function usePostos() {
+export function usePostos(enabled = true) {
   return useQuery({
     queryKey: ['postos'],
     queryFn: () => apiClient.get<Posto[]>('/api/postos'),
+    enabled,
   });
 }

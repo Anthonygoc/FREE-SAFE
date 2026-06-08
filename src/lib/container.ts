@@ -1,6 +1,14 @@
 import { CreateAfericaoUseCase } from '@/application/use-cases/afericao/create-afericao.use-case';
 import { GetAfericaoByIdUseCase } from '@/application/use-cases/afericao/get-afericao-by-id.use-case';
 import { ListAfericoesByPostoUseCase } from '@/application/use-cases/afericao/list-afericoes-by-posto.use-case';
+import { ListBicosByBombaUseCase } from '@/application/use-cases/bicos/list-bicos-by-bomba.use-case';
+import { CreateBicoUseCase } from '@/application/use-cases/bombas/create-bico.use-case';
+import { CreateBombaUseCase } from '@/application/use-cases/bombas/create-bomba.use-case';
+import { DeleteBicoUseCase } from '@/application/use-cases/bombas/delete-bico.use-case';
+import { DeleteBombaUseCase } from '@/application/use-cases/bombas/delete-bomba.use-case';
+import { ListBombasByPostoUseCase } from '@/application/use-cases/bombas/list-bombas-by-posto.use-case';
+import { UpdateBombaUseCase } from '@/application/use-cases/bombas/update-bomba.use-case';
+import { UpdateBicoUseCase } from '@/application/use-cases/bombas/update-bico.use-case';
 import { GetDashboardKPIsUseCase } from '@/application/use-cases/dashboard/get-dashboard-kpis.use-case';
 import { GetCursoByIdUseCase } from '@/application/use-cases/cursos/get-curso-by-id.use-case';
 import { GetCursoConteudoUseCase } from '@/application/use-cases/cursos/get-curso-conteudo.use-case';
@@ -14,6 +22,8 @@ import { EmitRAQXlsxUseCase } from '@/application/use-cases/raq/emit-raq-xlsx.us
 import { GetRAQByIdUseCase } from '@/application/use-cases/raq/get-raq-by-id.use-case';
 import { ListRAQByPostoUseCase } from '@/application/use-cases/raq/list-raq-by-posto.use-case';
 import { AfericaoPrismaRepository } from '@/infrastructure/database/prisma/repositories/afericao.prisma-repository';
+import { BicoPrismaRepository } from '@/infrastructure/database/prisma/repositories/bico.prisma-repository';
+import { BombaPrismaRepository } from '@/infrastructure/database/prisma/repositories/bomba.prisma-repository';
 import { ColaboradorPrismaRepository } from '@/infrastructure/database/prisma/repositories/colaborador.prisma-repository';
 import { CursoConteudoPrismaRepository } from '@/infrastructure/database/prisma/repositories/curso-conteudo.prisma-repository';
 import { CursoPrismaRepository } from '@/infrastructure/database/prisma/repositories/curso.prisma-repository';
@@ -47,6 +57,53 @@ export function listAfericoesByPostoUseCase(): ListAfericoesByPostoUseCase {
 
 export function getAfericaoByIdUseCase(): GetAfericaoByIdUseCase {
   return new GetAfericaoByIdUseCase(new AfericaoPrismaRepository());
+}
+
+export function listBombasByPostoUseCase(): ListBombasByPostoUseCase {
+  return new ListBombasByPostoUseCase(new BombaPrismaRepository());
+}
+
+export function createBombaUseCase(): CreateBombaUseCase {
+  return new CreateBombaUseCase(new BombaPrismaRepository());
+}
+
+export function createBicoUseCase(): CreateBicoUseCase {
+  return new CreateBicoUseCase(
+    new BombaPrismaRepository(),
+    new BicoPrismaRepository(),
+  );
+}
+
+export function deleteBicoUseCase(): DeleteBicoUseCase {
+  return new DeleteBicoUseCase(
+    new BombaPrismaRepository(),
+    new BicoPrismaRepository(),
+  );
+}
+
+export function deleteBombaUseCase(): DeleteBombaUseCase {
+  return new DeleteBombaUseCase(
+    new BombaPrismaRepository(),
+    new BicoPrismaRepository(),
+  );
+}
+
+export function listBicosByBombaUseCase(): ListBicosByBombaUseCase {
+  return new ListBicosByBombaUseCase(
+    new BombaPrismaRepository(),
+    new BicoPrismaRepository(),
+  );
+}
+
+export function updateBombaUseCase(): UpdateBombaUseCase {
+  return new UpdateBombaUseCase(new BombaPrismaRepository());
+}
+
+export function updateBicoUseCase(): UpdateBicoUseCase {
+  return new UpdateBicoUseCase(
+    new BombaPrismaRepository(),
+    new BicoPrismaRepository(),
+  );
 }
 
 export function emitRAQPdfUseCase(): EmitRAQPdfUseCase {

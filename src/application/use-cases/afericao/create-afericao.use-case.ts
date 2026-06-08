@@ -7,11 +7,13 @@ import type { AfericaoRepository } from '@/domain/ports/afericao.repository';
 export interface CreateAfericaoInput {
   usuario: UsuarioAutenticado;
   postoId: string;
+  bicoId?: string;
   produto: ProdutoCombustivel;
   bomba: number;
   bico: number;
   resultadoMl: number;
   observacoes?: string;
+  fotoUrl?: string;
   medidaPadrao?: number;
 }
 
@@ -36,11 +38,13 @@ export class CreateAfericaoUseCase {
     const afericao = Afericao.criar({
       postoId: input.postoId,
       responsavelId: input.usuario.id,
+      bicoId: input.bicoId,
       produto: input.produto,
       bomba: input.bomba,
       bico: input.bico,
       resultadoMl: input.resultadoMl,
       observacoes: input.observacoes,
+      fotoUrl: input.fotoUrl,
       medidaPadrao: input.medidaPadrao,
     });
 

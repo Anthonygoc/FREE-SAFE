@@ -1,317 +1,395 @@
 ---
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
----
-name: free-safe-cursos
-description: Use esta skill ao criar qualquer parte do módulo de cursos NR do FREE SAFE. Cobre entidades, repositórios, casos de uso, rotas de API e frontend do sistema de cursos, provas e certificados.
+name: free-safe-inmetro
+description: Use esta skill ao criar ou modificar o módulo INMETRO do FREE SAFE. Cobre cadastro de bombas e bicos por posto, upload de fotos de aferição, auditoria com responsável e horário, e a tela de aferição com seleção de bomba/bico.
 ---
 
-# FREE SAFE — Módulo de Cursos NR
+# FREE SAFE — Módulo INMETRO (Bombas e Bicos)
 
 ## Contexto do negócio
 
-O módulo de cursos serve para treinar colaboradores dos postos da Rede Free
-nas Normas Regulamentadoras obrigatórias (NR-01, NR-06, NR-09, NR-17, NR-20, etc.)
-e em cursos internos (Atendimento, Caixa, ANP, INMETRO).
+Cada posto tem bombas. Cada bomba tem bicos. Cada bico dispensa um produto específico.
+A aferição INMETRO é feita bico a bico — o técnico mede 20 litros e registra a diferença em mL.
 
-Fluxo completo:
-1. Colaborador acessa a trilha do seu cargo
-2. Assiste/lê o conteúdo (PDF + vídeo YouTube embed)
-3. Responde a mini prova (múltipla escolha, mín. 70% para aprovação)
-4. Se aprovado → gera certificado PDF com logo do posto
+Exemplo real (Posto Cáceres):
+- Bomba 01 → bicos 01 a 06 (Etanol, Gasolina, Diesel S10 alternados)
+- Bomba 02 → bicos 07 a 14
+- Bomba 03 → bicos 15 a 20
+- Tanques: 1=Diesel S10 (20.000L), 2=Diesel S10 (10.000L), 3=Etanol (30.000L), etc.
 
-## Schema Prisma — tabelas do módulo
+## Schema Prisma — novas tabelas
 
 ```prisma
-model CursoConteudo {
-  id          String   @id @default(uuid())
-  cursoId     String   @map("curso_id")
-  ordem       Int
-  titulo      String   @db.VarChar(200)
-  tipo        TipoConteudo
-  conteudo    String   @db.Text
-  criadoEm   DateTime  @default(now()) @map("criado_em")
+model Bomba {
+  id        String   @id @default(uuid())
+  postoId   String   @map("posto_id")
+  numero    Int
+  modelo    String?  @db.VarChar(100)
+  ativo     Boolean  @default(true)
+  criadoEm DateTime @default(now()) @map("criado_em")
 
-  curso Curso @relation(fields: [cursoId], references: [id])
+  posto   Posto   @relation(fields: [postoId], references: [id])
+  bicos   Bico[]
 
-  @@map("curso_conteudos")
+  @@unique([postoId, numero])
+  @@map("bombas")
 }
 
-model CursoQuestao {
-  id         String   @id @default(uuid())
-  cursoId    String   @map("curso_id")
-  ordem      Int
-  enunciado  String   @db.Text
-  alternativas Json
-  gabarito   String   @db.VarChar(1)
-  criadoEm  DateTime  @default(now()) @map("criado_em")
+model Bico {
+  id        String             @id @default(uuid())
+  bombaId   String             @map("bomba_id")
+  numero    Int
+  produto   ProdutoCombustivel
+  capacidade Float?
+  ativo     Boolean            @default(true)
+  criadoEm DateTime            @default(now()) @map("criado_em")
 
-  curso       Curso          @relation(fields: [cursoId], references: [id])
-  respostas   ProvaResposta[]
+  bomba     Bomba      @relation(fields: [bombaId], references: [id])
+  afericoes Afericao[]
 
-  @@map("curso_questoes")
+  @@unique([bombaId, numero])
+  @@map("bicos")
 }
+```
 
-model ProvaAttempt {
-  id              String   @id @default(uuid())
-  colaboradorId   String   @map("colaborador_id")
-  cursoId         String   @map("curso_id")
-  nota            Float
-  aprovado        Boolean
-  certificadoUrl  String?  @map("certificado_url") @db.VarChar(500)
-  criadoEm       DateTime  @default(now()) @map("criado_em")
+Alteração na tabela Afericao — adicionar campo bicoId e fotoUrl:
+```prisma
+model Afericao {
+  // campos existentes mantidos
+  bicoId    String?  @map("bico_id")
+  fotoUrl   String?  @map("foto_url") @db.VarChar(500)
 
-  colaborador Colaborador    @relation(fields: [colaboradorId], references: [id])
-  curso       Curso          @relation(fields: [cursoId], references: [id])
-  respostas   ProvaResposta[]
-
-  @@map("prova_attempts")
+  bico Bico? @relation(fields: [bicoId], references: [id])
 }
+```
 
-model ProvaResposta {
-  id          String   @id @default(uuid())
-  attemptId   String   @map("attempt_id")
-  questaoId   String   @map("questao_id")
-  resposta    String   @db.VarChar(1)
-  correta     Boolean
-
-  attempt ProvaAttempt @relation(fields: [attemptId], references: [id])
-  questao CursoQuestao @relation(fields: [questaoId], references: [id])
-
-  @@map("prova_respostas")
-}
-
-enum TipoConteudo {
-  PDF_TEXTO
-  VIDEO_YOUTUBE
-  TEXTO_RICO
-}
+Adicionar relações reversas no model Posto:
+```prisma
+bombas Bomba[]
 ```
 
 ## Ports do domínio
 
 ```typescript
-// src/domain/ports/curso-conteudo.repository.ts
-export interface CursoConteudoRepository {
-  listarPorCurso(cursoId: string): Promise<CursoConteudo[]>;
-  buscarPorId(id: string): Promise<CursoConteudo | null>;
+// src/domain/ports/bomba.repository.ts
+export interface BombaRepository {
+  listarPorPosto(postoId: string): Promise<Bomba[]>;
+  buscarPorId(id: string): Promise<Bomba | null>;
+  salvar(bomba: Bomba): Promise<void>;
 }
 
-// src/domain/ports/curso-questao.repository.ts
-export interface CursoQuestaoRepository {
-  listarPorCurso(cursoId: string): Promise<CursoQuestao[]>;
-}
-
-// src/domain/ports/prova-attempt.repository.ts
-export interface ProvaAttemptRepository {
-  salvar(attempt: ProvaAttempt): Promise<void>;
-  buscarUltimoPorColaboradorECurso(colaboradorId: string, cursoId: string): Promise<ProvaAttempt | null>;
-  listarPorColaborador(colaboradorId: string): Promise<ProvaAttempt[]>;
+// src/domain/ports/bico.repository.ts
+export interface BicoRepository {
+  listarPorBomba(bombaId: string): Promise<Bico[]>;
+  buscarPorId(id: string): Promise<Bico | null>;
+  salvar(bico: Bico): Promise<void>;
 }
 ```
-
-## Casos de uso
-
-### GetCursoConteudoUseCase
-- Input: usuario, cursoId
-- Verifica que o colaborador tem esse curso na trilha
-- Retorna: lista de seções com tipo (PDF_TEXTO, VIDEO_YOUTUBE, TEXTO_RICO)
-- Não bloqueia acesso — qualquer perfil pode ver
-
-### SubmitProvaUseCase
-- Input: usuario, cursoId, respostas: Array<{ questaoId, resposta }>
-- Busca gabarito no banco (nunca expõe gabarito ao front)
-- Calcula nota: (acertos / total) * 100
-- Aprovado se nota >= 70
-- Salva ProvaAttempt com respostas
-- Se aprovado: marca TreinamentoColaborador como CONCLUIDO
-- Se aprovado: aciona geração de certificado
-- Retorna: nota, aprovado, acertos, total, detalhe por questão
-
-### EmitCertificadoUseCase
-- Input: usuario, attemptId
-- Busca attempt + colaborador + curso + posto
-- Gera PDF do certificado
-- Salva URL no attempt
-- Retorna: buffer do PDF
 
 ## Rotas de API
 
 ```
-GET  /api/cursos                          → lista todos os cursos ativos
-GET  /api/cursos/[id]                     → detalhe do curso
-GET  /api/cursos/[id]/conteudo            → seções do curso (para exibir)
-GET  /api/cursos/[id]/questoes            → questões SEM gabarito
-POST /api/cursos/[id]/prova               → submeter respostas da prova
-GET  /api/cursos/[id]/prova/resultado     → último resultado do colaborador
-GET  /api/certificados/[attemptId]        → download do certificado PDF
-GET  /api/colaboradores/[id]/trilha       → cursos obrigatórios por cargo
+GET  /api/bombas?postoId=xxx          → lista bombas do posto com bicos
+POST /api/bombas                      → cadastra bomba
+GET  /api/bombas/[id]/bicos           → lista bicos da bomba
+POST /api/bombas/[id]/bicos           → cadastra bico
+POST /api/afericao/[id]/foto          → upload de foto da aferição
 ```
 
-## Regras de negócio
+## Tela INMETRO — fluxo de seleção
 
-1. Nota mínima para aprovação: 70%
-2. Colaborador pode refazer a prova quantas vezes quiser
-3. Certificado só é gerado na primeira aprovação
-4. Gabarito nunca é enviado ao frontend — só calculado no backend
-5. Progresso do colaborador = (cursos concluídos / cursos obrigatórios do cargo) * 100
+1. Usuário seleciona o posto
+2. Sistema carrega as bombas do posto (GET /api/bombas?postoId=)
+3. Usuário seleciona a bomba (select populado)
+4. Sistema carrega os bicos da bomba selecionada
+5. Usuário seleciona o bico (select populado com número + produto)
+6. Produto é preenchido automaticamente pelo bico selecionado
+7. Usuário digita o resultado em mL
+8. Usuário faz upload de foto (opcional)
+9. Sistema salva e exibe resultado (dentro/fora)
 
-## Estrutura do certificado PDF
+## Auditoria
 
-Usar @react-pdf/renderer. Layout:
+Cada aferição já salva `responsavelId` e `criadoEm`.
+No histórico, exibir:
+- Nome do responsável (join com tabela users)
+- Data e hora formatada: DD/MM/AAAA às HH:MM
+- Foto se houver (thumbnail clicável)
 
-- Logo da Rede Free (public/logo.png) centralizada no topo
-- Título: "CERTIFICADO DE CONCLUSÃO" — grande, bold, laranja
-- Corpo:
-  "Certificamos que [NOME DO COLABORADOR], [CARGO],
-  do posto [NOME DO POSTO], concluiu com aproveitamento
-  o curso [NOME DO CURSO] com nota [NOTA]."
-- Data de conclusão
-- Linha de assinatura: "Responsável — Rede Free"
-- Rodapé: código de verificação (attempt ID truncado)
-- Borda decorativa laranja ao redor da página
-
-## Estrutura do conteúdo NR-01
-
-A NR-01 deve ser dividida em 4 módulos:
+## Hook de bombas e bicos
 
 ```typescript
-const nr01Conteudo = [
+// src/hooks/use-bombas.ts
+export function useBombasByPosto(postoId: string) {
+  return useQuery({
+    queryKey: ['bombas', postoId],
+    queryFn: () => apiClient.get(`/api/bombas?postoId=${postoId}`),
+    enabled: !!postoId,
+  });
+}
+
+export function useBicosByBomba(bombaId: string) {
+  return useQuery({
+    queryKey: ['bicos', bombaId],
+    queryFn: () => apiClient.get(`/api/bombas/${bombaId}/bicos`),
+    enabled: !!bombaId,
+  });
+}
+```
+
+## Seed de exemplo (Posto Cáceres)
+
+```typescript
+// Estrutura real da imagem fornecida
+const bombasCaceres = [
   {
-    ordem: 1,
-    titulo: 'Introdução às Normas Regulamentadoras',
-    tipo: 'TEXTO_RICO',
-    conteudo: `# O que são as NRs?
-As Normas Regulamentadoras (NRs) são regras obrigatórias estabelecidas pelo 
-Ministério do Trabalho para garantir a segurança e saúde dos trabalhadores...`
+    numero: 1,
+    bicos: [
+      { numero: 1, produto: 'ETANOL_HIDRATADO' },
+      { numero: 2, produto: 'GASOLINA_COMUM' },
+      { numero: 3, produto: 'DIESEL_S10' },
+      { numero: 4, produto: 'ETANOL_HIDRATADO' },
+      { numero: 5, produto: 'GASOLINA_COMUM' },
+      { numero: 6, produto: 'DIESEL_S10' },
+    ]
   },
   {
-    ordem: 2,
-    titulo: 'PGR — Programa de Gerenciamento de Riscos',
-    tipo: 'TEXTO_RICO',
-    conteudo: `# O que é o PGR?
-O Programa de Gerenciamento de Riscos é obrigatório para todas as empresas...`
+    numero: 2,
+    bicos: [
+      { numero: 7, produto: 'DIESEL_S10' },
+      { numero: 8, produto: 'ETANOL_HIDRATADO' },
+      { numero: 9, produto: 'DIESEL_S10' },
+      { numero: 10, produto: 'ETANOL_HIDRATADO' },
+      { numero: 11, produto: 'GASOLINA_COMUM' },
+      { numero: 12, produto: 'DIESEL_S10' },
+      { numero: 13, produto: 'ETANOL_HIDRATADO' },
+      { numero: 14, produto: 'GASOLINA_COMUM' },
+    ]
   },
   {
-    ordem: 3,
-    titulo: 'Vídeo: NR-01 na prática',
-    tipo: 'VIDEO_YOUTUBE',
-    conteudo: 'https://www.youtube.com/embed/VIDEO_ID'
-  },
-  {
-    ordem: 4,
-    titulo: 'Resumo e pontos importantes',
-    tipo: 'TEXTO_RICO',
-    conteudo: `# Pontos-chave para a prova...`
+    numero: 3,
+    bicos: [
+      { numero: 15, produto: 'DIESEL_S500' },
+      { numero: 16, produto: 'DIESEL_S10' },
+      { numero: 17, produto: 'ETANOL_HIDRATADO' },
+      { numero: 18, produto: 'GASOLINA_COMUM' },
+      { numero: 19, produto: 'DIESEL_S500' },
+      { numero: 20, produto: 'DIESEL_S10' },
+    ]
   }
 ];
 ```
 
-## Questões da prova NR-01 (mínimo 10 questões)
+## Regras que o Codex deve seguir neste módulo
 
-Formato das alternativas (JSON):
-```json
-{
-  "A": "texto da alternativa A",
-  "B": "texto da alternativa B",
-  "C": "texto da alternativa C",
-  "D": "texto da alternativa D"
+1. Quando um bico é selecionado, o produto é preenchido automaticamente — nunca deixar o usuário escolher produto manualmente
+2. Foto é opcional mas recomendada — não bloquear o registro sem ela
+3. Upload de foto vai para Supabase Storage em `afericao/{afericaoId}/foto.jpg`
+4. Histórico sempre mostra nome do responsável + data/hora — nunca só o ID
+5. Bomba e bico são selecionados via select populado pela API — nunca campo de texto livre
+6. Seguir o mesmo padrão arquitetural do projeto (domain → application → infra → interface)
+7. Usar o mesmo padrão de container.ts para injeção de dependência
+
+
+
+---
+name: free-safe-frontend
+description: Use esta skill ao criar páginas, componentes e hooks do frontend FREE SAFE. Cobre o padrão de conexão com APIs reais via React Query, substituição de dados mockados, componentes com Tailwind + shadcn/ui e navegação com Next.js App Router.
+---
+
+# FREE SAFE — Frontend (Next.js + React Query)
+
+## Princípio fundamental
+
+O frontend do FREE SAFE é o protótipo React já existente, migrado para consumir APIs reais.
+Cada array fixo (`postos`, `colaboradores`, `cursos`) vira uma chamada `useQuery`.
+Cada `useState` de formulário que hoje não salva nada vira um `useMutation` que chama a API.
+
+## Estrutura de pastas do frontend
+
+```
+src/app/
+├── (auth)/
+│   └── login/page.tsx              ← já existe
+├── (dashboard)/
+│   ├── layout.tsx                  ← sidebar + header
+│   ├── page.tsx                    ← dashboard geral
+│   ├── postos/
+│   │   ├── page.tsx                ← lista de postos
+│   │   └── [id]/page.tsx           ← detalhe do posto
+│   ├── colaboradores/
+│   │   ├── page.tsx                ← lista
+│   │   └── [id]/page.tsx           ← ficha do colaborador
+│   ├── treinamentos/page.tsx
+│   ├── entrevistas/page.tsx
+│   ├── anp/page.tsx                ← formulário RAQ
+│   ├── inmetro/page.tsx            ← formulário aferição
+│   ├── manutencao/page.tsx
+│   ├── drenagem/page.tsx
+│   ├── documentos/page.tsx
+│   ├── auditorias/page.tsx
+│   └── relatorios/page.tsx
+│
+src/components/
+├── ui/                             ← shadcn/ui (já existe)
+├── layout/
+│   ├── sidebar.tsx
+│   └── header.tsx
+├── dashboard/
+│   ├── stat-card.tsx
+│   ├── ranking-postos.tsx
+│   └── alertas-criticos.tsx
+├── postos/
+│   └── posto-card.tsx
+├── colaboradores/
+│   ├── colaborador-table.tsx
+│   └── colaborador-form.tsx
+├── raq/
+│   ├── raq-form.tsx
+│   └── raq-resultado.tsx
+└── afericao/
+    ├── afericao-form.tsx
+    └── afericao-resultado.tsx
+│
+src/hooks/
+├── use-postos.ts
+├── use-colaboradores.ts
+├── use-raq.ts
+├── use-afericao.ts
+└── use-dashboard.ts
+│
+src/lib/
+├── api-client.ts                   ← fetch wrapper com auth
+└── query-client.ts                 ← React Query config
+```
+
+## Configuração do React Query
+
+```typescript
+// src/lib/query-client.ts
+import { QueryClient } from '@tanstack/react-query';
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 2,      // 2 minutos
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+```
+
+```typescript
+// src/app/(dashboard)/layout.tsx
+'use client';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/lib/query-client';
+import { Sidebar } from '@/components/layout/sidebar';
+import { Header } from '@/components/layout/header';
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <div className="min-h-screen bg-zinc-100">
+        <Sidebar />
+        <div className="lg:pl-72">
+          <Header />
+          <main className="p-5 lg:p-8">{children}</main>
+        </div>
+      </div>
+    </QueryClientProvider>
+  );
 }
 ```
 
-Gabarito: string com a letra correta ("A", "B", "C" ou "D")
-
-## Regras que o Codex deve seguir neste módulo
-
-1. Gabarito nunca retorna na API — só no backend no momento do cálculo
-2. Certificado só é gerado se aprovado (nota >= 70)
-3. SubmitProvaUseCase invalida queryKey ['trilha', colaboradorId] após aprovação
-4. Usar a mesma arquitetura hexagonal do projeto (domain → application → infra → interface)
-5. Seguir o mesmo padrão de container.ts para injeção de dependência
-6. Rotas de API seguem o mesmo padrão de autenticação (getSession + handleApiError)
-
-name: free-safe-use-cases
-description: Use esta skill ao criar casos de uso (application layer) do FREE SAFE. Cobre injeção de dependência, orquestração do domínio, autorização e tratamento de erros. Nunca chame Prisma diretamente aqui — use os ports.
----
-
-# FREE SAFE — Camada de Casos de Uso (Application)
-
-## Responsabilidade desta camada
-
-Os casos de uso orquestram o domínio. Eles:
-- Recebem um input tipado
-- Verificam autorização
-- Chamam entidades e repositórios
-- Devolvem um output tipado
-
-Eles **não** contêm regras de negócio (isso fica na entidade) e **não** chamam Prisma diretamente (isso fica na infra).
-
-## Estrutura de pastas
-
-```
-src/application/
-├── use-cases/
-│   ├── raq/
-│   │   ├── create-raq.use-case.ts
-│   │   ├── create-raq.use-case.spec.ts
-│   │   ├── emit-raq-pdf.use-case.ts
-│   │   └── list-raq-by-posto.use-case.ts
-│   ├── colaboradores/
-│   │   ├── create-colaborador.use-case.ts
-│   │   ├── update-colaborador.use-case.ts
-│   │   └── list-colaboradores-by-posto.use-case.ts
-│   ├── afericao/
-│   │   ├── create-afericao.use-case.ts
-│   │   └── list-afericoes-by-bomba.use-case.ts
-│   ├── treinamentos/
-│   │   ├── concluir-treinamento.use-case.ts
-│   │   └── get-trilha-by-cargo.use-case.ts
-│   ├── documentos/
-│   │   ├── upload-documento.use-case.ts
-│   │   └── list-documentos-vencendo.use-case.ts
-│   └── dashboard/
-│       └── get-dashboard-kpis.use-case.ts
-├── authorization/
-│   └── permission.guard.ts
-└── dtos/
-    ├── raq.dto.ts
-    ├── colaborador.dto.ts
-    └── afericao.dto.ts
-```
-
-## Padrão de caso de uso
+## API Client — wrapper de fetch com autenticação
 
 ```typescript
-// src/application/use-cases/raq/create-raq.use-case.ts
+// src/lib/api-client.ts
 
-import { RAQ } from '@/domain/entities/raq.entity';
-import type { RAQRepository } from '@/domain/ports/raq.repository';
-import type { StoragePort } from '@/domain/ports/storage.port';
-import type { EmailPort } from '@/domain/ports/email.port';
-import { PermissionGuard } from '@/application/authorization/permission.guard';
-import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+async function apiFetch<T>(
+  path: string,
+  options?: RequestInit,
+): Promise<T> {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'erro_desconhecido' }));
+    throw new Error(error.error ?? `HTTP ${response.status}`);
+  }
+
+  const json = await response.json();
+  return json.data ?? json;
+}
+
+export const apiClient = {
+  get: <T>(path: string) => apiFetch<T>(path),
+  post: <T>(path: string, body: unknown) =>
+    apiFetch<T>(path, { method: 'POST', body: JSON.stringify(body) }),
+  patch: <T>(path: string, body: unknown) =>
+    apiFetch<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
+  delete: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
+};
+```
+
+## Padrão de hook de query
+
+```typescript
+// src/hooks/use-postos.ts
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api-client';
+
+export interface Posto {
+  id: string;
+  nome: string;
+  cidade: string;
+  uf: string;
+  conformidade: number;
+}
+
+export function usePostos() {
+  return useQuery({
+    queryKey: ['postos'],
+    queryFn: () => apiClient.get<Posto[]>('/api/postos'),
+  });
+}
+```
+
+```typescript
+// src/hooks/use-dashboard.ts
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api-client';
+
+export interface DashboardKPIs {
+  totalPostos: number;
+  totalColaboradores: number;
+  mediaConformidade: number;
+  totalPendencias: number;
+  alertas: Array<{ tipo: string; quantidade: number; nivel: 'critico' | 'atencao' }>;
+}
+
+export function useDashboardKPIs() {
+  return useQuery({
+    queryKey: ['dashboard', 'kpis'],
+    queryFn: () => apiClient.get<DashboardKPIs>('/api/dashboard/kpis'),
+  });
+}
+```
+
+## Padrão de hook de mutation
+
+```typescript
+// src/hooks/use-raq.ts
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api-client';
 
 export interface CreateRAQInput {
-  usuario: UsuarioAutenticado;
   postoId: string;
   produto: string;
   temperaturaObservada: number;
@@ -324,8 +402,6 @@ export interface CreateRAQInput {
   notaFiscal?: string;
   placaCaminhao?: string;
   tanqueDestino?: string;
-  boletimArquivo?: { buffer: Buffer; tipo: string };
-  fotoProvetaArquivo?: { buffer: Buffer; tipo: string };
 }
 
 export interface CreateRAQOutput {
@@ -334,553 +410,472 @@ export interface CreateRAQOutput {
   resultado: 'APROVADO' | 'REPROVADO';
 }
 
-export class CreateRAQUseCase {
-  constructor(
-    private readonly raqRepo: RAQRepository,
-    private readonly storagePort: StoragePort,
-    private readonly emailPort: EmailPort,
-  ) {}
+export function useCreateRAQ() {
+  const queryClient = useQueryClient();
 
-  async execute(input: CreateRAQInput): Promise<CreateRAQOutput> {
-    // 1. Autorização
-    PermissionGuard.verificar(input.usuario, 'escrever', 'raq');
+  return useMutation({
+    mutationFn: (input: CreateRAQInput) =>
+      apiClient.post<CreateRAQOutput>('/api/raq', input),
+    onSuccess: () => {
+      // Invalida a lista de RAQs após criar uma nova
+      queryClient.invalidateQueries({ queryKey: ['raq'] });
+    },
+  });
+}
 
-    // Gerente só registra RAQ do próprio posto
-    if (
-      input.usuario.perfil === 'GERENTE' &&
-      input.usuario.postoId !== input.postoId
-    ) {
-      PermissionGuard.negar();
-    }
+export function useRAQsByPosto(postoId: string) {
+  return useQuery({
+    queryKey: ['raq', postoId],
+    queryFn: () => apiClient.get(`/api/raq?postoId=${postoId}`),
+    enabled: !!postoId,
+  });
+}
+```
 
-    // 2. Criar entidade (regras de negócio ficam na entidade)
-    const raq = RAQ.criar({
-      postoId: input.postoId,
-      responsavelId: input.usuario.id,
-      produto: input.produto as any,
-      temperaturaObservada: input.temperaturaObservada,
-      densidadeObservada: input.densidadeObservada,
-      aspecto: input.aspecto as any,
-      cor: input.cor as any,
-      faseAquosa: input.faseAquosa,
-      teorAlcoolico: input.teorAlcoolico,
-      distribuidora: input.distribuidora,
-      notaFiscal: input.notaFiscal,
-      placaCaminhao: input.placaCaminhao,
-      tanqueDestino: input.tanqueDestino,
+## Padrão de página conectada à API
+
+```typescript
+// src/app/(dashboard)/page.tsx — Dashboard real
+'use client';
+import { useDashboardKPIs } from '@/hooks/use-dashboard';
+import { usePostos } from '@/hooks/use-postos';
+import { StatCard } from '@/components/dashboard/stat-card';
+import { RankingPostos } from '@/components/dashboard/ranking-postos';
+import { AlertasCriticos } from '@/components/dashboard/alertas-criticos';
+import { Building2, Users, BadgeCheck, AlertTriangle } from 'lucide-react';
+
+export default function DashboardPage() {
+  const { data: kpis, isLoading: loadingKPIs } = useDashboardKPIs();
+  const { data: postos, isLoading: loadingPostos } = usePostos();
+
+  if (loadingKPIs || loadingPostos) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-6">
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-orange-600">
+          FREE SAFE
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight text-zinc-950">Dashboard Geral</h1>
+        <p className="mt-1 text-zinc-500">Visão consolidada dos postos, treinamentos e conformidade.</p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="Postos cadastrados" value={kpis?.totalPostos ?? 0} subtitle="Unidades ativas" icon={Building2} />
+        <StatCard title="Colaboradores" value={kpis?.totalColaboradores ?? 0} subtitle="Ativos no sistema" icon={Users} tone="green" />
+        <StatCard title="Conformidade média" value={`${kpis?.mediaConformidade ?? 0}%`} subtitle="Auditoria operacional" icon={BadgeCheck} tone="yellow" />
+        <StatCard title="Pendências abertas" value={kpis?.totalPendencias ?? 0} subtitle="Itens para regularizar" icon={AlertTriangle} tone="red" />
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <RankingPostos postos={postos ?? []} />
+        <AlertasCriticos alertas={kpis?.alertas ?? []} />
+      </div>
+    </div>
+  );
+}
+```
+
+## Padrão de formulário com mutation
+
+```typescript
+// Exemplo de formulário RAQ conectado à API real
+'use client';
+import { useState } from 'react';
+import { useCreateRAQ } from '@/hooks/use-raq';
+
+export function RAQForm({ postos }: { postos: Posto[] }) {
+  const [produto, setProduto] = useState('GASOLINA_COMUM');
+  const [postoId, setPostoId] = useState('');
+  const [faseAquosa, setFaseAquosa] = useState('');
+  // ... outros campos
+
+  const { mutate: criarRAQ, isPending, data: resultado } = useCreateRAQ();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    criarRAQ({
+      postoId,
+      produto,
+      temperaturaObservada: 28.5,
+      densidadeObservada: 0.743,
+      aspecto: 'LIQUIDO_E_ISENTO',
+      cor: 'CARACTERISTICA',
+      faseAquosa: parseFloat(faseAquosa),
     });
-
-    // 3. Persistir
-    await this.raqRepo.salvar(raq);
-
-    // 4. Uploads opcionais (não bloqueia o resultado)
-    if (input.boletimArquivo) {
-      await this.storagePort.upload(
-        `raq/${raq.id}/boletim`,
-        input.boletimArquivo.buffer,
-        input.boletimArquivo.tipo,
-      );
-    }
-
-    if (input.fotoProvetaArquivo) {
-      await this.storagePort.upload(
-        `raq/${raq.id}/foto-proveta`,
-        input.fotoProvetaArquivo.buffer,
-        input.fotoProvetaArquivo.tipo,
-      );
-    }
-
-    // 5. Notificação (falha silenciosa — não propaga erro de e-mail)
-    if (!raq.estaAprovado) {
-      await this.emailPort
-        .enviarAlerta({
-          para: input.usuario.email,
-          assunto: `RAQ reprovada — ${input.produto}`,
-          corpo: `A análise do produto ${input.produto} foi reprovada no posto ${input.postoId}.`,
-        })
-        .catch(() => {}); // falha silenciosa intencional
-    }
-
-    return {
-      raqId: raq.id,
-      aprovado: raq.estaAprovado,
-      resultado: raq.resultado,
-    };
   }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {/* campos do formulário */}
+      <button type="submit" disabled={isPending}>
+        {isPending ? 'Salvando...' : 'Registrar análise'}
+      </button>
+
+      {resultado && (
+        <div className={resultado.aprovado ? 'text-green-600' : 'text-red-600'}>
+          {resultado.resultado}
+        </div>
+      )}
+    </form>
+  );
 }
 ```
 
-## Padrão de autorização
+## Sidebar — migrar do protótipo
 
 ```typescript
-// src/application/authorization/permission.guard.ts
-
-import { UnauthorizedError } from '@/domain/errors/domain.errors';
-import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-
-type Acao = 'ler' | 'escrever';
-type Recurso =
-  | 'raq' | 'afericao' | 'colaboradores' | 'treinamentos'
-  | 'entrevistas' | 'documentos' | 'manutencao' | 'drenagem'
-  | 'auditorias' | 'relatorios' | 'postos' | 'usuarios';
-
-type MatrizPermissoes = Record<string, Record<Acao, Recurso[] | ['*']>>;
-
-const PERMISSOES: MatrizPermissoes = {
-  ADMIN: {
-    ler:      ['*'],
-    escrever: ['*'],
-  },
-  GERENTE: {
-    ler:      ['colaboradores', 'raq', 'afericao', 'documentos', 'manutencao', 'drenagem', 'treinamentos'],
-    escrever: ['raq', 'afericao', 'manutencao', 'drenagem', 'entrevistas'],
-  },
-  RH: {
-    ler:      ['colaboradores', 'entrevistas', 'treinamentos', 'relatorios'],
-    escrever: ['entrevistas', 'colaboradores'],
-  },
-  COLABORADOR: {
-    ler:      ['treinamentos'],
-    escrever: [],
-  },
-  MANUTENCAO: {
-    ler:      ['manutencao', 'drenagem'],
-    escrever: ['manutencao', 'drenagem'],
-  },
-};
-
-export class PermissionGuard {
-  static verificar(usuario: UsuarioAutenticado, acao: Acao, recurso: Recurso): void {
-    const permissoes = PERMISSOES[usuario.perfil];
-    if (!permissoes) throw new UnauthorizedError();
-
-    const lista = permissoes[acao];
-    if (!lista) throw new UnauthorizedError();
-
-    const permitido = lista.includes('*') || lista.includes(recurso);
-    if (!permitido) throw new UnauthorizedError();
-  }
-
-  static negar(): never {
-    throw new UnauthorizedError();
-  }
-}
-```
-
-## DTOs compartilhados
-
-```typescript
-// src/application/dtos/auth.dto.ts
-
-export type PerfilUsuario = 'ADMIN' | 'GERENTE' | 'RH' | 'COLABORADOR' | 'MANUTENCAO';
-
-export interface UsuarioAutenticado {
-  id: string;
-  nome: string;
-  email: string;
-  perfil: PerfilUsuario;
-  postoId: string | null; // null = admin geral (acesso a todos)
-}
-```
-
-## Padrão de caso de uso com query (leitura)
-
-```typescript
-// src/application/use-cases/dashboard/get-dashboard-kpis.use-case.ts
-
-export interface GetDashboardKPIsOutput {
-  totalPostos: number;
-  totalColaboradores: number;
-  mediaConformidade: number;
-  totalPendencias: number;
-  alertas: AlertaItem[];
-}
-
-export class GetDashboardKPIsUseCase {
-  constructor(
-    private readonly postoRepo: PostoRepository,
-    private readonly colaboradorRepo: ColaboradorRepository,
-    private readonly raqRepo: RAQRepository,
-    private readonly documentoRepo: DocumentoRepository,
-  ) {}
-
-  async execute(usuario: UsuarioAutenticado): Promise<GetDashboardKPIsOutput> {
-    PermissionGuard.verificar(usuario, 'ler', 'relatorios');
-
-    // Queries paralelas — nunca sequenciais
-    const [postos, totalColaboradores, raqsSemBoletim, documentosVencendo] =
-      await Promise.all([
-        this.postoRepo.listar(),
-        this.colaboradorRepo.contarAtivos(),
-        this.raqRepo.contarSemBoletim(),
-        this.documentoRepo.listarVencendoEm(30),
-      ]);
-
-    const mediaConformidade =
-      postos.reduce((sum, p) => sum + p.conformidade, 0) / postos.length;
-
-    const alertas: AlertaItem[] = [
-      ...(raqsSemBoletim > 0
-        ? [{ tipo: 'RAQ sem boletim', quantidade: raqsSemBoletim, nivel: 'critico' as const }]
-        : []),
-      ...(documentosVencendo.length > 0
-        ? [{ tipo: 'Documentos vencendo', quantidade: documentosVencendo.length, nivel: 'atencao' as const }]
-        : []),
-    ];
-
-    return {
-      totalPostos: postos.length,
-      totalColaboradores,
-      mediaConformidade: Math.round(mediaConformidade),
-      totalPendencias: alertas.reduce((sum, a) => sum + a.quantidade, 0),
-      alertas,
-    };
-  }
-}
-```
-
-## Regras que o Codex deve seguir nesta camada
-
-1. Sempre verificar autorização **antes** de qualquer operação
-2. Queries paralelas com `Promise.all` — nunca `await` sequencial para múltiplas queries independentes
-3. Uploads e e-mails com falha silenciosa (`.catch(() => {})`) — nunca deixar falha de I/O cancelar a operação principal
-4. Sem lógica de negócio aqui — mova para a entidade se precisar calcular algo
-5. Um arquivo por caso de uso — nunca agrupe múltiplos em um arquivo
-6. Todo caso de uso tem `Input` e `Output` tipados e exportados
-7. Sem chamada direta ao Prisma — use `this.xyzRepo`
-
----
-name: free-safe-api-routes
-description: Use esta skill ao criar rotas de API (app/api/*) do FREE SAFE. Cobre o padrão de rota fina, validação Zod, autenticação, tratamento de erros e upload de arquivos. A rota nunca contém regra de negócio — só coordena.
----
-
-# FREE SAFE — API Routes (Next.js 14 App Router)
-
-## Princípio fundamental
-
-A API Route é a borda do sistema. Ela faz exatamente quatro coisas e nada mais:
-1. Verifica a sessão
-2. Valida o body com Zod
-3. Chama o caso de uso
-4. Devolve o resultado
-
-Se você está escrevendo lógica de negócio dentro de uma rota, mova para o caso de uso.
-
-## Estrutura de pastas
-
-```
-app/api/
-├── auth/
-│   └── [...nextauth]/route.ts
-├── postos/
-│   ├── route.ts                    (GET lista, POST cria)
-│   └── [id]/
-│       └── route.ts                (GET detalhe, PATCH atualiza)
-├── colaboradores/
-│   ├── route.ts
-│   └── [id]/
-│       ├── route.ts
-│       └── ficha/route.ts
-├── raq/
-│   ├── route.ts
-│   └── [id]/
-│       ├── route.ts
-│       └── pdf/route.ts            (GET retorna PDF binário)
-├── afericao/
-│   ├── route.ts
-│   └── [id]/route.ts
-├── treinamentos/
-│   ├── route.ts
-│   └── [colaboradorId]/route.ts
-├── documentos/
-│   ├── route.ts
-│   └── [id]/route.ts
-└── dashboard/
-    └── kpis/route.ts
-```
-
-## Padrão de rota POST
-
-```typescript
-// app/api/raq/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { z } from 'zod';
-import { authOptions } from '@/lib/auth';
-import { container } from '@/lib/container';
-import { handleApiError } from '@/lib/api-error-handler';
-
-const CreateRAQSchema = z.object({
-  postoId:              z.string().uuid(),
-  produto:              z.enum(['GASOLINA_COMUM', 'GASOLINA_ADITIVADA', 'GASOLINA_PREMIUM', 'ETANOL_HIDRATADO', 'DIESEL_S10', 'DIESEL_S500']),
-  temperaturaObservada: z.number().min(-50).max(100),
-  densidadeObservada:   z.number().min(0.5).max(1.5),
-  aspecto:              z.enum(['LIQUIDO_E_ISENTO', 'TURVO', 'COM_IMPUREZAS']),
-  cor:                  z.enum(['CARACTERISTICA', 'ALTERADA']),
-  faseAquosa:           z.number().optional(),
-  teorAlcoolico:        z.number().optional(),
-  distribuidora:        z.string().max(100).optional(),
-  notaFiscal:           z.string().max(50).optional(),
-  placaCaminhao:        z.string().max(10).optional(),
-  tanqueDestino:        z.string().max(50).optional(),
-});
-
-export async function GET(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return NextResponse.json({ error: 'nao_autenticado' }, { status: 401 });
-
-    const { searchParams } = new URL(req.url);
-    const postoId = searchParams.get('postoId') ?? undefined;
-    const dataInicio = searchParams.get('dataInicio')
-      ? new Date(searchParams.get('dataInicio')!)
-      : undefined;
-    const dataFim = searchParams.get('dataFim')
-      ? new Date(searchParams.get('dataFim')!)
-      : undefined;
-
-    const useCase = container.listRAQByPostoUseCase;
-    const result = await useCase.execute({
-      usuario: session.user,
-      filtros: { postoId, dataInicio, dataFim },
-    });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return NextResponse.json({ error: 'nao_autenticado' }, { status: 401 });
-
-    const body = await req.json();
-    const parsed = CreateRAQSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: parsed.error.flatten() },
-        { status: 422 },
-      );
-    }
-
-    const useCase = container.createRAQUseCase;
-    const result = await useCase.execute({
-      usuario: session.user,
-      ...parsed.data,
-    });
-
-    return NextResponse.json(result, { status: 201 });
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
-```
-
-## Padrão de rota com upload de arquivo
-
-```typescript
-// app/api/raq/[id]/upload/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { container } from '@/lib/container';
-import { handleApiError } from '@/lib/api-error-handler';
-
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } },
-) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return NextResponse.json({ error: 'nao_autenticado' }, { status: 401 });
-
-    const formData = await req.formData();
-    const boletim = formData.get('boletim') as File | null;
-    const fotoProveta = formData.get('fotoProveta') as File | null;
-
-    const boletimArquivo = boletim
-      ? { buffer: Buffer.from(await boletim.arrayBuffer()), tipo: boletim.type }
-      : undefined;
-
-    const fotoProvetaArquivo = fotoProveta
-      ? { buffer: Buffer.from(await fotoProveta.arrayBuffer()), tipo: fotoProveta.type }
-      : undefined;
-
-    const useCase = container.uploadAnexoRAQUseCase;
-    const result = await useCase.execute({
-      usuario: session.user,
-      raqId: params.id,
-      boletimArquivo,
-      fotoProvetaArquivo,
-    });
-
-    return NextResponse.json(result);
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
-```
-
-## Padrão de rota que retorna PDF binário
-
-```typescript
-// app/api/raq/[id]/pdf/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { container } from '@/lib/container';
-import { handleApiError } from '@/lib/api-error-handler';
-
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } },
-) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return NextResponse.json({ error: 'nao_autenticado' }, { status: 401 });
-
-    const useCase = container.emitRAQPdfUseCase;
-    const pdfBuffer = await useCase.execute({ usuario: session.user, raqId: params.id });
-
-    return new NextResponse(pdfBuffer, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="raq-${params.id}.pdf"`,
-      },
-    });
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
-```
-
-## Tratamento centralizado de erros
-
-```typescript
-// src/lib/api-error-handler.ts
-import { NextResponse } from 'next/server';
+// src/components/layout/sidebar.tsx
+'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
-  DomainError,
-  NotFoundError,
-  UnauthorizedError,
-  ValorInvalidoError,
-} from '@/domain/errors/domain.errors';
+  LayoutDashboard, Building2, Users, GraduationCap,
+  ClipboardCheck, FlaskConical, Gauge, Wrench,
+  Droplets, FolderCheck, ClipboardList, BarChart3,
+} from 'lucide-react';
 
-export function handleApiError(error: unknown): NextResponse {
-  if (error instanceof UnauthorizedError) {
-    return NextResponse.json({ error: error.code, mensagem: error.message }, { status: 403 });
-  }
+const nav = [
+  { href: '/',              label: 'Dashboard',    icon: LayoutDashboard },
+  { href: '/postos',        label: 'Postos',       icon: Building2 },
+  { href: '/colaboradores', label: 'Colaboradores',icon: Users },
+  { href: '/treinamentos',  label: 'Treinamentos', icon: GraduationCap },
+  { href: '/entrevistas',   label: 'Entrevistas',  icon: ClipboardCheck },
+  { href: '/anp',           label: 'ANP / RAQ',    icon: FlaskConical },
+  { href: '/inmetro',       label: 'INMETRO',      icon: Gauge },
+  { href: '/manutencao',    label: 'Manutenção',   icon: Wrench },
+  { href: '/drenagem',      label: 'Drenagem',     icon: Droplets },
+  { href: '/documentos',    label: 'Documentos',   icon: FolderCheck },
+  { href: '/auditorias',    label: 'Auditorias',   icon: ClipboardList },
+  { href: '/relatorios',    label: 'Relatórios',   icon: BarChart3 },
+];
 
-  if (error instanceof NotFoundError) {
-    return NextResponse.json({ error: error.code, mensagem: error.message }, { status: 404 });
-  }
+export function Sidebar() {
+  const pathname = usePathname();
 
-  if (error instanceof ValorInvalidoError) {
-    return NextResponse.json({ error: error.code, mensagem: error.message }, { status: 422 });
-  }
-
-  if (error instanceof DomainError) {
-    return NextResponse.json({ error: error.code, mensagem: error.message }, { status: 400 });
-  }
-
-  // Erro inesperado — log estruturado, nunca vazar detalhes ao client
-  console.error('[ERRO_NAO_TRATADO]', error);
-  return NextResponse.json({ error: 'erro_interno' }, { status: 500 });
+  return (
+    <aside className="fixed left-0 top-0 z-20 hidden h-screen w-72 flex-col bg-zinc-950 text-white lg:flex">
+      <div className="border-b border-white/10 p-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 text-xl font-black">F</div>
+          <div>
+            <p className="text-xl font-black tracking-tight">FREE SAFE</p>
+            <p className="text-xs text-zinc-400">Treinamento · Qualidade · Conformidade</p>
+          </div>
+        </div>
+      </div>
+      <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+        {nav.map((item) => {
+          const Icon = item.icon;
+          const selected = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                selected
+                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-950/30'
+                  : 'text-zinc-300 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <Icon className="h-5 w-5" /> {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </aside>
+  );
 }
 ```
 
-## Validação de variáveis de ambiente
+## Regras que o Codex deve seguir no frontend
 
-```typescript
-// src/lib/env.ts
-import { z } from 'zod';
+1. Nunca usar dados hardcoded — sempre `useQuery` ou `useMutation`
+2. Todo `useQuery` tem estado de loading com spinner laranja
+3. Todo `useMutation` tem estado `isPending` no botão ("Salvando...")
+4. Erros de API exibidos com toast via Sonner
+5. Formulários usam `react-hook-form` + validação Zod no cliente
+6. Nunca usar `useState` para dados que vêm da API — use `useQuery`
+7. Componentes de página são `'use client'` apenas se tiverem interatividade
+8. Prefira Server Components para páginas simples de listagem
+9. Links usam `<Link href="">` do Next.js — nunca `<a href="">`
+10. Cores: laranja `#f97316` (orange-500), fundo zinc-100, cards brancos com borda zinc-200
 
-const EnvSchema = z.object({
-  DATABASE_URL:           z.string().url(),
-  NEXTAUTH_URL:           z.string().url(),
-  NEXTAUTH_SECRET:        z.string().min(32),
-  SUPABASE_URL:           z.string().url(),
-  SUPABASE_SERVICE_KEY:   z.string().min(10),
-  RESEND_API_KEY:         z.string().min(10),
-});
 
-const parsed = EnvSchema.safeParse(process.env);
+---
+name: free-safe-components
+description: Use esta skill ao criar componentes reutilizáveis do FREE SAFE: cards, tabelas, formulários, badges, progress bars e modais. Todos os componentes seguem o visual do protótipo original com Tailwind + shadcn/ui.
+---
 
-if (!parsed.success) {
-  console.error('❌ Variáveis de ambiente inválidas:', parsed.error.flatten());
-  throw new Error('Variáveis de ambiente ausentes ou inválidas. Veja o .env.example');
-}
+# FREE SAFE — Componentes Reutilizáveis
 
-export const env = parsed.data;
+## Tokens de design
+
+```
+Cor primária:     orange-500 (#f97316)
+Cor primária dark: orange-600 (#ea580c)
+Fundo da app:     zinc-100
+Cards:            bg-white border border-zinc-200 rounded-2xl shadow-sm
+Sidebar:          bg-zinc-950
+Texto principal:  zinc-950
+Texto secundário: zinc-500
+Sucesso:          emerald-500
+Erro:             red-500
+Atenção:          amber-500
 ```
 
-## Container de dependências
+## Badge
 
 ```typescript
-// src/lib/container.ts
-import { PrismaClient } from '@prisma/client';
-import { RAQPrismaRepository } from '@/infrastructure/database/prisma/repositories/raq.prisma-repository';
-import { ColaboradorPrismaRepository } from '@/infrastructure/database/prisma/repositories/colaborador.prisma-repository';
-import { PostoPrismaRepository } from '@/infrastructure/database/prisma/repositories/posto.prisma-repository';
-import { DocumentoPrismaRepository } from '@/infrastructure/database/prisma/repositories/documento.prisma-repository';
-import { SupabaseStorageAdapter } from '@/infrastructure/storage/supabase-storage.adapter';
-import { ResendEmailAdapter } from '@/infrastructure/email/resend-email.adapter';
-import { ReactPDFAdapter } from '@/infrastructure/pdf/react-pdf.adapter';
-import { CreateRAQUseCase } from '@/application/use-cases/raq/create-raq.use-case';
-import { EmitRAQPdfUseCase } from '@/application/use-cases/raq/emit-raq-pdf.use-case';
-import { ListRAQByPostoUseCase } from '@/application/use-cases/raq/list-raq-by-posto.use-case';
-import { GetDashboardKPIsUseCase } from '@/application/use-cases/dashboard/get-dashboard-kpis.use-case';
+// src/components/ui/badge-status.tsx
+type Tone = 'green' | 'yellow' | 'red' | 'orange' | 'dark' | 'default';
 
-// Singleton do Prisma (padrão Next.js para evitar múltiplas conexões em dev)
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma ?? new PrismaClient();
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
-
-// Repositórios
-const raqRepo           = new RAQPrismaRepository(prisma);
-const colaboradorRepo   = new ColaboradorPrismaRepository(prisma);
-const postoRepo         = new PostoPrismaRepository(prisma);
-const documentoRepo     = new DocumentoPrismaRepository(prisma);
-
-// Adapters de serviços externos
-const storageAdapter = new SupabaseStorageAdapter();
-const emailAdapter   = new ResendEmailAdapter();
-const pdfAdapter     = new ReactPDFAdapter();
-
-// Casos de uso (instâncias frescas por request — sem estado compartilhado)
-export const container = {
-  get createRAQUseCase()        { return new CreateRAQUseCase(raqRepo, storageAdapter, emailAdapter); },
-  get emitRAQPdfUseCase()       { return new EmitRAQPdfUseCase(raqRepo, postoRepo, pdfAdapter); },
-  get listRAQByPostoUseCase()   { return new ListRAQByPostoUseCase(raqRepo); },
-  get getDashboardKPIsUseCase() { return new GetDashboardKPIsUseCase(postoRepo, colaboradorRepo, raqRepo, documentoRepo); },
+const toneClasses: Record<Tone, string> = {
+  default: 'bg-zinc-100 text-zinc-700',
+  green:   'bg-emerald-100 text-emerald-700',
+  yellow:  'bg-amber-100 text-amber-800',
+  red:     'bg-red-100 text-red-700',
+  orange:  'bg-orange-100 text-orange-700',
+  dark:    'bg-zinc-800 text-white',
 };
+
+export function BadgeStatus({ children, tone = 'default' }: { children: React.ReactNode; tone?: Tone }) {
+  return (
+    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${toneClasses[tone]}`}>
+      {children}
+    </span>
+  );
+}
 ```
 
-## Convenções de rotas
+## Card
 
-| Método | Rota                          | Ação                          |
-|--------|-------------------------------|-------------------------------|
-| GET    | /api/raq                      | Listar RAQs (com filtros)     |
-| POST   | /api/raq                      | Criar nova RAQ                |
-| GET    | /api/raq/[id]                 | Buscar RAQ por ID             |
-| GET    | /api/raq/[id]/pdf             | Emitir PDF da RAQ             |
-| POST   | /api/raq/[id]/upload          | Anexar boletim/foto           |
-| GET    | /api/colaboradores            | Listar colaboradores          |
-| POST   | /api/colaboradores            | Cadastrar colaborador         |
-| PATCH  | /api/colaboradores/[id]       | Atualizar colaborador         |
-| GET    | /api/colaboradores/[id]/ficha | Ficha completa do colaborador |
-| GET    | /api/dashboard/kpis           | KPIs consolidados             |
+```typescript
+// src/components/ui/card-base.tsx
+export function CardBase({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm ${className}`}>
+      {children}
+    </div>
+  );
+}
+```
 
-## Regras que o Codex deve seguir nas rotas
+## StatCard
 
-1. Sempre `try/catch` com `handleApiError` no catch — nunca deixar erro vazar sem tratamento
-2. Sempre verificar `session?.user` antes de qualquer operação
-3. Validação Zod com `safeParse` — nunca `parse` (que lança exceção sem controle)
-4. Parâmetros de query via `new URL(req.url).searchParams` — nunca `req.nextUrl.searchParams` (falha em alguns contextos)
-5. Nunca importar Prisma ou repositório diretamente na rota — use `container`
-6. Rotas de upload usam `req.formData()` — nunca `req.json()` com arquivo
-7. PDF retorna `new NextResponse(buffer, { headers: { 'Content-Type': 'application/pdf' } })`
-8. Status codes: 201 para criação, 200 para leitura, 422 para validação, 403 para acesso negado, 404 para não encontrado, 500 para erro interno
+```typescript
+// src/components/dashboard/stat-card.tsx
+import type { LucideIcon } from 'lucide-react';
+import { CardBase } from '@/components/ui/card-base';
+
+type Tone = 'orange' | 'green' | 'yellow' | 'red';
+
+const toneClasses: Record<Tone, string> = {
+  orange: 'bg-orange-50 text-orange-600',
+  green:  'bg-emerald-50 text-emerald-600',
+  yellow: 'bg-amber-50 text-amber-600',
+  red:    'bg-red-50 text-red-600',
+};
+
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  subtitle: string;
+  icon: LucideIcon;
+  tone?: Tone;
+}
+
+export function StatCard({ title, value, subtitle, icon: Icon, tone = 'orange' }: StatCardProps) {
+  return (
+    <CardBase>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-zinc-500">{title}</p>
+          <h3 className="mt-2 text-3xl font-bold text-zinc-950">{value}</h3>
+          <p className="mt-1 text-sm text-zinc-500">{subtitle}</p>
+        </div>
+        <div className={`rounded-2xl p-3 ${toneClasses[tone]}`}>
+          <Icon className="h-6 w-6" />
+        </div>
+      </div>
+    </CardBase>
+  );
+}
+```
+
+## ProgressBar
+
+```typescript
+// src/components/ui/progress-bar.tsx
+export function ProgressBar({ value }: { value: number }) {
+  return (
+    <div className="h-2 rounded-full bg-zinc-100">
+      <div
+        className="h-2 rounded-full bg-orange-500 transition-all"
+        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+      />
+    </div>
+  );
+}
+```
+
+## PageHeader
+
+```typescript
+// src/components/layout/page-header.tsx
+import { ShieldCheck, Download, Plus } from 'lucide-react';
+
+interface PageHeaderProps {
+  title: string;
+  subtitle: string;
+  onNew?: () => void;
+  onExport?: () => void;
+  newLabel?: string;
+}
+
+export function PageHeader({ title, subtitle, onNew, onExport, newLabel = 'Novo registro' }: PageHeaderProps) {
+  return (
+    <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-orange-600">
+          <ShieldCheck className="h-4 w-4" /> FREE SAFE
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight text-zinc-950">{title}</h1>
+        <p className="mt-1 text-zinc-500">{subtitle}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {onExport && (
+          <button
+            onClick={onExport}
+            className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50"
+          >
+            <Download className="h-4 w-4" /> Exportar
+          </button>
+        )}
+        {onNew && (
+          <button
+            onClick={onNew}
+            className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-orange-600"
+          >
+            <Plus className="h-4 w-4" /> {newLabel}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+## LoadingSpinner
+
+```typescript
+// src/components/ui/loading-spinner.tsx
+export function LoadingSpinner({ label = 'Carregando...' }: { label?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
+      <p className="text-sm text-zinc-500">{label}</p>
+    </div>
+  );
+}
+```
+
+## ErrorState
+
+```typescript
+// src/components/ui/error-state.tsx
+import { AlertTriangle } from 'lucide-react';
+
+export function ErrorState({ message = 'Erro ao carregar dados.' }: { message?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-red-600">
+      <AlertTriangle className="h-10 w-10" />
+      <p className="text-sm font-medium">{message}</p>
+    </div>
+  );
+}
+```
+
+## EmptyState
+
+```typescript
+// src/components/ui/empty-state.tsx
+import type { LucideIcon } from 'lucide-react';
+
+interface EmptyStateProps {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}
+
+export function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps) {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-zinc-400">
+      <Icon className="h-12 w-12" />
+      <p className="text-lg font-semibold text-zinc-600">{title}</p>
+      <p className="text-sm text-center max-w-xs">{description}</p>
+      {action}
+    </div>
+  );
+}
+```
+
+## ResultadoRAQ — componente de resultado da análise
+
+```typescript
+// src/components/raq/resultado-raq.tsx
+import { CheckCircle2, AlertTriangle } from 'lucide-react';
+
+interface ResultadoRAQProps {
+  aprovado: boolean;
+  produto: string;
+  isEtanol: boolean;
+  isGasolina: boolean;
+}
+
+export function ResultadoRAQ({ aprovado, produto, isEtanol, isGasolina }: ResultadoRAQProps) {
+  return (
+    <div className={`rounded-2xl p-4 ${aprovado ? 'bg-emerald-500/15 text-emerald-200' : 'bg-red-500/15 text-red-200'}`}>
+      <div className="flex items-center gap-2 font-bold">
+        {aprovado
+          ? <CheckCircle2 className="h-5 w-5" />
+          : <AlertTriangle className="h-5 w-5" />
+        }
+        {aprovado ? 'Aprovado' : 'Reprovado'}
+      </div>
+      <p className="mt-1 text-sm">
+        {isEtanol
+          ? aprovado
+            ? 'Teor alcoólico dentro da faixa configurada de 92,5 a 95,4 INPM.'
+            : 'Teor alcoólico fora da faixa configurada.'
+          : isGasolina
+          ? aprovado
+            ? 'Teor de etanol e aspecto/cor dentro dos parâmetros.'
+            : 'Verificar teor de etanol, aspecto ou cor.'
+          : aprovado
+          ? 'Densidade dentro dos parâmetros ANP.'
+          : 'Densidade fora dos parâmetros ANP.'}
+      </p>
+    </div>
+  );
+}
+```
+
+## Regras que o Codex deve seguir nos componentes
+
+1. Todo componente exporta como named export (`export function X`) — nunca default em componentes reutilizáveis
+2. Props tipadas com interface explícita
+3. Classes Tailwind sem interpolação de string dinâmica — use objetos de mapeamento (como `toneClasses`)
+4. Loading state sempre com o spinner laranja (`border-orange-500`)
+5. Sem `console.log` em componentes de produção
+6. Componentes de UI puros (sem fetch) ficam em `src/components/ui/`
+7. Componentes com dados de domínio ficam em `src/components/{modulo}/`
+8. Nunca usar `style={{ color: 'orange' }}` — sempre classes Tailwind
+

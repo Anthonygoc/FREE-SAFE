@@ -52,12 +52,11 @@ export class GetResultadoProvaUseCase {
 
     const ultimoAttempt = attemptsCurso[0];
     const melhorNota = attemptsCurso.reduce((melhor, attempt) => Math.max(melhor, attempt.nota), 0);
-    const aprovado = attemptsCurso.some((attempt) => attempt.aprovado);
 
     return {
       tentativas: attemptsCurso.length,
       melhorNota,
-      aprovado,
+      aprovado: ultimoAttempt.aprovado,
       ultimoAttemptId: ultimoAttempt.id,
     };
   }

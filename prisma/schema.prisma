@@ -136,11 +136,43 @@ model Posto {
   colaboradores Colaborador[]
   raqs          RAQ[]
   afericoes     Afericao[]
+  bombas        Bomba[]
   documentos    Documento[]
   manutencoes   Manutencao[]
   drenagens     Drenagem[]
 
   @@map("postos")
+}
+
+model Bomba {
+  id       String   @id @default(uuid())
+  postoId  String   @map("posto_id")
+  numero   Int
+  modelo   String?  @db.VarChar(100)
+  ativo    Boolean  @default(true)
+  criadoEm DateTime @default(now()) @map("criado_em")
+
+  posto  Posto  @relation(fields: [postoId], references: [id])
+  bicos  Bico[]
+
+  @@unique([postoId, numero])
+  @@map("bombas")
+}
+
+model Bico {
+  id         String              @id @default(uuid())
+  bombaId    String              @map("bomba_id")
+  numero     Int
+  produto    ProdutoCombustivel
+  capacidade Float?
+  ativo      Boolean             @default(true)
+  criadoEm   DateTime            @default(now()) @map("criado_em")
+
+  bomba     Bomba      @relation(fields: [bombaId], references: [id])
+  afericoes Afericao[]
+
+  @@unique([bombaId, numero])
+  @@map("bicos")
 }
 
 model Colaborador {
@@ -325,19 +357,22 @@ model Afericao {
   id            String             @id @default(uuid())
   postoId       String             @map("posto_id")
   responsavelId String             @map("responsavel_id")
+  bicoId        String?            @map("bico_id")
   produto       ProdutoCombustivel
   bomba         Int
-  bico          Int
+  numeroBico    Int                @map("bico")
   medidaPadrao  Float              @map("medida_padrao") @default(20)
   resultadoMl   Float              @map("resultado_ml")
   situacao      SituacaoAfericao
   observacoes   String?            @db.Text
+  fotoUrl       String?            @map("foto_url") @db.VarChar(500)
   fotosUrls     String[]           @map("fotos_urls")
   relatorioUrl  String?            @map("relatorio_url") @db.VarChar(500)
   data          DateTime           @default(now())
   criadoEm     DateTime            @default(now()) @map("criado_em")
 
   posto Posto @relation(fields: [postoId], references: [id])
+  bico  Bico? @relation(fields: [bicoId], references: [id], map: "afericoes_bico_id_fkey")
 
   @@map("afericoes")
 }

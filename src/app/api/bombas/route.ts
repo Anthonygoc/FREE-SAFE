@@ -4,28 +4,17 @@ import { z } from 'zod';
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
 import { DomainError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
-import { createAfericaoUseCase, listAfericoesByPostoUseCase } from '@/lib/container';
 import { handleApiError } from '@/lib/handle-api-error';
+import { createBombaUseCase, listBombasByPostoUseCase } from '@/lib/container';
 
-const produtoSchema = z.enum([
-  'GASOLINA_COMUM',
-  'GASOLINA_ADITIVADA',
-  'GASOLINA_PREMIUM',
-  'ETANOL_HIDRATADO',
-  'DIESEL_S10',
-  'DIESEL_S500',
-]);
-
-const createAfericaoSchema = z.object({
+const querySchema = z.object({
   postoId: z.string().uuid(),
-  bicoId: z.string().uuid().optional(),
-  produto: produtoSchema,
-  bomba: z.number().int().positive(),
-  bico: z.number().int().positive(),
-  resultadoMl: z.number().min(-500).max(500),
-  observacoes: z.string().max(500).optional(),
-  fotoUrl: z.string().optional(),
-  medidaPadrao: z.number().default(20).optional(),
+});
+
+const createBombaSchema = z.object({
+  postoId: z.string().uuid(),
+  numero: z.number().int().positive(),
+  modelo: z.string().max(100).optional(),
 });
 
 function getUsuarioAutenticado(session: any): UsuarioAutenticado {
@@ -48,29 +37,21 @@ export async function GET(request: Request) {
     const usuario = getUsuarioAutenticado(session);
 
     const { searchParams } = new URL(request.url);
-    const postoId = searchParams.get('postoId');
+    const parsed = querySchema.safeParse({
+      postoId: searchParams.get('postoId'),
+    });
 
-    if (!postoId) {
-      return NextResponse.json({ error: 'dados_invalidos', detalhes: { postoId: ['postoId é obrigatório'] } }, { status: 422 });
-    }
-
-    const bombaRaw = searchParams.get('bomba');
-    const bombaParsed = bombaRaw === null
-      ? { success: true as const, data: undefined }
-      : z.coerce.number().int().positive().safeParse(bombaRaw);
-
-    if (!bombaParsed.success) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: bombaParsed.error.flatten() },
+        { error: 'dados_invalidos', detalhes: parsed.error.flatten() },
         { status: 422 },
       );
     }
 
-    const useCase = listAfericoesByPostoUseCase();
+    const useCase = listBombasByPostoUseCase();
     const data = await useCase.execute({
       usuario,
-      postoId,
-      bomba: bombaParsed.data,
+      postoId: parsed.data.postoId,
     });
 
     return NextResponse.json({ data }, { status: 200 });
@@ -85,7 +66,7 @@ export async function POST(request: Request) {
     const usuario = getUsuarioAutenticado(session);
 
     const body = await request.json();
-    const parsed = createAfericaoSchema.safeParse(body);
+    const parsed = createBombaSchema.safeParse(body);
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -94,10 +75,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const useCase = createAfericaoUseCase();
+    const useCase = createBombaUseCase();
     const data = await useCase.execute({
       usuario,
-      ...parsed.data,
+      postoId: parsed.data.postoId,
+      numero: parsed.data.numero,
+      modelo: parsed.data.modelo,
     });
 
     return NextResponse.json({ data }, { status: 201 });

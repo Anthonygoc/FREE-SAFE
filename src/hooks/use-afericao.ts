@@ -19,6 +19,8 @@ export interface Afericao {
   id: string;
   postoId: string;
   responsavelId: string;
+  responsavelNome?: string;
+  bicoId?: string;
   produto: ProdutoCombustivel;
   bomba: number;
   bico: number;
@@ -26,22 +28,49 @@ export interface Afericao {
   resultadoMl: number;
   situacao: SituacaoAfericao;
   observacoes?: string;
+  fotoUrl?: string;
   criadoEm: string;
 }
 
 export interface CreateAfericaoInput {
   postoId: string;
+  bicoId?: string;
   produto: ProdutoCombustivel;
   bomba: number;
   bico: number;
   resultadoMl: number;
   observacoes?: string;
+  fotoUrl?: string;
 }
 
 export interface CreateAfericaoOutput {
   afericaoId: string;
   situacao: SituacaoAfericao;
   dentro: boolean;
+}
+
+export interface CreateAfericaoLoteItemInput {
+  bicoId: string;
+  produto: ProdutoCombustivel;
+  bomba: number;
+  bico: number;
+  resultadoMl: number;
+  observacoes?: string;
+  fotoUrl?: string;
+}
+
+export interface CreateAfericaoLoteInput {
+  postoId: string;
+  afericoes: CreateAfericaoLoteItemInput[];
+}
+
+export interface CreateAfericaoLoteOutput {
+  registradas: number;
+  resultados: Array<{
+    bicoId: string;
+    situacao: SituacaoAfericao;
+    dentro: boolean;
+  }>;
 }
 
 export function useAfericoesByPosto(postoId?: string) {
@@ -57,9 +86,27 @@ export function useCreateAfericao() {
 
   return useMutation({
     mutationFn: (input: CreateAfericaoInput) => apiClient.post<CreateAfericaoOutput>('/api/afericao', input),
-    onSuccess: (output) => {
-      queryClient.invalidateQueries({ queryKey: ['afericao'] });
+    onSuccess: (output, input) => {
+      queryClient.invalidateQueries({ queryKey: ['afericao', input.postoId] });
       toast.success(`Aferição registrada: ${output.situacao}.`);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Erro ao registrar aferição.');
+    },
+  });
+}
+
+export function useCreateAfericaoLote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: CreateAfericaoLoteInput) =>
+      apiClient.post<CreateAfericaoLoteOutput>('/api/afericao/lote', input),
+    onSuccess: (_, input) => {
+      queryClient.invalidateQueries({ queryKey: ['afericao', input.postoId] });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Erro ao registrar aferições.');
     },
   });
 }

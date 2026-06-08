@@ -6,12 +6,14 @@ export type SituacaoAfericao = 'DENTRO_DA_LEGISLACAO' | 'FORA_DA_TOLERANCIA';
 export interface CriarAfericaoProps {
   postoId: string;
   responsavelId: string;
+  bicoId?: string;
   produto: ProdutoCombustivel;
   bomba: number;
   bico: number;
   medidaPadrao?: number;
   resultadoMl: number;
   observacoes?: string;
+  fotoUrl?: string;
 }
 
 export interface ReconstituirAfericaoProps extends Omit<CriarAfericaoProps, 'medidaPadrao'> {
@@ -25,6 +27,7 @@ export class Afericao {
   readonly id: string;
   readonly postoId: string;
   readonly responsavelId: string;
+  readonly bicoId?: string;
   readonly produto: ProdutoCombustivel;
   readonly bomba: number;
   readonly bico: number;
@@ -32,12 +35,14 @@ export class Afericao {
   readonly resultadoMl: number;
   readonly situacao: SituacaoAfericao;
   readonly observacoes?: string;
+  readonly fotoUrl?: string;
   readonly criadoEm: Date;
 
   private constructor(props: ReconstituirAfericaoProps) {
     this.id = props.id;
     this.postoId = props.postoId;
     this.responsavelId = props.responsavelId;
+    this.bicoId = props.bicoId;
     this.produto = props.produto;
     this.bomba = props.bomba;
     this.bico = props.bico;
@@ -45,6 +50,7 @@ export class Afericao {
     this.resultadoMl = props.resultadoMl;
     this.situacao = props.situacao;
     this.observacoes = props.observacoes;
+    this.fotoUrl = props.fotoUrl;
     this.criadoEm = props.criadoEm;
   }
 

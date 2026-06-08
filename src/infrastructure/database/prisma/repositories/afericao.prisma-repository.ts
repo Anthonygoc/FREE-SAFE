@@ -17,13 +17,45 @@ export class AfericaoPrismaRepository implements AfericaoRepository {
   }
 
   async buscarPorId(id: string): Promise<Afericao | null> {
-    const raw = await this.db.afericao.findUnique({ where: { id } });
+    const raw = await this.db.afericao.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        postoId: true,
+        responsavelId: true,
+        bicoId: true,
+        produto: true,
+        bomba: true,
+        numeroBico: true,
+        medidaPadrao: true,
+        resultadoMl: true,
+        situacao: true,
+        observacoes: true,
+        fotoUrl: true,
+        criadoEm: true,
+      },
+    });
     return raw ? AfericaoMapper.toDomain(raw) : null;
   }
 
   async listarPorPosto(postoId: string): Promise<Afericao[]> {
     const raws = await this.db.afericao.findMany({
       where: { postoId },
+      select: {
+        id: true,
+        postoId: true,
+        responsavelId: true,
+        bicoId: true,
+        produto: true,
+        bomba: true,
+        numeroBico: true,
+        medidaPadrao: true,
+        resultadoMl: true,
+        situacao: true,
+        observacoes: true,
+        fotoUrl: true,
+        criadoEm: true,
+      },
       orderBy: { criadoEm: 'desc' },
     });
 
@@ -33,6 +65,21 @@ export class AfericaoPrismaRepository implements AfericaoRepository {
   async listarPorBomba(postoId: string, bomba: number): Promise<Afericao[]> {
     const raws = await this.db.afericao.findMany({
       where: { postoId, bomba },
+      select: {
+        id: true,
+        postoId: true,
+        responsavelId: true,
+        bicoId: true,
+        produto: true,
+        bomba: true,
+        numeroBico: true,
+        medidaPadrao: true,
+        resultadoMl: true,
+        situacao: true,
+        observacoes: true,
+        fotoUrl: true,
+        criadoEm: true,
+      },
       orderBy: { criadoEm: 'desc' },
     });
 
