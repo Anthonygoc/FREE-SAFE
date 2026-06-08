@@ -149,7 +149,7 @@ export default function ConfigurarBombasPage() {
   const [deletingBombaId, setDeletingBombaId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (status !== 'loading' && !isAllowed) {
+    if (!isAllowed) {
       router.replace('/inmetro');
     }
   }, [isAllowed, router, status]);
@@ -173,7 +173,7 @@ export default function ConfigurarBombasPage() {
     [postoId, postos],
   );
 
-  if (status === 'loading' || (!isAllowed && status !== 'loading') || loadingPostos) {
+  if (status === "loading" || loadingPostos) {
     return (
       <div className="flex h-64 items-center justify-center">
         <LoadingSpinner size={30} />
