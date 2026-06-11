@@ -182,6 +182,7 @@ model Colaborador {
   nome         String            @db.VarChar(150)
   cpf          String            @unique @db.VarChar(14)
   rg           String?           @db.VarChar(20)
+  fotoUrl      String?           @map("foto_url") @db.Text
   telefone     String?           @db.VarChar(20)
   email        String?           @db.VarChar(200)
   endereco     String?           @db.VarChar(300)

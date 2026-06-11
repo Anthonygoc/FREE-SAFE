@@ -13,6 +13,8 @@ export interface Colaborador {
   userId?: string;
   nome: string;
   cpf: string;
+  rg?: string;
+  fotoUrl?: string;
   cargo: string;
   dataAdmissao: string;
   status: StatusColaborador;
@@ -28,11 +30,26 @@ export interface CreateColaboradorInput {
   postoId: string;
   nome: string;
   cpf: string;
+  fotoUrl?: string;
   cargo: string;
   dataAdmissao: string;
   turno?: string;
   telefone?: string;
   email?: string;
+}
+
+export interface UpdateColaboradorInput {
+  id: string;
+  nome?: string;
+  cpf?: string;
+  cargo?: string;
+  telefone?: string;
+  email?: string;
+  endereco?: string;
+  turno?: string;
+  escala?: string;
+  status?: StatusColaborador;
+  fotoUrl?: string;
 }
 
 export function useColaboradores(postoId?: string, cargo?: string, status?: StatusColaborador) {
@@ -48,6 +65,14 @@ export function useColaboradores(postoId?: string, cargo?: string, status?: Stat
   });
 }
 
+export function useColaborador(id?: string) {
+  return useQuery({
+    queryKey: ['colaborador', id],
+    queryFn: () => apiClient.get<Colaborador>(`/api/colaboradores/${id}`),
+    enabled: !!id,
+  });
+}
+
 export function useCreateColaborador() {
   const queryClient = useQueryClient();
 
@@ -56,6 +81,26 @@ export function useCreateColaborador() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['colaboradores'] });
       toast.success('Colaborador cadastrado com sucesso.');
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Erro ao cadastrar colaborador.');
+    },
+  });
+}
+
+export function useUpdateColaborador() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, ...input }: UpdateColaboradorInput) =>
+      apiClient.patch<{ id: string }>(`/api/colaboradores/${id}`, input),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['colaboradores'] });
+      queryClient.invalidateQueries({ queryKey: ['colaborador', variables.id] });
+      toast.success('Colaborador atualizado com sucesso.');
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Erro ao atualizar colaborador.');
     },
   });
 }

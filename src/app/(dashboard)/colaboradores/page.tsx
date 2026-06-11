@@ -1,9 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { motion } from 'framer-motion';
+import { Camera } from 'lucide-react';
+import Link from 'next/link';
+import type { ChangeEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { BadgeStatus } from '@/components/ui/badge-status';
@@ -30,10 +34,26 @@ const createColaboradorSchema = z.object({
 
 type CreateColaboradorForm = z.infer<typeof createColaboradorSchema>;
 
+const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result ?? ''));
+  reader.onerror = () => reject(new Error('Falha ao carregar imagem'));
+  reader.readAsDataURL(file);
+});
+
+const getIniciais = (nome: string) => nome.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase();
+
+const statusTone = {
+  ATIVO: 'green',
+  AFASTADO: 'yellow',
+  DESLIGADO: 'red',
+} as const;
+
 export default function ColaboradoresPage() {
   const { data: postos, isLoading: loadingPostos } = usePostos();
   const [postoSelecionado, setPostoSelecionado] = useState<string>('');
   const [modalAberto, setModalAberto] = useState(false);
+  const [fotoUrl, setFotoUrl] = useState<string>('');
 
   useEffect(() => {
     if (!postoSelecionado && postos && postos.length > 0) {
@@ -67,6 +87,30 @@ export default function ColaboradoresPage() {
     },
   });
 
+  function fecharModal() {
+    reset();
+    setFotoUrl('');
+    setModalAberto(false);
+  }
+
+  async function handleSelecionarFoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      setFotoUrl('');
+      return;
+    }
+
+    try {
+      const foto = await toBase64(file);
+      setFotoUrl(foto);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar imagem.');
+    } finally {
+      event.target.value = '';
+    }
+  }
+
   function onSubmit(values: CreateColaboradorForm) {
     if (!postoSelecionado) return;
 
@@ -75,6 +119,7 @@ export default function ColaboradoresPage() {
         postoId: postoSelecionado,
         nome: values.nome,
         cpf: values.cpf,
+        fotoUrl: fotoUrl || undefined,
         cargo: values.cargo,
         dataAdmissao: values.dataAdmissao,
         turno: values.turno || undefined,
@@ -83,8 +128,7 @@ export default function ColaboradoresPage() {
       },
       {
         onSuccess: () => {
-          reset();
-          setModalAberto(false);
+          fecharModal();
         },
       },
     );
@@ -147,7 +191,22 @@ export default function ColaboradoresPage() {
           <tbody>
             {(colaboradores ?? []).map((colaborador) => (
               <tr key={colaborador.id} className="border-b border-zinc-100 transition-colors hover:bg-zinc-50">
-                <td className="px-4 py-3 font-medium text-zinc-900">{colaborador.nome}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    {colaborador.fotoUrl ? (
+                      <img
+                        src={colaborador.fotoUrl}
+                        alt={`Foto de ${colaborador.nome}`}
+                        className="h-9 w-9 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">
+                        {getIniciais(colaborador.nome)}
+                      </div>
+                    )}
+                    <span className="font-medium text-zinc-900">{colaborador.nome}</span>
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-zinc-600">{postoAtual?.nome ?? '-'}</td>
                 <td className="px-4 py-3 text-zinc-600">{colaborador.cargo}</td>
                 <td className="px-4 py-3">
@@ -158,13 +217,13 @@ export default function ColaboradoresPage() {
                 <td className="px-4 py-3">
                   <BadgeStatus
                     label={colaborador.status === 'ATIVO' ? 'Regular' : colaborador.status}
-                    tone={colaborador.status === 'ATIVO' ? 'green' : 'yellow'}
+                    tone={statusTone[colaborador.status]}
                   />
                 </td>
                 <td className="px-4 py-3">
-                  <button type="button" className="text-sm font-semibold text-orange-600 hover:text-orange-700">
+                  <Link href={`/colaboradores/${colaborador.id}`} className="text-sm font-semibold text-orange-600 hover:text-orange-700">
                     Ver ficha
-                  </button>
+                  </Link>
                 </td>
               </tr>
             ))}
@@ -180,13 +239,30 @@ export default function ColaboradoresPage() {
                 <h2 className="text-xl font-bold text-zinc-950">Novo colaborador</h2>
                 <p className="text-sm text-zinc-500">Cadastro vinculado ao posto selecionado.</p>
               </div>
-              <button type="button" onClick={() => setModalAberto(false)} className="text-zinc-500 hover:text-zinc-700">
+              <button type="button" onClick={fecharModal} className="text-zinc-500 hover:text-zinc-700">
                 Fechar
               </button>
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">Foto</label>
+                  <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-3 text-sm text-zinc-700 hover:border-orange-300 hover:bg-orange-50">
+                    <Camera className="h-4 w-4 text-orange-500" />
+                    Selecionar foto
+                    <input type="file" accept="image/*" className="hidden" onChange={handleSelecionarFoto} />
+                  </label>
+                  <div className="mt-3">
+                    {fotoUrl ? (
+                      <img src={fotoUrl} alt="Preview da foto" className="h-16 w-16 rounded-full object-cover" />
+                    ) : (
+                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-600">
+                        FOTO
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-zinc-700">Nome</label>
                   <input {...register('nome')} className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-orange-500" />
@@ -233,7 +309,7 @@ export default function ColaboradoresPage() {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setModalAberto(false)}
+                  onClick={fecharModal}
                   className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
                 >
                   Cancelar

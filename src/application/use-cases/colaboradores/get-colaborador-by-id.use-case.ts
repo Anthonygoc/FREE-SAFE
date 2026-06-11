@@ -1,16 +1,14 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { UnauthorizedError } from '@/domain/errors/domain.errors';
+import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
 import type { StatusColaborador } from '@/domain/entities/colaborador.entity';
 
-export interface ListColaboradoresByPostoInput {
+export interface GetColaboradorByIdInput {
   usuario: UsuarioAutenticado;
-  postoId: string;
-  cargo?: string;
-  status?: StatusColaborador;
+  colaboradorId: string;
 }
 
-export interface ListColaboradoresByPostoOutputItem {
+export interface GetColaboradorByIdOutput {
   id: string;
   postoId: string;
   userId?: string;
@@ -28,24 +26,30 @@ export interface ListColaboradoresByPostoOutputItem {
   criadoEm: Date;
 }
 
-export class ListColaboradoresByPostoUseCase {
+export class GetColaboradorByIdUseCase {
   constructor(private readonly colaboradorRepo: ColaboradorRepository) {}
 
-  async execute(input: ListColaboradoresByPostoInput): Promise<ListColaboradoresByPostoOutputItem[]> {
+  async execute(input: GetColaboradorByIdInput): Promise<GetColaboradorByIdOutput> {
     if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
       throw new UnauthorizedError();
     }
 
-    if (input.usuario.perfil === 'GERENTE' && input.usuario.postoId !== input.postoId) {
-      throw new UnauthorizedError('Gerente só pode listar colaboradores do próprio posto');
+    const colaborador = await this.colaboradorRepo.buscarPorId(input.colaboradorId);
+    if (!colaborador) {
+      throw new DomainError('Colaborador não encontrado');
     }
 
-    const colaboradores = await this.colaboradorRepo.listarPorPosto(input.postoId, {
-      cargo: input.cargo,
-      status: input.status,
-    });
+    if (input.usuario.perfil === 'GERENTE') {
+      if (!input.usuario.postoId) {
+        throw new UnauthorizedError('Gerente sem posto vinculado');
+      }
 
-    return colaboradores.map((colaborador) => ({
+      if (input.usuario.postoId !== colaborador.postoId) {
+        throw new UnauthorizedError('Gerente só pode visualizar colaborador do próprio posto');
+      }
+    }
+
+    return {
       id: colaborador.id,
       postoId: colaborador.postoId,
       userId: colaborador.userId,
@@ -61,6 +65,6 @@ export class ListColaboradoresByPostoUseCase {
       email: colaborador.email,
       endereco: colaborador.endereco,
       criadoEm: colaborador.criadoEm,
-    }));
+    };
   }
 }

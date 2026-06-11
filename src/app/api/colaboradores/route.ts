@@ -16,6 +16,7 @@ const createColaboradorSchema = z.object({
   userId: z.string().uuid().optional(),
   nome: z.string().min(1).max(150),
   cpf: z.string().min(11).max(14),
+  fotoUrl: z.string().optional(),
   cargo: z.string().min(1).max(80),
   dataAdmissao: z.coerce.date(),
   status: statusSchema.optional(),

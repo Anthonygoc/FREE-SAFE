@@ -39,6 +39,24 @@ export class ColaboradorPrismaRepository implements ColaboradorRepository {
     });
   }
 
+  async atualizar(colaborador: Colaborador): Promise<void> {
+    await this.db.colaborador.update({
+      where: { id: colaborador.id },
+      data: {
+        nome: colaborador.nome,
+        cpf: colaborador.cpf,
+        cargo: colaborador.cargo,
+        telefone: colaborador.telefone ?? null,
+        email: colaborador.email ?? null,
+        endereco: colaborador.endereco ?? null,
+        turno: colaborador.turno ?? null,
+        escala: colaborador.escala ?? null,
+        status: colaborador.status,
+        fotoUrl: colaborador.fotoUrl ?? null,
+      },
+    });
+  }
+
   async contarAtivos(): Promise<number> {
     return this.db.colaborador.count({ where: { status: 'ATIVO' } });
   }

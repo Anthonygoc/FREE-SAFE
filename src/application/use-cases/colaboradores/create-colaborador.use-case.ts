@@ -9,6 +9,7 @@ export interface CreateColaboradorInput {
   userId?: string;
   nome: string;
   cpf: string;
+  fotoUrl?: string;
   cargo: string;
   dataAdmissao: Date;
   status?: StatusColaborador;
@@ -38,6 +39,7 @@ export class CreateColaboradorUseCase {
       userId: input.userId,
       nome: input.nome,
       cpf: input.cpf,
+      fotoUrl: input.fotoUrl,
       cargo: input.cargo,
       dataAdmissao: input.dataAdmissao,
       status: input.status,

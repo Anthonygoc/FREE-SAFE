@@ -11,6 +11,8 @@ import { UpdateBombaUseCase } from '@/application/use-cases/bombas/update-bomba.
 import { UpdateBicoUseCase } from '@/application/use-cases/bombas/update-bico.use-case';
 import { CreateCategoriaUseCase } from '@/application/use-cases/categorias/create-categoria.use-case';
 import { ListCategoriasUseCase } from '@/application/use-cases/categorias/list-categorias.use-case';
+import { GetColaboradorByIdUseCase } from '@/application/use-cases/colaboradores/get-colaborador-by-id.use-case';
+import { UpdateColaboradorUseCase } from '@/application/use-cases/colaboradores/update-colaborador.use-case';
 import { GetDashboardKPIsUseCase } from '@/application/use-cases/dashboard/get-dashboard-kpis.use-case';
 import { GetCursoByIdUseCase } from '@/application/use-cases/cursos/get-curso-by-id.use-case';
 import { GetCursoConteudoUseCase } from '@/application/use-cases/cursos/get-curso-conteudo.use-case';
@@ -165,6 +167,14 @@ export function listCategoriasUseCase(): ListCategoriasUseCase {
 
 export function createCategoriaUseCase(): CreateCategoriaUseCase {
   return new CreateCategoriaUseCase(new CategoriaDocumentoPrismaRepository());
+}
+
+export function getColaboradorByIdUseCase(): GetColaboradorByIdUseCase {
+  return new GetColaboradorByIdUseCase(new ColaboradorPrismaRepository());
+}
+
+export function updateColaboradorUseCase(): UpdateColaboradorUseCase {
+  return new UpdateColaboradorUseCase(new ColaboradorPrismaRepository());
 }
 
 export function listCursosUseCase(): ListCursosUseCase {

@@ -8,6 +8,7 @@ export interface ColaboradorProps {
   userId?: string;
   nome: string;
   cpf: string;
+  fotoUrl?: string;
   cargo: string;
   dataAdmissao: Date;
   status: StatusColaborador;
@@ -24,6 +25,7 @@ interface CriarColaboradorInput {
   userId?: string;
   nome: string;
   cpf: string;
+  fotoUrl?: string;
   cargo: string;
   dataAdmissao: Date;
   status?: StatusColaborador;
@@ -52,6 +54,7 @@ export class Colaborador {
       userId: input.userId,
       nome: input.nome,
       cpf: input.cpf,
+      fotoUrl: input.fotoUrl,
       cargo: input.cargo,
       dataAdmissao: input.dataAdmissao,
       status: input.status ?? 'ATIVO',
@@ -85,6 +88,7 @@ export class Colaborador {
   get userId() { return this.props.userId; }
   get nome() { return this.props.nome; }
   get cpf() { return this.props.cpf; }
+  get fotoUrl() { return this.props.fotoUrl; }
   get cargo() { return this.props.cargo; }
   get dataAdmissao() { return this.props.dataAdmissao; }
   get status() { return this.props.status; }
