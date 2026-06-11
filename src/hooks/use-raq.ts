@@ -73,10 +73,48 @@ export interface CreateRAQOutput {
   resultado: ResultadoAnalise;
 }
 
-export function useRAQsByPosto(postoId?: string) {
+export interface RAQFiltros {
+  dataInicio?: string;
+  dataFim?: string;
+  produto?: ProdutoCombustivel;
+  resultado?: ResultadoAnalise;
+}
+
+export function useRAQsByPosto(postoId?: string, filtros?: RAQFiltros) {
+  const filtrosNormalizados = {
+    dataInicio: filtros?.dataInicio ?? '',
+    dataFim: filtros?.dataFim ?? '',
+    produto: filtros?.produto ?? '',
+    resultado: filtros?.resultado ?? '',
+  };
+
   return useQuery({
-    queryKey: ['raq', postoId],
-    queryFn: () => apiClient.get<RAQ[]>(`/api/raq?postoId=${postoId}`),
+    queryKey: ['raq', postoId, filtrosNormalizados],
+    queryFn: () => {
+      const searchParams = new URLSearchParams();
+
+      if (postoId) {
+        searchParams.set('postoId', postoId);
+      }
+
+      if (filtrosNormalizados.dataInicio) {
+        searchParams.set('dataInicio', new Date(`${filtrosNormalizados.dataInicio}T00:00:00`).toISOString());
+      }
+
+      if (filtrosNormalizados.dataFim) {
+        searchParams.set('dataFim', new Date(`${filtrosNormalizados.dataFim}T23:59:59`).toISOString());
+      }
+
+      if (filtrosNormalizados.produto) {
+        searchParams.set('produto', filtrosNormalizados.produto);
+      }
+
+      if (filtrosNormalizados.resultado) {
+        searchParams.set('resultado', filtrosNormalizados.resultado);
+      }
+
+      return apiClient.get<RAQ[]>(`/api/raq?${searchParams.toString()}`);
+    },
     enabled: !!postoId,
   });
 }

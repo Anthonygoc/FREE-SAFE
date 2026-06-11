@@ -11,12 +11,14 @@ import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { usePostos } from '@/hooks/use-postos';
-import { useCreateRAQ, useRAQsByPosto } from '@/hooks/use-raq';
+import { useCreateRAQ, useRAQsByPosto, type RAQFiltros } from '@/hooks/use-raq';
 
 const inputClassName =
   'w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-orange-500';
 const readOnlyInputClassName =
   'w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm text-zinc-500';
+const filterInputClassName =
+  'w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 outline-none focus:border-orange-500';
 
 const animation = {
   initial: { opacity: 0, y: 16 },
@@ -64,6 +66,10 @@ export default function AnpPage() {
   const { data: postos, isLoading: loadingPostos } = usePostos();
   const { mutate: createRAQ, data: createOutput, isPending } = useCreateRAQ();
   const [raqIdCriado, setRaqIdCriado] = useState<string | null>(null);
+  const [filtroDataInicio, setFiltroDataInicio] = useState(() => getTodayDateInputValue());
+  const [filtroDataFim, setFiltroDataFim] = useState(() => getTodayDateInputValue());
+  const [filtroProduto, setFiltroProduto] = useState<'' | 'GASOLINA_COMUM' | 'ETANOL_HIDRATADO' | 'DIESEL_S10'>('');
+  const [filtroResultado, setFiltroResultado] = useState<'' | 'APROVADO' | 'REPROVADO'>('');
 
   const {
     register,
@@ -110,7 +116,21 @@ export default function AnpPage() {
     }
   }, [postoId, postos, setValue]);
 
-  const { data: historico, isLoading: loadingHistorico } = useRAQsByPosto(postoId);
+  const filtrosHistorico = useMemo<RAQFiltros>(
+    () => ({
+      dataInicio: filtroDataInicio || undefined,
+      dataFim: filtroDataFim || undefined,
+      produto: filtroProduto || undefined,
+      resultado: filtroResultado || undefined,
+    }),
+    [filtroDataFim, filtroDataInicio, filtroProduto, filtroResultado],
+  );
+
+  const {
+    data: historico,
+    isLoading: loadingHistorico,
+    isFetching: fetchingHistorico,
+  } = useRAQsByPosto(postoId, filtrosHistorico);
 
   const postoSelecionado = useMemo(
     () => (postos ?? []).find((posto) => posto.id === postoId),
@@ -187,7 +207,7 @@ export default function AnpPage() {
     );
   }
 
-  if (loadingPostos || loadingHistorico) {
+  if (loadingPostos || (loadingHistorico && !historico)) {
     return (
       <div className="flex h-64 items-center justify-center">
         <LoadingSpinner size={30} />
@@ -457,27 +477,132 @@ export default function AnpPage() {
       </div>
 
       <CardBase>
-        <h2 className="text-lg font-bold text-zinc-900">Histórico de RAQs</h2>
-        <div className="mt-4 space-y-3">
-          {(historico ?? []).map((item) => (
-            <div key={item.id} className="rounded-xl border border-zinc-200 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-zinc-900">{item.produto}</p>
-                <BadgeStatus
-                  label={item.resultado === 'APROVADO' ? 'Aprovado' : 'Reprovado'}
-                  tone={item.resultado === 'APROVADO' ? 'green' : 'red'}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-zinc-900">Histórico de RAQs</h2>
+              <p className="text-sm text-zinc-500">{(historico ?? []).length} análises no período</p>
+            </div>
+            {fetchingHistorico ? (
+              <div className="flex items-center gap-2 text-sm text-zinc-500">
+                <LoadingSpinner size={16} />
+                Atualizando histórico...
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">De</label>
+                <input
+                  type="date"
+                  value={filtroDataInicio}
+                  onChange={(event) => setFiltroDataInicio(event.target.value)}
+                  className={filterInputClassName}
                 />
               </div>
-              <p className="mt-1 text-xs text-zinc-500">{new Date(item.criadoEm).toLocaleString('pt-BR')}</p>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">Até</label>
+                <input
+                  type="date"
+                  value={filtroDataFim}
+                  onChange={(event) => setFiltroDataFim(event.target.value)}
+                  className={filterInputClassName}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">Produto</label>
+                <select
+                  value={filtroProduto}
+                  onChange={(event) => setFiltroProduto(event.target.value as typeof filtroProduto)}
+                  className={filterInputClassName}
+                >
+                  <option value="">Todos</option>
+                  <option value="GASOLINA_COMUM">Gasolina</option>
+                  <option value="ETANOL_HIDRATADO">Etanol</option>
+                  <option value="DIESEL_S10">Diesel</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">Resultado</label>
+                <select
+                  value={filtroResultado}
+                  onChange={(event) => setFiltroResultado(event.target.value as typeof filtroResultado)}
+                  className={filterInputClassName}
+                >
+                  <option value="">Todos</option>
+                  <option value="APROVADO">Aprovado</option>
+                  <option value="REPROVADO">Reprovado</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={handleLimparFiltros}
+                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100"
+                >
+                  Limpar filtros
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div className="mt-4 space-y-3">
+          {(historico ?? []).map((item) => (
+            <div key={item.id} className="rounded-xl border border-zinc-200 bg-white p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <p className="text-sm font-semibold text-zinc-900">{formatProdutoLabel(item.produto)}</p>
+                    <BadgeStatus
+                      label={item.resultado === 'APROVADO' ? 'Aprovado' : 'Reprovado'}
+                      tone={item.resultado === 'APROVADO' ? 'green' : 'red'}
+                    />
+                  </div>
+                  <p className="text-sm text-zinc-500">{formatDateTime(item.criadoEm)}</p>
+                  <p className="text-sm text-zinc-600">
+                    Analista: <span className="font-medium text-zinc-800">{formatNomeAnalista(item.nomeAnalista)}</span>
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.open(`/api/raq/${item.id}/pdf`, '_blank')}
+                    className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+                  >
+                    <Download className="h-3.5 w-3.5 text-orange-500" />
+                    PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.open(`/api/raq/${item.id}/xlsx`, '_blank')}
+                    className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+                  >
+                    <Download className="h-3.5 w-3.5 text-orange-500" />
+                    Excel
+                  </button>
+                </div>
+              </div>
             </div>
           ))}
           {(historico ?? []).length === 0 ? (
-            <p className="text-sm text-zinc-500">Nenhum RAQ para o posto selecionado.</p>
+            <p className="text-sm text-zinc-500">Nenhum RAQ para o posto e filtros selecionados.</p>
           ) : null}
         </div>
       </CardBase>
     </motion.div>
   );
+
+  function handleLimparFiltros() {
+    const hoje = getTodayDateInputValue();
+
+    setFiltroDataInicio(hoje);
+    setFiltroDataFim(hoje);
+    setFiltroProduto('');
+    setFiltroResultado('');
+  }
 }
 
 function normalizeOptionalText(value: string | undefined): string | undefined {
@@ -492,4 +617,42 @@ function parseOptionalNumber(value: string | undefined): number | undefined {
 
   const parsed = Number(value);
   return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function getTodayDateInputValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  const data = date.toLocaleDateString('pt-BR');
+  const hora = date.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  return `${data} às ${hora}`;
+}
+
+function formatNomeAnalista(nomeAnalista?: string) {
+  return nomeAnalista?.trim() || 'Não informado';
+}
+
+function formatProdutoLabel(produto: 'GASOLINA_COMUM' | 'GASOLINA_ADITIVADA' | 'GASOLINA_PREMIUM' | 'ETANOL_HIDRATADO' | 'DIESEL_S10' | 'DIESEL_S500') {
+  const produtoLabels = {
+    GASOLINA_COMUM: 'Gasolina',
+    GASOLINA_ADITIVADA: 'Gasolina Aditivada',
+    GASOLINA_PREMIUM: 'Gasolina Premium',
+    ETANOL_HIDRATADO: 'Etanol',
+    DIESEL_S10: 'Diesel S10',
+    DIESEL_S500: 'Diesel S500',
+  };
+
+  return produtoLabels[produto];
 }
