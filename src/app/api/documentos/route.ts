@@ -1,11 +1,22 @@
+import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
+import { DomainError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
-import { documentoRepository } from '@/lib/container';
+import { createDocumentoUseCase, listDocumentosByPostoUseCase } from '@/lib/container';
 import { handleApiError } from '@/lib/handle-api-error';
+
+const createDocumentoSchema = z.object({
+  postoId: z.string().uuid(),
+  categoriaId: z.string().uuid(),
+  titulo: z.string().trim().min(1).max(200),
+  numero: z.string().trim().min(1).max(100).optional(),
+  dataEmissao: z.coerce.date().optional(),
+  dataVencimento: z.coerce.date().optional(),
+  arquivoUrl: z.string().trim().min(1).optional(),
+});
 
 function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
@@ -26,19 +37,14 @@ export async function GET(request: Request) {
     const session = await auth();
     const usuario = getUsuarioAutenticado(session);
 
-    if (usuario.perfil !== 'ADMIN' && usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
     const { searchParams } = new URL(request.url);
     const postoId = searchParams.get('postoId');
 
     if (!postoId) {
-      return NextResponse.json({ error: 'dados_invalidos', detalhes: { postoId: ['postoId é obrigatório'] } }, { status: 422 });
-    }
-
-    if (usuario.perfil === 'GERENTE' && usuario.postoId !== postoId) {
-      throw new UnauthorizedError('Gerente só pode visualizar documentos do próprio posto');
+      return NextResponse.json(
+        { error: 'dados_invalidos', detalhes: { postoId: ['postoId é obrigatório'] } },
+        { status: 422 },
+      );
     }
 
     const vencendoRaw = searchParams.get('vencendo');
@@ -53,13 +59,49 @@ export async function GET(request: Request) {
       );
     }
 
-    const repo = documentoRepository();
-
-    const data = vencendoParsed.data === undefined
-      ? await repo.listarPorPosto(postoId)
-      : (await repo.listarVencendoEm(vencendoParsed.data)).filter((documento) => documento.postoId === postoId);
+    const useCase = listDocumentosByPostoUseCase();
+    const data = await useCase.execute({
+      usuario,
+      postoId,
+      vencendoEmDias: vencendoParsed.data,
+    });
 
     return NextResponse.json({ data }, { status: 200 });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const session = await auth();
+    const usuario = getUsuarioAutenticado(session);
+
+    const body = await request.json();
+    const parsed = createDocumentoSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'dados_invalidos', detalhes: parsed.error.flatten() },
+        { status: 422 },
+      );
+    }
+
+    const useCase = createDocumentoUseCase();
+    const data = await useCase.execute({
+      usuario,
+      postoId: parsed.data.postoId,
+      categoriaId: parsed.data.categoriaId,
+      titulo: parsed.data.titulo,
+      numero: parsed.data.numero,
+      dataEmissao: parsed.data.dataEmissao,
+      dataVencimento: parsed.data.dataVencimento,
+      arquivoUrl: parsed.data.arquivoUrl,
+    });
+
+    revalidatePath('/documentos');
+
+    return NextResponse.json({ data }, { status: 201 });
   } catch (error) {
     return handleApiError(error);
   }

@@ -1,4 +1,172 @@
 ---
+name: free-safe-documentos
+description: Use esta skill ao criar ou modificar o módulo de Documentos do FREE SAFE. Cobre categorias dinâmicas de documentos por posto, upload de arquivos em base64, controle de vencimento e a tela de documentos agrupados por categoria.
+---
+
+# FREE SAFE — Módulo de Documentos (Categorias Dinâmicas)
+
+## Contexto do negócio
+
+Cada posto da Rede Free precisa guardar documentos obrigatórios: contrato com
+distribuidora, alvará de funcionamento, certificado da ANP, AVCB do bombeiro,
+licença SEMA, croqui/planta baixa, e outros.
+
+O gerente/admin precisa:
+1. Entrar num posto e ver TODOS os documentos dele agrupados por categoria
+2. Criar categorias novas digitando o nome (ex: "SEMA Publicitário", "Outorga")
+3. Fazer upload do arquivo (PDF ou imagem)
+4. Registrar data de vencimento e ser alertado quando estiver perto de vencer
+
+## Decisão de arquitetura — Categorias dinâmicas
+
+Em vez do enum fixo TipoDocumento, usamos uma tabela CategoriaDocumento.
+Isso permite que o gerente crie categorias sob demanda sem mudar código.
+
+A categoria é GLOBAL (compartilhada entre postos) com nome único.
+Assim "SEMA" criada num posto fica disponível para todos, evitando duplicação.
+
+## Schema Prisma
+
+```prisma
+model CategoriaDocumento {
+  id         String      @id @default(uuid())
+  nome       String      @unique @db.VarChar(120)
+  descricao  String?     @db.VarChar(300)
+  criadoEm  DateTime     @default(now()) @map("criado_em")
+
+  documentos Documento[]
+
+  @@map("categorias_documento")
+}
+```
+
+Alterar o model Documento — substituir o enum tipo por categoriaId:
+```prisma
+model Documento {
+  id             String          @id @default(uuid())
+  postoId        String          @map("posto_id")
+  categoriaId    String          @map("categoria_id")
+  titulo         String          @db.VarChar(200)
+  numero         String?         @db.VarChar(100)
+  dataEmissao    DateTime?       @map("data_emissao") @db.Date
+  dataVencimento DateTime?       @map("data_vencimento") @db.Date
+  arquivoUrl     String?         @map("arquivo_url") @db.Text
+  status         StatusDocumento @default(VALIDO)
+  criadoEm      DateTime         @default(now()) @map("criado_em")
+  atualizadoEm  DateTime         @updatedAt @map("atualizado_em")
+
+  posto     Posto              @relation(fields: [postoId], references: [id])
+  categoria CategoriaDocumento @relation(fields: [categoriaId], references: [id])
+
+  @@map("documentos")
+}
+```
+
+IMPORTANTE: arquivoUrl muda de VarChar(500) para Text porque base64 é grande.
+
+## Categorias iniciais (seed)
+
+```typescript
+const categoriasIniciais = [
+  'Contrato com Distribuidora',
+  'Alvará de Funcionamento',
+  'Certificado ANP',
+  'Alvará do Bombeiro / AVCB',
+  'Licença Ambiental / SEMA',
+  'Croqui / Planta Baixa',
+  'Inscrição Estadual',
+  'CNPJ',
+  'Outorga de Água',
+];
+```
+
+## Upload em base64
+
+Seguir o mesmo padrão do módulo INMETRO:
+
+```typescript
+const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result ?? ''));
+  reader.onerror = () => reject(new Error('Falha ao carregar arquivo'));
+  reader.readAsDataURL(file);
+});
+```
+
+O arquivo vai como data URL no campo arquivoUrl (aceita PDF e imagem).
+
+## Ports do domínio
+
+```typescript
+// src/domain/ports/categoria-documento.repository.ts
+export interface CategoriaDocumento {
+  id: string;
+  nome: string;
+  descricao?: string;
+  criadoEm: Date;
+}
+
+export interface CategoriaDocumentoRepository {
+  listarTodas(): Promise<CategoriaDocumento[]>;
+  buscarPorNome(nome: string): Promise<CategoriaDocumento | null>;
+  buscarPorId(id: string): Promise<CategoriaDocumento | null>;
+  salvar(categoria: CategoriaDocumento): Promise<void>;
+}
+```
+
+## Rotas de API
+
+```
+GET  /api/categorias-documento          → lista todas as categorias
+POST /api/categorias-documento          → cria categoria nova (ou retorna existente se nome já existe)
+GET  /api/documentos?postoId=xxx        → lista documentos do posto com categoria
+POST /api/documentos                    → cria documento (com upload base64)
+DELETE /api/documentos/[id]             → remove documento
+GET  /api/documentos/[id]/arquivo       → retorna o arquivo para download/visualização
+```
+
+## Cálculo de status do documento
+
+```typescript
+function calcularStatus(dataVencimento?: Date): StatusDocumento {
+  if (!dataVencimento) return 'VALIDO';
+  const hoje = new Date();
+  const diasRestantes = Math.ceil((dataVencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+  if (diasRestantes < 0) return 'VENCIDO';
+  if (diasRestantes <= 30) return 'VENCENDO';
+  return 'VALIDO';
+}
+```
+
+## Tela de documentos — fluxo
+
+1. Select de posto no topo
+2. Botão "Adicionar documento" abre modal
+3. Modal de upload:
+    - Select de categoria existente OU campo "Nova categoria" (texto livre)
+    - Se digitar nova categoria, cria via POST /api/categorias-documento
+    - Título do documento (ex: "Alvará 2026")
+    - Número (opcional)
+    - Data de emissão (opcional)
+    - Data de vencimento (opcional)
+    - Upload de arquivo (PDF ou imagem) → base64
+4. Documentos exibidos AGRUPADOS por categoria:
+    - Cabeçalho da categoria (ex: "Licença Ambiental / SEMA")
+    - Cards dos documentos daquela categoria
+    - Cada card: título, número, vencimento, badge de status, botão visualizar/baixar
+5. Alerta no topo se houver documentos vencendo em 30 dias
+
+## Regras que o Codex deve seguir
+
+1. Categoria é criada se não existir, ou reutilizada se o nome já existe (case-insensitive)
+2. Status é calculado automaticamente pela data de vencimento
+3. Upload é base64 (data URL), aceita PDF e imagem
+4. Documentos sempre agrupados por categoria na tela
+5. Só ADMIN e GERENTE podem criar/deletar; gerente só no próprio posto
+6. Seguir arquitetura hexagonal (domain → application → infra → interface)
+7. Para visualizar o arquivo, abrir o data URL em nova aba ou renderizar inline
+
+---
 name: free-safe-frontend
 description: Use esta skill ao criar páginas, componentes e hooks do frontend FREE SAFE. Cobre o padrão de conexão com APIs reais via React Query, substituição de dados mockados, componentes com Tailwind + shadcn/ui e navegação com Next.js App Router.
 ---
@@ -414,8 +582,6 @@ export function Sidebar() {
 9. Links usam `<Link href="">` do Next.js — nunca `<a href="">`
 10. Cores: laranja `#f97316` (orange-500), fundo zinc-100, cards brancos com borda zinc-200
 
-
-
 ---
 name: free-safe-components
 description: Use esta skill ao criar componentes reutilizáveis do FREE SAFE: cards, tabelas, formulários, badges, progress bars e modais. Todos os componentes seguem o visual do protótipo original com Tailwind + shadcn/ui.
@@ -686,4 +852,3 @@ export function ResultadoRAQ({ aprovado, produto, isEtanol, isGasolina }: Result
 6. Componentes de UI puros (sem fetch) ficam em `src/components/ui/`
 7. Componentes com dados de domínio ficam em `src/components/{modulo}/`
 8. Nunca usar `style={{ color: 'orange' }}` — sempre classes Tailwind
-

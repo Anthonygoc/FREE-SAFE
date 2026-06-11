@@ -9,12 +9,17 @@ import { DeleteBombaUseCase } from '@/application/use-cases/bombas/delete-bomba.
 import { ListBombasByPostoUseCase } from '@/application/use-cases/bombas/list-bombas-by-posto.use-case';
 import { UpdateBombaUseCase } from '@/application/use-cases/bombas/update-bomba.use-case';
 import { UpdateBicoUseCase } from '@/application/use-cases/bombas/update-bico.use-case';
+import { CreateCategoriaUseCase } from '@/application/use-cases/categorias/create-categoria.use-case';
+import { ListCategoriasUseCase } from '@/application/use-cases/categorias/list-categorias.use-case';
 import { GetDashboardKPIsUseCase } from '@/application/use-cases/dashboard/get-dashboard-kpis.use-case';
 import { GetCursoByIdUseCase } from '@/application/use-cases/cursos/get-curso-by-id.use-case';
 import { GetCursoConteudoUseCase } from '@/application/use-cases/cursos/get-curso-conteudo.use-case';
 import { GetCursoQuestoesUseCase } from '@/application/use-cases/cursos/get-curso-questoes.use-case';
 import { GetResultadoProvaUseCase } from '@/application/use-cases/cursos/get-resultado-prova.use-case';
 import { ListCursosUseCase } from '@/application/use-cases/cursos/list-cursos.use-case';
+import { CreateDocumentoUseCase } from '@/application/use-cases/documentos/create-documento.use-case';
+import { DeleteDocumentoUseCase } from '@/application/use-cases/documentos/delete-documento.use-case';
+import { ListDocumentosByPostoUseCase } from '@/application/use-cases/documentos/list-documentos-by-posto.use-case';
 import { SubmitProvaUseCase } from '@/application/use-cases/cursos/submit-prova.use-case';
 import { CreateRAQUseCase } from '@/application/use-cases/raq/create-raq.use-case';
 import { EmitRAQPdfUseCase } from '@/application/use-cases/raq/emit-raq-pdf.use-case';
@@ -24,6 +29,7 @@ import { ListRAQByPostoUseCase } from '@/application/use-cases/raq/list-raq-by-p
 import { AfericaoPrismaRepository } from '@/infrastructure/database/prisma/repositories/afericao.prisma-repository';
 import { BicoPrismaRepository } from '@/infrastructure/database/prisma/repositories/bico.prisma-repository';
 import { BombaPrismaRepository } from '@/infrastructure/database/prisma/repositories/bomba.prisma-repository';
+import { CategoriaDocumentoPrismaRepository } from '@/infrastructure/database/prisma/repositories/categoria-documento.prisma-repository';
 import { ColaboradorPrismaRepository } from '@/infrastructure/database/prisma/repositories/colaborador.prisma-repository';
 import { CursoConteudoPrismaRepository } from '@/infrastructure/database/prisma/repositories/curso-conteudo.prisma-repository';
 import { CursoPrismaRepository } from '@/infrastructure/database/prisma/repositories/curso.prisma-repository';
@@ -132,6 +138,33 @@ export function getDashboardKPIsUseCase(): GetDashboardKPIsUseCase {
 
 export function documentoRepository(): DocumentoPrismaRepository {
   return new DocumentoPrismaRepository();
+}
+
+export function categoriaDocumentoRepository(): CategoriaDocumentoPrismaRepository {
+  return new CategoriaDocumentoPrismaRepository();
+}
+
+export function listDocumentosByPostoUseCase(): ListDocumentosByPostoUseCase {
+  return new ListDocumentosByPostoUseCase(new DocumentoPrismaRepository());
+}
+
+export function createDocumentoUseCase(): CreateDocumentoUseCase {
+  return new CreateDocumentoUseCase(
+    new DocumentoPrismaRepository(),
+    new CategoriaDocumentoPrismaRepository(),
+  );
+}
+
+export function deleteDocumentoUseCase(): DeleteDocumentoUseCase {
+  return new DeleteDocumentoUseCase(new DocumentoPrismaRepository());
+}
+
+export function listCategoriasUseCase(): ListCategoriasUseCase {
+  return new ListCategoriasUseCase(new CategoriaDocumentoPrismaRepository());
+}
+
+export function createCategoriaUseCase(): CreateCategoriaUseCase {
+  return new CreateCategoriaUseCase(new CategoriaDocumentoPrismaRepository());
 }
 
 export function listCursosUseCase(): ListCursosUseCase {

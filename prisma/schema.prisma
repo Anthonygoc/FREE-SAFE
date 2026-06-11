@@ -377,19 +377,32 @@ model Afericao {
   @@map("afericoes")
 }
 
+model CategoriaDocumento {
+  id         String      @id @default(uuid())
+  nome       String      @unique @db.VarChar(120)
+  descricao  String?     @db.VarChar(300)
+  criadoEm   DateTime    @default(now()) @map("criado_em")
+
+  documentos Documento[]
+
+  @@map("categorias_documento")
+}
+
 model Documento {
   id             String          @id @default(uuid())
   postoId        String          @map("posto_id")
-  tipo           TipoDocumento
+  categoriaId    String          @map("categoria_id")
+  titulo         String          @db.VarChar(200)
   numero         String?         @db.VarChar(100)
   dataEmissao    DateTime?       @map("data_emissao") @db.Date
   dataVencimento DateTime?       @map("data_vencimento") @db.Date
-  arquivoUrl     String?         @map("arquivo_url") @db.VarChar(500)
+  arquivoUrl     String?         @map("arquivo_url") @db.Text
   status         StatusDocumento @default(VALIDO)
   criadoEm      DateTime         @default(now()) @map("criado_em")
   atualizadoEm  DateTime         @updatedAt @map("atualizado_em")
 
-  posto Posto @relation(fields: [postoId], references: [id])
+  posto     Posto              @relation(fields: [postoId], references: [id])
+  categoria CategoriaDocumento @relation(fields: [categoriaId], references: [id])
 
   @@map("documentos")
 }

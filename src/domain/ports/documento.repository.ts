@@ -1,25 +1,10 @@
-export type TipoDocumento =
-  | 'AUTORIZACAO_ANP'
-  | 'CONTRATO_DISTRIBUIDORA'
-  | 'ALVARA_FUNCIONAMENTO'
-  | 'ALVARA_SANITARIO'
-  | 'LICENCA_AMBIENTAL'
-  | 'AVCB_BOMBEIROS'
-  | 'INMETRO_IPEM'
-  | 'CNPJ'
-  | 'INSCRICAO_ESTADUAL'
-  | 'FISPQ'
-  | 'PARECER_TECNICO'
-  | 'OUTORGA'
-  | 'PLANTA_BAIXA'
-  | 'FOTO_FACHADA';
-
 export type StatusDocumento = 'VALIDO' | 'VENCENDO' | 'VENCIDO';
 
 export interface Documento {
   id: string;
   postoId: string;
-  tipo: TipoDocumento;
+  categoriaId: string;
+  titulo: string;
   numero?: string;
   dataEmissao?: Date;
   dataVencimento?: Date;
@@ -29,9 +14,14 @@ export interface Documento {
   atualizadoEm: Date;
 }
 
+export interface DocumentoComCategoria extends Documento {
+  categoriaNome: string;
+}
+
 export interface DocumentoRepository {
-  listarPorPosto(postoId: string): Promise<Documento[]>;
-  listarVencendoEm(dias: number): Promise<Documento[]>;
+  listarPorPosto(postoId: string): Promise<DocumentoComCategoria[]>;
+  listarVencendoEm(dias: number): Promise<DocumentoComCategoria[]>;
   salvar(documento: Documento): Promise<void>;
   buscarPorId(id: string): Promise<Documento | null>;
+  deletar(id: string): Promise<void>;
 }
