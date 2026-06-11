@@ -30,7 +30,6 @@ export interface SubmitProvaOutput {
     questaoId: string;
     respostaColaborador: AlternativaQuestao;
     correta: boolean;
-    gabarito: AlternativaQuestao;
   }>;
 }
 
@@ -103,7 +102,6 @@ export class SubmitProvaUseCase {
         questaoId: questao.id,
         respostaColaborador,
         correta: respostaColaborador === questao.gabarito,
-        gabarito: questao.gabarito,
       };
     });
 

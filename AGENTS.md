@@ -1,4 +1,233 @@
 ---
+name: free-safe-cursos
+description: Use esta skill ao criar qualquer parte do módulo de cursos NR do FREE SAFE. Cobre entidades, repositórios, casos de uso, rotas de API e frontend do sistema de cursos, provas e certificados.
+---
+
+# FREE SAFE — Módulo de Cursos NR
+
+## Contexto do negócio
+
+O módulo de cursos serve para treinar colaboradores dos postos da Rede Free
+nas Normas Regulamentadoras obrigatórias (NR-01, NR-06, NR-09, NR-17, NR-20, etc.)
+e em cursos internos (Atendimento, Caixa, ANP, INMETRO).
+
+Fluxo completo:
+1. Colaborador acessa a trilha do seu cargo
+2. Assiste/lê o conteúdo (PDF + vídeo YouTube embed)
+3. Responde a mini prova (múltipla escolha, mín. 70% para aprovação)
+4. Se aprovado → gera certificado PDF com logo do posto
+
+## Schema Prisma — tabelas do módulo
+
+```prisma
+model CursoConteudo {
+  id          String   @id @default(uuid())
+  cursoId     String   @map("curso_id")
+  ordem       Int
+  titulo      String   @db.VarChar(200)
+  tipo        TipoConteudo
+  conteudo    String   @db.Text
+  criadoEm   DateTime  @default(now()) @map("criado_em")
+
+  curso Curso @relation(fields: [cursoId], references: [id])
+
+  @@map("curso_conteudos")
+}
+
+model CursoQuestao {
+  id         String   @id @default(uuid())
+  cursoId    String   @map("curso_id")
+  ordem      Int
+  enunciado  String   @db.Text
+  alternativas Json
+  gabarito   String   @db.VarChar(1)
+  criadoEm  DateTime  @default(now()) @map("criado_em")
+
+  curso       Curso          @relation(fields: [cursoId], references: [id])
+  respostas   ProvaResposta[]
+
+  @@map("curso_questoes")
+}
+
+model ProvaAttempt {
+  id              String   @id @default(uuid())
+  colaboradorId   String   @map("colaborador_id")
+  cursoId         String   @map("curso_id")
+  nota            Float
+  aprovado        Boolean
+  certificadoUrl  String?  @map("certificado_url") @db.VarChar(500)
+  criadoEm       DateTime  @default(now()) @map("criado_em")
+
+  colaborador Colaborador    @relation(fields: [colaboradorId], references: [id])
+  curso       Curso          @relation(fields: [cursoId], references: [id])
+  respostas   ProvaResposta[]
+
+  @@map("prova_attempts")
+}
+
+model ProvaResposta {
+  id          String   @id @default(uuid())
+  attemptId   String   @map("attempt_id")
+  questaoId   String   @map("questao_id")
+  resposta    String   @db.VarChar(1)
+  correta     Boolean
+
+  attempt ProvaAttempt @relation(fields: [attemptId], references: [id])
+  questao CursoQuestao @relation(fields: [questaoId], references: [id])
+
+  @@map("prova_respostas")
+}
+
+enum TipoConteudo {
+  PDF_TEXTO
+  VIDEO_YOUTUBE
+  TEXTO_RICO
+}
+```
+
+## Ports do domínio
+
+```typescript
+// src/domain/ports/curso-conteudo.repository.ts
+export interface CursoConteudoRepository {
+  listarPorCurso(cursoId: string): Promise<CursoConteudo[]>;
+  buscarPorId(id: string): Promise<CursoConteudo | null>;
+}
+
+// src/domain/ports/curso-questao.repository.ts
+export interface CursoQuestaoRepository {
+  listarPorCurso(cursoId: string): Promise<CursoQuestao[]>;
+}
+
+// src/domain/ports/prova-attempt.repository.ts
+export interface ProvaAttemptRepository {
+  salvar(attempt: ProvaAttempt): Promise<void>;
+  buscarUltimoPorColaboradorECurso(colaboradorId: string, cursoId: string): Promise<ProvaAttempt | null>;
+  listarPorColaborador(colaboradorId: string): Promise<ProvaAttempt[]>;
+}
+```
+
+## Casos de uso
+
+### GetCursoConteudoUseCase
+- Input: usuario, cursoId
+- Verifica que o colaborador tem esse curso na trilha
+- Retorna: lista de seções com tipo (PDF_TEXTO, VIDEO_YOUTUBE, TEXTO_RICO)
+- Não bloqueia acesso — qualquer perfil pode ver
+
+### SubmitProvaUseCase
+- Input: usuario, cursoId, respostas: Array<{ questaoId, resposta }>
+- Busca gabarito no banco (nunca expõe gabarito ao front)
+- Calcula nota: (acertos / total) * 100
+- Aprovado se nota >= 70
+- Salva ProvaAttempt com respostas
+- Se aprovado: marca TreinamentoColaborador como CONCLUIDO
+- Se aprovado: aciona geração de certificado
+- Retorna: nota, aprovado, acertos, total, detalhe por questão
+
+### EmitCertificadoUseCase
+- Input: usuario, attemptId
+- Busca attempt + colaborador + curso + posto
+- Gera PDF do certificado
+- Salva URL no attempt
+- Retorna: buffer do PDF
+
+## Rotas de API
+
+```
+GET  /api/cursos                          → lista todos os cursos ativos
+GET  /api/cursos/[id]                     → detalhe do curso
+GET  /api/cursos/[id]/conteudo            → seções do curso (para exibir)
+GET  /api/cursos/[id]/questoes            → questões SEM gabarito
+POST /api/cursos/[id]/prova               → submeter respostas da prova
+GET  /api/cursos/[id]/prova/resultado     → último resultado do colaborador
+GET  /api/certificados/[attemptId]        → download do certificado PDF
+GET  /api/colaboradores/[id]/trilha       → cursos obrigatórios por cargo
+```
+
+## Regras de negócio
+
+1. Nota mínima para aprovação: 70%
+2. Colaborador pode refazer a prova quantas vezes quiser
+3. Certificado só é gerado na primeira aprovação
+4. Gabarito nunca é enviado ao frontend — só calculado no backend
+5. Progresso do colaborador = (cursos concluídos / cursos obrigatórios do cargo) * 100
+
+## Estrutura do certificado PDF
+
+Usar @react-pdf/renderer. Layout:
+
+- Logo da Rede Free (public/logo.png) centralizada no topo
+- Título: "CERTIFICADO DE CONCLUSÃO" — grande, bold, laranja
+- Corpo:
+  "Certificamos que [NOME DO COLABORADOR], [CARGO],
+  do posto [NOME DO POSTO], concluiu com aproveitamento
+  o curso [NOME DO CURSO] com nota [NOTA]."
+- Data de conclusão
+- Linha de assinatura: "Responsável — Rede Free"
+- Rodapé: código de verificação (attempt ID truncado)
+- Borda decorativa laranja ao redor da página
+
+## Estrutura do conteúdo NR-01
+
+A NR-01 deve ser dividida em 4 módulos:
+
+```typescript
+const nr01Conteudo = [
+  {
+    ordem: 1,
+    titulo: 'Introdução às Normas Regulamentadoras',
+    tipo: 'TEXTO_RICO',
+    conteudo: `# O que são as NRs?
+As Normas Regulamentadoras (NRs) são regras obrigatórias estabelecidas pelo 
+Ministério do Trabalho para garantir a segurança e saúde dos trabalhadores...`
+  },
+  {
+    ordem: 2,
+    titulo: 'PGR — Programa de Gerenciamento de Riscos',
+    tipo: 'TEXTO_RICO',
+    conteudo: `# O que é o PGR?
+O Programa de Gerenciamento de Riscos é obrigatório para todas as empresas...`
+  },
+  {
+    ordem: 3,
+    titulo: 'Vídeo: NR-01 na prática',
+    tipo: 'VIDEO_YOUTUBE',
+    conteudo: 'https://www.youtube.com/embed/VIDEO_ID'
+  },
+  {
+    ordem: 4,
+    titulo: 'Resumo e pontos importantes',
+    tipo: 'TEXTO_RICO',
+    conteudo: `# Pontos-chave para a prova...`
+  }
+];
+```
+
+## Questões da prova NR-01 (mínimo 10 questões)
+
+Formato das alternativas (JSON):
+```json
+{
+  "A": "texto da alternativa A",
+  "B": "texto da alternativa B",
+  "C": "texto da alternativa C",
+  "D": "texto da alternativa D"
+}
+```
+
+Gabarito: string com a letra correta ("A", "B", "C" ou "D")
+
+## Regras que o Codex deve seguir neste módulo
+
+1. Gabarito nunca retorna na API — só no backend no momento do cálculo
+2. Certificado só é gerado se aprovado (nota >= 70)
+3. SubmitProvaUseCase invalida queryKey ['trilha', colaboradorId] após aprovação
+4. Usar a mesma arquitetura hexagonal do projeto (domain → application → infra → interface)
+5. Seguir o mesmo padrão de container.ts para injeção de dependência
+6. Rotas de API seguem o mesmo padrão de autenticação (getSession + handleApiError)
+
+---
 name: free-safe-frontend
 description: Use esta skill ao criar páginas, componentes e hooks do frontend FREE SAFE. Cobre o padrão de conexão com APIs reais via React Query, substituição de dados mockados, componentes com Tailwind + shadcn/ui e navegação com Next.js App Router.
 ---

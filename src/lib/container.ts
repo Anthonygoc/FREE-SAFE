@@ -19,6 +19,7 @@ import { GetCursoConteudoUseCase } from '@/application/use-cases/cursos/get-curs
 import { GetCursoQuestoesUseCase } from '@/application/use-cases/cursos/get-curso-questoes.use-case';
 import { GetResultadoProvaUseCase } from '@/application/use-cases/cursos/get-resultado-prova.use-case';
 import { ListCursosUseCase } from '@/application/use-cases/cursos/list-cursos.use-case';
+import { EmitCertificadoUseCase } from '@/application/use-cases/cursos/emit-certificado.use-case';
 import { CreateDocumentoUseCase } from '@/application/use-cases/documentos/create-documento.use-case';
 import { DeleteDocumentoUseCase } from '@/application/use-cases/documentos/delete-documento.use-case';
 import { ListDocumentosByPostoUseCase } from '@/application/use-cases/documentos/list-documentos-by-posto.use-case';
@@ -41,6 +42,7 @@ import { TreinamentoPrismaRepository } from '@/infrastructure/database/prisma/re
 import { DocumentoPrismaRepository } from '@/infrastructure/database/prisma/repositories/documento.prisma-repository';
 import { PostoPrismaRepository } from '@/infrastructure/database/prisma/repositories/posto.prisma-repository';
 import { RAQPrismaRepository } from '@/infrastructure/database/prisma/repositories/raq.prisma-repository';
+import { CertificadoAdapter } from '@/infrastructure/pdf/certificado.adapter';
 import { ReactPDFAdapter } from '@/infrastructure/pdf/react-pdf.adapter';
 
 export function createRAQUseCase(): CreateRAQUseCase {
@@ -223,5 +225,15 @@ export function getResultadoProvaUseCase(): GetResultadoProvaUseCase {
     new CursoPrismaRepository(),
     new ProvaAttemptPrismaRepository(),
     new ColaboradorPrismaRepository(),
+  );
+}
+
+export function emitCertificadoUseCase(): EmitCertificadoUseCase {
+  return new EmitCertificadoUseCase(
+    new ProvaAttemptPrismaRepository(),
+    new ColaboradorPrismaRepository(),
+    new CursoPrismaRepository(),
+    new PostoPrismaRepository(),
+    new CertificadoAdapter(),
   );
 }

@@ -39,6 +39,15 @@ export class ProvaAttemptPrismaRepository implements ProvaAttemptRepository {
     return raw ? ProvaAttemptMapper.toDomain(raw) : null;
   }
 
+  async buscarPorId(id: string): Promise<ProvaAttempt | null> {
+    const raw = await this.db.provaAttempt.findUnique({
+      where: { id },
+      include: { respostas: true },
+    });
+
+    return raw ? ProvaAttemptMapper.toDomain(raw) : null;
+  }
+
   async listarPorColaborador(colaboradorId: string): Promise<ProvaAttempt[]> {
     const registros = await this.db.provaAttempt.findMany({
       where: { colaboradorId },
