@@ -18,7 +18,7 @@ const toneClasses: Record<Tone, string> = {
 
 const sizeClasses: Record<Size, string> = {
   sm: 'px-2.5 py-0.5 text-xs',
-  md: 'px-3 py-1 text-xs',
+  md: 'px-3 py-1 text-sm',
 };
 
 interface BadgeStatusProps {
@@ -30,7 +30,14 @@ interface BadgeStatusProps {
 
 export function BadgeStatus({ label, tone = 'default', icon: Icon, size = 'md' }: BadgeStatusProps) {
   return (
-    <span className={cn('inline-flex items-center gap-1.5 rounded-full font-semibold', toneClasses[tone], sizeClasses[size])}>
+    <span
+      className={cn(
+        'inline-flex rounded-full font-semibold',
+        Icon && 'items-center gap-1.5',
+        toneClasses[tone],
+        sizeClasses[size],
+      )}
+    >
       {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
       <span>{label}</span>
     </span>

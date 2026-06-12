@@ -12,7 +12,7 @@ export default function ManutencaoPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-950">Manutenção</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Manutenção</h1>
         <p className="mt-1 text-zinc-500">Gestão de manutenção preventiva, corretiva e emergencial.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

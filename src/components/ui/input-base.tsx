@@ -1,31 +1,19 @@
 'use client';
 
-import { forwardRef, type InputHTMLAttributes, type LabelHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import { forwardRef, type InputHTMLAttributes, type LabelHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react';
 
 import { cn } from '@/lib/utils';
 
 const inputBaseClassName =
   'w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 placeholder:text-zinc-400';
 
-export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+export const InputBase = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => {
     return <input ref={ref} className={cn(inputBaseClassName, className)} {...props} />;
   },
 );
 
-TextInput.displayName = 'TextInput';
-
-export const SelectInput = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
-  ({ className, children, ...props }, ref) => {
-    return (
-      <select ref={ref} className={cn(inputBaseClassName, className)} {...props}>
-        {children}
-      </select>
-    );
-  },
-);
-
-SelectInput.displayName = 'SelectInput';
+InputBase.displayName = 'InputBase';
 
 export const TextareaInput = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
   ({ className, ...props }, ref) => {
@@ -53,3 +41,5 @@ export function FieldError({ children, className }: FieldErrorProps) {
 
   return <p className={cn('mt-1 text-xs text-red-600', className)}>{children}</p>;
 }
+
+export const TextInput = InputBase;

@@ -239,7 +239,7 @@ export default function ProvaCursoPage() {
               <GraduationCap className="h-4 w-4" />
               FREE SAFE
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-zinc-950">Prova do curso</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Prova do curso</h1>
             <p className="mt-1 text-zinc-500">Responda todas as questões para enviar a tentativa.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

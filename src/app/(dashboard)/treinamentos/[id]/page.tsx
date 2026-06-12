@@ -180,7 +180,7 @@ export default function CursoDetalhePage() {
               <GraduationCap className="h-4 w-4" />
               FREE SAFE
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-zinc-950">{data.curso.nome}</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-950">{data.curso.nome}</h1>
             <p className="mt-2 max-w-3xl text-zinc-500">
               {data.curso.descricao ?? 'Curso sem descrição cadastrada.'}
             </p>

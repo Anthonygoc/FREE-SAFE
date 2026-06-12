@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Camera } from 'lucide-react';
 import Link from 'next/link';
 import type { ChangeEvent } from 'react';
@@ -146,13 +146,13 @@ export default function ColaboradoresPage() {
     <motion.div {...animation} className="space-y-6">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-950">Colaboradores</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Colaboradores</h1>
           <p className="mt-1 text-zinc-500">Acompanhe situação e progresso dos colaboradores por posto.</p>
         </div>
         <button
           type="button"
           onClick={() => setModalAberto(true)}
-          className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-orange-600"
+          className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-600 hover:shadow-md active:scale-[0.98]"
         >
           Novo colaborador
         </button>
@@ -231,9 +231,22 @@ export default function ColaboradoresPage() {
         </table>
       </div>
 
-      {modalAberto ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4">
-          <div className="w-full max-w-xl rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <AnimatePresence>
+        {modalAberto ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2 }}
+              className="w-full max-w-xl rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
+            >
             <div className="mb-4 flex items-start justify-between">
               <div>
                 <h2 className="text-xl font-bold text-zinc-950">Novo colaborador</h2>
@@ -317,15 +330,16 @@ export default function ColaboradoresPage() {
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60"
+                  className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-600 hover:shadow-md active:scale-[0.98] disabled:opacity-60"
                 >
                   {isPending ? 'Salvando...' : 'Salvar colaborador'}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      ) : null}
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </motion.div>
   );
 }

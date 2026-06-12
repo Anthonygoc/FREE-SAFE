@@ -22,6 +22,18 @@ const statusToneMap: Record<string, 'green' | 'yellow' | 'default'> = {
   PENDENTE: 'default',
 };
 
+const staggerContainer = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.05 },
+  },
+};
+
+const staggerItem = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0 },
+};
+
 function getStatus(curso: Curso) {
   return curso.treinamento?.status ?? curso.status ?? 'PENDENTE';
 }
@@ -41,7 +53,7 @@ export default function TreinamentosPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-950">Cursos e Treinamentos</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Cursos e Treinamentos</h1>
           <p className="mt-1 text-zinc-500">Acompanhe os cursos obrigatórios e o progresso da equipe.</p>
         </div>
         <CardBase>
@@ -58,22 +70,27 @@ export default function TreinamentosPage() {
   return (
     <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-950">Cursos e Treinamentos</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Cursos e Treinamentos</h1>
         <p className="mt-1 text-zinc-500">Acesse os conteúdos, acompanhe o progresso e realize as provas.</p>
       </motion.div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {cursos.map((curso, index) => {
+      <motion.div
+        className="grid gap-4 lg:grid-cols-2"
+        initial="hidden"
+        animate="show"
+        variants={staggerContainer}
+      >
+        {cursos.map((curso) => {
           const status = getStatus(curso);
 
           return (
             <motion.div
               key={curso.id}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
+              variants={staggerItem}
+              whileHover={{ y: -2 }}
+              transition={{ type: 'spring', stiffness: 300 }}
             >
-              <CardBase className="flex h-full flex-col justify-between gap-5">
+              <CardBase className="flex h-full flex-col justify-between gap-5 transition-all hover:shadow-md">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-semibold text-orange-600">
@@ -108,7 +125,7 @@ export default function TreinamentosPage() {
                   </div>
                   <Link
                     href={`/treinamentos/${curso.id}`}
-                    className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600"
+                    className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-600 hover:shadow-md active:scale-[0.98]"
                   >
                     Acessar curso
                     <ArrowRight className="h-4 w-4" />
@@ -118,7 +135,7 @@ export default function TreinamentosPage() {
             </motion.div>
           );
         })}
-      </div>
+      </motion.div>
     </div>
   );
 }

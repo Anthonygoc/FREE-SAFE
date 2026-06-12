@@ -170,7 +170,7 @@ export default function ColaboradorPerfilPage() {
 
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold tracking-tight text-zinc-950">{colaborador.nome}</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-zinc-950">{colaborador.nome}</h1>
                 <BadgeStatus label={colaborador.status} tone={statusTone[colaborador.status]} />
               </div>
               <p className="mt-2 text-sm text-zinc-500">{colaborador.cargo}</p>

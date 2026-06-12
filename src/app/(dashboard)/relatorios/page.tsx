@@ -12,7 +12,7 @@ export default function RelatoriosPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-950">Relatórios</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Relatórios</h1>
         <p className="mt-1 text-zinc-500">Painel de análises e documentos gerenciais do FREE SAFE.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
