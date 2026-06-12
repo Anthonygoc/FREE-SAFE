@@ -1,737 +1,464 @@
 ---
-name: free-safe-cursos
-description: Use esta skill ao criar qualquer parte do módulo de cursos NR do FREE SAFE. Cobre entidades, repositórios, casos de uso, rotas de API e frontend do sistema de cursos, provas e certificados.
+name: free-safe-design-system
+description: Use esta skill ao refinar a interface, aplicar polimento visual, ajustar componentes de UI, ícones, tipografia, animações e microinterações no FREE SAFE. Define os tokens de design, escala de ícones, padrões de animação e os componentes base reutilizáveis do tom "clean corporativo laranja".
 ---
 
-# FREE SAFE — Módulo de Cursos NR
+# FREE SAFE — Design System (Clean Corporativo Laranja)
 
-## Contexto do negócio
+## Identidade visual
 
-O módulo de cursos serve para treinar colaboradores dos postos da Rede Free
-nas Normas Regulamentadoras obrigatórias (NR-01, NR-06, NR-09, NR-17, NR-20, etc.)
-e em cursos internos (Atendimento, Caixa, ANP, INMETRO).
+Tom: clean, corporativo, confiável. O laranja é a cor de marca (energia,
+combustível, ação) usada com parcimônia sobre uma base neutra (zinc/branco).
+Não é um app colorido — é uma ferramenta profissional onde o laranja guia o olho
+para o que importa: ações primárias, itens ativos, destaques.
 
-Fluxo completo:
-1. Colaborador acessa a trilha do seu cargo
-2. Assiste/lê o conteúdo (PDF + vídeo YouTube embed)
-3. Responde a mini prova (múltipla escolha, mín. 70% para aprovação)
-4. Se aprovado → gera certificado PDF com logo do posto
+## Paleta de cores
 
-## Schema Prisma — tabelas do módulo
+Cor de marca (laranja):
+- orange-500 (#f97316) — ações primárias, item ativo, ícones de destaque
+- orange-600 (#ea580c) — hover de botões primários
+- orange-50 (#fff7ed) — fundos sutis de seleção/destaque
+- orange-100 (#ffedd5) — badges, chips
 
-```prisma
-model CursoConteudo {
-  id          String   @id @default(uuid())
-  cursoId     String   @map("curso_id")
-  ordem       Int
-  titulo      String   @db.VarChar(200)
-  tipo        TipoConteudo
-  conteudo    String   @db.Text
-  criadoEm   DateTime  @default(now()) @map("criado_em")
+Base neutra:
+- zinc-950 (#09090b) — sidebar, texto forte, botões escuros
+- zinc-900 — títulos
+- zinc-700 — texto de corpo
+- zinc-500 — texto secundário, labels
+- zinc-200 — bordas
+- zinc-100 — fundos sutis, divisores
+- zinc-50 — fundo de página, cabeçalhos de tabela
+- white — cards
 
-  curso Curso @relation(fields: [cursoId], references: [id])
+Status (semânticas):
+- emerald-500/600 + emerald-50/100 — sucesso, DENTRO, aprovado, válido
+- amber-500/600 + amber-50/100 — atenção, vencendo, em andamento
+- red-500/600 + red-50/100 — erro, FORA, reprovado, vencido
 
-  @@map("curso_conteudos")
-}
+## Escala tipográfica
 
-model CursoQuestao {
-  id         String   @id @default(uuid())
-  cursoId    String   @map("curso_id")
-  ordem      Int
-  enunciado  String   @db.Text
-  alternativas Json
-  gabarito   String   @db.VarChar(1)
-  criadoEm  DateTime  @default(now()) @map("criado_em")
+A fonte é Geist (já configurada). Use esta escala consistente:
+- Título de página (h1): text-2xl font-bold tracking-tight text-zinc-950 (NÃO text-3xl)
+- Subtítulo de página: text-sm text-zinc-500
+- Título de card/seção (h2): text-base font-semibold text-zinc-900
+- Label de campo: text-sm font-medium text-zinc-700
+- Corpo: text-sm text-zinc-700
+- Texto secundário: text-xs text-zinc-500
+- Número/destaque (KPI): text-3xl font-bold tabular-nums
 
-  curso       Curso          @relation(fields: [cursoId], references: [id])
-  respostas   ProvaResposta[]
+Regra: títulos com tracking-tight, números com tabular-nums para alinhamento.
 
-  @@map("curso_questoes")
-}
+## Ícones — ESCALA CORRIGIDA
 
-model ProvaAttempt {
-  id              String   @id @default(uuid())
-  colaboradorId   String   @map("colaborador_id")
-  cursoId         String   @map("curso_id")
-  nota            Float
-  aprovado        Boolean
-  certificadoUrl  String?  @map("certificado_url") @db.VarChar(500)
-  criadoEm       DateTime  @default(now()) @map("criado_em")
+O problema atual é que tudo usa h-4 w-4 (16px), pequeno demais.
+Nova escala:
+- Ícones de navegação (sidebar): h-5 w-5 (20px)
+- Ícones em botões: h-4 w-4 (16px) é ok dentro de botões pequenos, h-5 w-5 em botões maiores
+- Ícones de cabeçalho de seção/card: h-5 w-5 (20px)
+- Ícones de destaque/feature (empty state, KPI): h-6 w-6 ou h-7 w-7
+- Ícones de ação isolados (header): h-5 w-5 (20px), nunca 16px
 
-  colaborador Colaborador    @relation(fields: [colaboradorId], references: [id])
-  curso       Curso          @relation(fields: [cursoId], references: [id])
-  respostas   ProvaResposta[]
+Sempre usar strokeWidth padrão do lucide (2). Para ícones grandes de destaque,
+considerar strokeWidth={1.5} para um visual mais elegante.
 
-  @@map("prova_attempts")
-}
+Ícones SEMPRE dentro de um container com cor de fundo quando são de destaque:
+ex: <div className="rounded-xl bg-orange-50 p-2"><Icon className="h-5 w-5 text-orange-600" /></div>
 
-model ProvaResposta {
-  id          String   @id @default(uuid())
-  attemptId   String   @map("attempt_id")
-  questaoId   String   @map("questao_id")
-  resposta    String   @db.VarChar(1)
-  correta     Boolean
+## Raio de borda (consistência)
 
-  attempt ProvaAttempt @relation(fields: [attemptId], references: [id])
-  questao CursoQuestao @relation(fields: [questaoId], references: [id])
+- Cards: rounded-2xl
+- Inputs, selects, botões: rounded-xl
+- Badges, chips: rounded-full
+- Containers de ícone: rounded-xl ou rounded-lg
+- Modais: rounded-2xl
 
-  @@map("prova_respostas")
-}
+## Sombras
 
-enum TipoConteudo {
-  PDF_TEXTO
-  VIDEO_YOUTUBE
-  TEXTO_RICO
-}
+- Cards: shadow-sm (sutil)
+- Cards em hover (clicáveis): hover:shadow-md transition-shadow
+- Botões primários: shadow-sm
+- Dropdowns/popovers: shadow-lg
+- Modais: shadow-xl
+
+## Espaçamento
+
+- Padding de card: p-5 (p-6 para cards maiores/destaque)
+- Gap entre cards: gap-4 ou gap-6
+- Gap entre seções verticais: space-y-6
+- Padding de input: px-3 py-2 (py-2.5 para inputs maiores)
+
+## Componentes base — padrões
+
+### Botão primário
+```
+className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-600 hover:shadow-md active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none"
 ```
 
-## Ports do domínio
-
-```typescript
-// src/domain/ports/curso-conteudo.repository.ts
-export interface CursoConteudoRepository {
-  listarPorCurso(cursoId: string): Promise<CursoConteudo[]>;
-  buscarPorId(id: string): Promise<CursoConteudo | null>;
-}
-
-// src/domain/ports/curso-questao.repository.ts
-export interface CursoQuestaoRepository {
-  listarPorCurso(cursoId: string): Promise<CursoQuestao[]>;
-}
-
-// src/domain/ports/prova-attempt.repository.ts
-export interface ProvaAttemptRepository {
-  salvar(attempt: ProvaAttempt): Promise<void>;
-  buscarUltimoPorColaboradorECurso(colaboradorId: string, cursoId: string): Promise<ProvaAttempt | null>;
-  listarPorColaborador(colaboradorId: string): Promise<ProvaAttempt[]>;
-}
+### Botão secundário (outline)
+```
+className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-all hover:bg-zinc-50 hover:border-zinc-300 active:scale-[0.98]"
 ```
 
-## Casos de uso
-
-### GetCursoConteudoUseCase
-- Input: usuario, cursoId
-- Verifica que o colaborador tem esse curso na trilha
-- Retorna: lista de seções com tipo (PDF_TEXTO, VIDEO_YOUTUBE, TEXTO_RICO)
-- Não bloqueia acesso — qualquer perfil pode ver
-
-### SubmitProvaUseCase
-- Input: usuario, cursoId, respostas: Array<{ questaoId, resposta }>
-- Busca gabarito no banco (nunca expõe gabarito ao front)
-- Calcula nota: (acertos / total) * 100
-- Aprovado se nota >= 70
-- Salva ProvaAttempt com respostas
-- Se aprovado: marca TreinamentoColaborador como CONCLUIDO
-- Se aprovado: aciona geração de certificado
-- Retorna: nota, aprovado, acertos, total, detalhe por questão
-
-### EmitCertificadoUseCase
-- Input: usuario, attemptId
-- Busca attempt + colaborador + curso + posto
-- Gera PDF do certificado
-- Salva URL no attempt
-- Retorna: buffer do PDF
-
-## Rotas de API
-
+### Botão destrutivo (texto)
 ```
-GET  /api/cursos                          → lista todos os cursos ativos
-GET  /api/cursos/[id]                     → detalhe do curso
-GET  /api/cursos/[id]/conteudo            → seções do curso (para exibir)
-GET  /api/cursos/[id]/questoes            → questões SEM gabarito
-POST /api/cursos/[id]/prova               → submeter respostas da prova
-GET  /api/cursos/[id]/prova/resultado     → último resultado do colaborador
-GET  /api/certificados/[attemptId]        → download do certificado PDF
-GET  /api/colaboradores/[id]/trilha       → cursos obrigatórios por cargo
+className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
 ```
 
-## Regras de negócio
+### Input/Select
+```
+className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+```
+Nota: adicionar o focus:ring-2 com cor laranja translúcida é a microinteração-chave.
 
-1. Nota mínima para aprovação: 70%
-2. Colaborador pode refazer a prova quantas vezes quiser
-3. Certificado só é gerado na primeira aprovação
-4. Gabarito nunca é enviado ao frontend — só calculado no backend
-5. Progresso do colaborador = (cursos concluídos / cursos obrigatórios do cargo) * 100
-
-## Estrutura do certificado PDF
-
-Usar @react-pdf/renderer. Layout:
-
-- Logo da Rede Free (public/logo.png) centralizada no topo
-- Título: "CERTIFICADO DE CONCLUSÃO" — grande, bold, laranja
-- Corpo:
-  "Certificamos que [NOME DO COLABORADOR], [CARGO],
-  do posto [NOME DO POSTO], concluiu com aproveitamento
-  o curso [NOME DO CURSO] com nota [NOTA]."
-- Data de conclusão
-- Linha de assinatura: "Responsável — Rede Free"
-- Rodapé: código de verificação (attempt ID truncado)
-- Borda decorativa laranja ao redor da página
-
-## Estrutura do conteúdo NR-01
-
-A NR-01 deve ser dividida em 4 módulos:
-
-```typescript
-const nr01Conteudo = [
-  {
-    ordem: 1,
-    titulo: 'Introdução às Normas Regulamentadoras',
-    tipo: 'TEXTO_RICO',
-    conteudo: `# O que são as NRs?
-As Normas Regulamentadoras (NRs) são regras obrigatórias estabelecidas pelo 
-Ministério do Trabalho para garantir a segurança e saúde dos trabalhadores...`
-  },
-  {
-    ordem: 2,
-    titulo: 'PGR — Programa de Gerenciamento de Riscos',
-    tipo: 'TEXTO_RICO',
-    conteudo: `# O que é o PGR?
-O Programa de Gerenciamento de Riscos é obrigatório para todas as empresas...`
-  },
-  {
-    ordem: 3,
-    titulo: 'Vídeo: NR-01 na prática',
-    tipo: 'VIDEO_YOUTUBE',
-    conteudo: 'https://www.youtube.com/embed/VIDEO_ID'
-  },
-  {
-    ordem: 4,
-    titulo: 'Resumo e pontos importantes',
-    tipo: 'TEXTO_RICO',
-    conteudo: `# Pontos-chave para a prova...`
-  }
-];
+### Card
+```
+className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
 ```
 
-## Questões da prova NR-01 (mínimo 10 questões)
-
-Formato das alternativas (JSON):
-```json
-{
-  "A": "texto da alternativa A",
-  "B": "texto da alternativa B",
-  "C": "texto da alternativa C",
-  "D": "texto da alternativa D"
-}
+### Card clicável (hover)
+```
+className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-zinc-300 cursor-pointer"
 ```
 
-Gabarito: string com a letra correta ("A", "B", "C" ou "D")
+## Animações e microinterações (framer-motion)
 
-## Regras que o Codex deve seguir neste módulo
+### Entrada de página (padrão)
+```
+initial={{ opacity: 0, y: 16 }}
+animate={{ opacity: 1, y: 0 }}
+transition={{ duration: 0.35, ease: 'easeOut' }}
+```
 
-1. Gabarito nunca retorna na API — só no backend no momento do cálculo
-2. Certificado só é gerado se aprovado (nota >= 70)
-3. SubmitProvaUseCase invalida queryKey ['trilha', colaboradorId] após aprovação
-4. Usar a mesma arquitetura hexagonal do projeto (domain → application → infra → interface)
-5. Seguir o mesmo padrão de container.ts para injeção de dependência
-6. Rotas de API seguem o mesmo padrão de autenticação (getSession + handleApiError)
+### Entrada de lista com stagger (cards/itens)
+```
+// container
+transition={{ staggerChildren: 0.05 }}
+// item
+initial={{ opacity: 0, y: 12 }}
+animate={{ opacity: 1, y: 0 }}
+```
+
+### Hover de card interativo
+```
+whileHover={{ y: -2 }}
+transition={{ type: 'spring', stiffness: 300 }}
+```
+
+### Tap/click feedback
+```
+whileTap={{ scale: 0.98 }}
+```
+
+### Expand/collapse (accordion)
+```
+initial={{ height: 0, opacity: 0 }}
+animate={{ height: 'auto', opacity: 1 }}
+exit={{ height: 0, opacity: 0 }}
+transition={{ duration: 0.25, ease: 'easeInOut' }}
+// envolver com AnimatePresence e overflow-hidden
+```
+
+### Microinterações obrigatórias
+- Todo botão: active:scale-[0.98] ou whileTap
+- Todo input: focus:ring-2 focus:ring-orange-500/20
+- Todo card clicável: hover:shadow-md transition-all
+- Toda navegação ativa: transição suave de cor
+- Loading: spinner laranja, nunca travar a tela sem feedback
+
+## Estados vazios (empty states)
+
+Sempre com ícone grande (h-10 w-10) em container circular zinc-50,
+título em zinc-700 e descrição em zinc-500, opcionalmente um botão de ação.
+
+## Sidebar — refinamento
+
+- Ícones h-5 w-5 (não h-4 w-4)
+- Item ativo: bg-orange-500 com leve glow (shadow-lg shadow-orange-500/20)
+- Hover de item inativo: bg-white/10 com transição suave
+- Espaçamento entre itens: space-y-1
+- Agrupar itens por categoria com labels pequenos (opcional)
+
+## Regras gerais que o Codex deve seguir
+
+1. NUNCA usar ícones menores que h-4 w-4; padrão de navegação e seção é h-5 w-5
+2. Títulos de página são text-2xl (não text-3xl), com tracking-tight
+3. Todo input recebe focus:ring-2 focus:ring-orange-500/20
+4. Todo botão recebe feedback de clique (active:scale ou whileTap)
+5. Cards clicáveis recebem hover:shadow-md transition-all
+6. Usar tabular-nums em números e KPIs
+7. Manter a base neutra zinc + laranja de marca; não introduzir cores novas
+8. Ícones de destaque vão em container com fundo (bg-orange-50, p-2, rounded-xl)
+9. Preservar toda a lógica e funcionalidade — mexer apenas em classes visuais e animação
+10. Consistência de raio: cards rounded-2xl, controles rounded-xl, badges rounded-full
 
 ---
-name: free-safe-database
-description: Use esta skill ao criar ou modificar o schema Prisma, repositórios, mappers ou seeds do FREE SAFE. Cobre todas as tabelas, relações, convenções de nomenclatura e o padrão de mapper entre modelo Prisma e entidade de domínio.
+name: free-safe-components
+description: Use esta skill ao criar componentes reutilizáveis do FREE SAFE: cards, tabelas, formulários, badges, progress bars e modais. Todos os componentes seguem o visual do protótipo original com Tailwind + shadcn/ui.
 ---
 
-# FREE SAFE — Banco de dados (Prisma + PostgreSQL)
+# FREE SAFE — Componentes Reutilizáveis
 
-## Schema Prisma completo
+## Tokens de design
 
-```prisma
-// prisma/schema.prisma
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-// ─── Enums ────────────────────────────────────────────
-
-enum PerfilUsuario {
-  ADMIN
-  GERENTE
-  RH
-  COLABORADOR
-  MANUTENCAO
-}
-
-enum StatusColaborador {
-  ATIVO
-  AFASTADO
-  DESLIGADO
-}
-
-enum ProdutoCombustivel {
-  GASOLINA_COMUM
-  GASOLINA_ADITIVADA
-  GASOLINA_PREMIUM
-  ETANOL_HIDRATADO
-  DIESEL_S10
-  DIESEL_S500
-}
-
-enum ResultadoAnalise {
-  APROVADO
-  REPROVADO
-}
-
-enum AspectoCombustivel {
-  LIQUIDO_E_ISENTO
-  TURVO
-  COM_IMPUREZAS
-}
-
-enum SituacaoAfericao {
-  DENTRO_DA_LEGISLACAO
-  FORA_DA_TOLERANCIA
-}
-
-enum TipoEntrevista {
-  ADMISSAO
-  INTEGRACAO
-  TRINTA_DIAS
-  EXPERIENCIA
-  PERIODICA
-  OCORRENCIA
-  RETORNO
-  DESLIGAMENTO
-}
-
-enum TipoDocumento {
-  AUTORIZACAO_ANP
-  CONTRATO_DISTRIBUIDORA
-  ALVARA_FUNCIONAMENTO
-  ALVARA_SANITARIO
-  LICENCA_AMBIENTAL
-  AVCB_BOMBEIROS
-  INMETRO_IPEM
-  CNPJ
-  INSCRICAO_ESTADUAL
-  FISPQ
-  PARECER_TECNICO
-  OUTORGA
-  PLANTA_BAIXA
-  FOTO_FACHADA
-}
-
-enum StatusDocumento {
-  VALIDO
-  VENCENDO
-  VENCIDO
-}
-
-enum TipoManutencao {
-  PREVENTIVA
-  CORRETIVA
-  EMERGENCIAL
-}
-
-enum StatusManutencao {
-  ABERTA
-  EM_ANDAMENTO
-  CONCLUIDA
-  CANCELADA
-}
-
-// ─── Modelos ──────────────────────────────────────────
-
-model User {
-  id         String        @id @default(uuid())
-  nome       String        @db.VarChar(150)
-  email      String        @unique @db.VarChar(200)
-  senhaHash  String        @map("senha_hash")
-  perfil     PerfilUsuario @default(COLABORADOR)
-  postoId    String?       @map("posto_id")
-  ativo      Boolean       @default(true)
-  criadoEm  DateTime      @default(now()) @map("criado_em")
-  atualizadoEm DateTime   @updatedAt @map("atualizado_em")
-
-  posto        Posto?        @relation(fields: [postoId], references: [id])
-  raqsCriadas  RAQ[]
-  entrevistas  Entrevista[]
-  colaborador  Colaborador?
-
-  @@map("users")
-}
-
-model Posto {
-  id           String  @id @default(uuid())
-  nome         String  @db.VarChar(100)
-  razaoSocial  String  @map("razao_social") @db.VarChar(200)
-  cnpj         String  @unique @db.VarChar(18)
-  inscricaoEstadual String? @map("inscricao_estadual") @db.VarChar(30)
-  endereco     String  @db.VarChar(300)
-  cidade       String  @db.VarChar(100)
-  uf           String  @db.Char(2)
-  gerenteId    String? @map("gerente_id")
-  ativo        Boolean @default(true)
-  criadoEm    DateTime @default(now()) @map("criado_em")
-  atualizadoEm DateTime @updatedAt @map("atualizado_em")
-
-  gerente       User?          @relation(fields: [gerenteId], references: [id])
-  colaboradores Colaborador[]
-  raqs          RAQ[]
-  afericoes     Afericao[]
-  documentos    Documento[]
-  manutencoes   Manutencao[]
-  drenagens     Drenagem[]
-  users         User[]
-
-  @@map("postos")
-}
-
-model Colaborador {
-  id            String            @id @default(uuid())
-  postoId       String            @map("posto_id")
-  userId        String?           @unique @map("user_id")
-  nome          String            @db.VarChar(150)
-  cpf           String            @unique @db.VarChar(14)
-  rg            String?           @db.VarChar(20)
-  telefone      String?           @db.VarChar(20)
-  email         String?           @db.VarChar(200)
-  endereco      String?           @db.VarChar(300)
-  cargo         String            @db.VarChar(80)
-  dataAdmissao  DateTime          @map("data_admissao") @db.Date
-  turno         String?           @db.VarChar(30)
-  escala        String?           @db.VarChar(30)
-  status        StatusColaborador @default(ATIVO)
-  criadoEm     DateTime           @default(now()) @map("criado_em")
-  atualizadoEm DateTime           @updatedAt @map("atualizado_em")
-
-  posto        Posto         @relation(fields: [postoId], references: [id])
-  user         User?         @relation(fields: [userId], references: [id])
-  treinamentos TreinamentoColaborador[]
-  entrevistas  Entrevista[]
-
-  @@map("colaboradores")
-}
-
-model Curso {
-  id               String   @id @default(uuid())
-  nome             String   @db.VarChar(150)
-  descricao        String?  @db.Text
-  cargaHoraria     Int?     @map("carga_horaria")
-  validadeDias     Int?     @map("validade_dias")
-  cargosObrigatorios String[] @map("cargos_obrigatorios")
-  ativo            Boolean  @default(true)
-  criadoEm        DateTime  @default(now()) @map("criado_em")
-
-  treinamentos TreinamentoColaborador[]
-
-  @@map("cursos")
-}
-
-model TreinamentoColaborador {
-  id              String   @id @default(uuid())
-  colaboradorId   String   @map("colaborador_id")
-  cursoId         String   @map("curso_id")
-  status          String   @db.VarChar(30) // PENDENTE | EM_ANDAMENTO | CONCLUIDO
-  nota            Float?
-  dataConclusao   DateTime? @map("data_conclusao") @db.Date
-  certificadoUrl  String?  @map("certificado_url") @db.VarChar(500)
-  criadoEm       DateTime  @default(now()) @map("criado_em")
-
-  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
-  curso       Curso       @relation(fields: [cursoId], references: [id])
-
-  @@unique([colaboradorId, cursoId])
-  @@map("treinamentos_colaborador")
-}
-
-model Entrevista {
-  id                    String         @id @default(uuid())
-  colaboradorId         String         @map("colaborador_id")
-  postoId               String         @map("posto_id")
-  responsavelId         String         @map("responsavel_id")
-  tipo                  TipoEntrevista
-  data                  DateTime       @db.Date
-  respostas             Json?
-  observacoes           String?        @db.Text
-  compromissoColaborador String?       @map("compromisso_colaborador") @db.Text
-  assinaturaColaboradorUrl String?     @map("assinatura_colaborador_url") @db.VarChar(500)
-  assinaturaResponsavelUrl String?     @map("assinatura_responsavel_url") @db.VarChar(500)
-  criadoEm             DateTime        @default(now()) @map("criado_em")
-
-  colaborador  Colaborador @relation(fields: [colaboradorId], references: [id])
-  responsavel  User        @relation(fields: [responsavelId], references: [id])
-
-  @@map("entrevistas")
-}
-
-model RAQ {
-  id                   String             @id @default(uuid())
-  postoId              String             @map("posto_id")
-  responsavelId        String             @map("responsavel_id")
-  produto              ProdutoCombustivel
-  data                 DateTime           @default(now()) @db.Timestamptz
-  temperaturaObservada Float              @map("temperatura_observada")
-  densidadeObservada   Float              @map("densidade_observada")
-  massa20c             Float?             @map("massa_20c")
-  aspecto              AspectoCombustivel
-  cor                  String             @db.VarChar(30)
-  faseAquosa           Float?             @map("fase_aquosa")
-  teorEtanol           Float?             @map("teor_etanol")
-  teorAlcoolico        Float?             @map("teor_alcoolico")
-  resultado            ResultadoAnalise
-  boletimUrl           String?            @map("boletim_url") @db.VarChar(500)
-  fotoProvetaUrl       String?            @map("foto_proveta_url") @db.VarChar(500)
-  fotoAmostraUrl       String?            @map("foto_amostra_url") @db.VarChar(500)
-  distribuidora        String?            @db.VarChar(100)
-  notaFiscal           String?            @map("nota_fiscal") @db.VarChar(50)
-  placaCaminhao        String?            @map("placa_caminhao") @db.VarChar(10)
-  tanqueDestino        String?            @map("tanque_destino") @db.VarChar(50)
-  pdfUrl               String?            @map("pdf_url") @db.VarChar(500)
-  criadoEm            DateTime            @default(now()) @map("criado_em")
-
-  posto       Posto @relation(fields: [postoId], references: [id])
-  responsavel User  @relation(fields: [responsavelId], references: [id])
-
-  @@map("raqs")
-}
-
-model Afericao {
-  id             String           @id @default(uuid())
-  postoId        String           @map("posto_id")
-  responsavelId  String           @map("responsavel_id")
-  produto        ProdutoCombustivel
-  bomba          Int
-  bico           Int
-  medidaPadrao   Float            @map("medida_padrao") @default(20)
-  resultadoMl    Float            @map("resultado_ml")
-  situacao       SituacaoAfericao
-  observacoes    String?          @db.Text
-  fotosUrls      String[]         @map("fotos_urls")
-  relatorioUrl   String?          @map("relatorio_url") @db.VarChar(500)
-  data           DateTime         @default(now()) @db.Timestamptz
-  criadoEm      DateTime          @default(now()) @map("criado_em")
-
-  posto       Posto @relation(fields: [postoId], references: [id])
-
-  @@map("afericoes")
-}
-
-model Documento {
-  id             String          @id @default(uuid())
-  postoId        String          @map("posto_id")
-  tipo           TipoDocumento
-  numero         String?         @db.VarChar(100)
-  dataEmissao    DateTime?       @map("data_emissao") @db.Date
-  dataVencimento DateTime?       @map("data_vencimento") @db.Date
-  arquivoUrl     String?         @map("arquivo_url") @db.VarChar(500)
-  status         StatusDocumento @default(VALIDO)
-  criadoEm      DateTime         @default(now()) @map("criado_em")
-  atualizadoEm  DateTime         @updatedAt @map("atualizado_em")
-
-  posto Posto @relation(fields: [postoId], references: [id])
-
-  @@map("documentos")
-}
-
-model Manutencao {
-  id             String           @id @default(uuid())
-  postoId        String           @map("posto_id")
-  equipamento    String           @db.VarChar(100)
-  tipo           TipoManutencao
-  descricao      String           @db.Text
-  status         StatusManutencao @default(ABERTA)
-  responsavel    String           @db.VarChar(150)
-  dataAbertura   DateTime         @map("data_abertura") @default(now()) @db.Date
-  dataFechamento DateTime?        @map("data_fechamento") @db.Date
-  fotosUrls      String[]         @map("fotos_urls")
-  criadoEm      DateTime          @default(now()) @map("criado_em")
-  atualizadoEm  DateTime          @updatedAt @map("atualizado_em")
-
-  posto Posto @relation(fields: [postoId], references: [id])
-
-  @@map("manutencoes")
-}
-
-model Drenagem {
-  id            String   @id @default(uuid())
-  postoId       String   @map("posto_id")
-  tanque        String   @db.VarChar(50)
-  produto       ProdutoCombustivel
-  data          DateTime @db.Date
-  responsavel   String   @db.VarChar(150)
-  resultado     String?  @db.VarChar(200)
-  observacoes   String?  @db.Text
-  fotosUrls     String[] @map("fotos_urls")
-  criadoEm     DateTime  @default(now()) @map("criado_em")
-
-  posto Posto @relation(fields: [postoId], references: [id])
-
-  @@map("drenagens")
-}
+```
+Cor primária:     orange-500 (#f97316)
+Cor primária dark: orange-600 (#ea580c)
+Fundo da app:     zinc-100
+Cards:            bg-white border border-zinc-200 rounded-2xl shadow-sm
+Sidebar:          bg-zinc-950
+Texto principal:  zinc-950
+Texto secundário: zinc-500
+Sucesso:          emerald-500
+Erro:             red-500
+Atenção:          amber-500
 ```
 
-## Padrão de repositório Prisma
+## Badge
 
 ```typescript
-// src/infrastructure/database/prisma/repositories/raq.prisma-repository.ts
+// src/components/ui/badge-status.tsx
+type Tone = 'green' | 'yellow' | 'red' | 'orange' | 'dark' | 'default';
 
-import type { PrismaClient } from '@prisma/client';
-import type { RAQRepository, FiltrosRAQ } from '@/domain/ports/raq.repository';
-import { RAQ } from '@/domain/entities/raq.entity';
-import { RAQMapper } from '@/infrastructure/database/mappers/raq.mapper';
-import { NotFoundError } from '@/domain/errors/domain.errors';
+const toneClasses: Record<Tone, string> = {
+  default: 'bg-zinc-100 text-zinc-700',
+  green:   'bg-emerald-100 text-emerald-700',
+  yellow:  'bg-amber-100 text-amber-800',
+  red:     'bg-red-100 text-red-700',
+  orange:  'bg-orange-100 text-orange-700',
+  dark:    'bg-zinc-800 text-white',
+};
 
-export class RAQPrismaRepository implements RAQRepository {
-  constructor(private readonly db: PrismaClient) {}
-
-  async salvar(raq: RAQ): Promise<void> {
-    await this.db.rAQ.upsert({
-      where: { id: raq.id },
-      create: RAQMapper.toPrisma(raq),
-      update: RAQMapper.toPrisma(raq),
-    });
-  }
-
-  async buscarPorId(id: string): Promise<RAQ | null> {
-    const raw = await this.db.rAQ.findUnique({ where: { id } });
-    if (!raw) return null;
-    return RAQMapper.toDomain(raw);
-  }
-
-  async listar(filtros: FiltrosRAQ): Promise<RAQ[]> {
-    const registros = await this.db.rAQ.findMany({
-      where: {
-        ...(filtros.postoId && { postoId: filtros.postoId }),
-        ...(filtros.produto && { produto: filtros.produto as any }),
-        ...(filtros.resultado && { resultado: filtros.resultado as any }),
-        ...(filtros.dataInicio || filtros.dataFim
-          ? {
-              data: {
-                ...(filtros.dataInicio && { gte: filtros.dataInicio }),
-                ...(filtros.dataFim && { lte: filtros.dataFim }),
-              },
-            }
-          : {}),
-      },
-      orderBy: { data: 'desc' },
-    });
-    return registros.map(RAQMapper.toDomain);
-  }
-
-  async contarPorPosto(postoId: string): Promise<number> {
-    return this.db.rAQ.count({ where: { postoId } });
-  }
-
-  async contarSemBoletim(): Promise<number> {
-    return this.db.rAQ.count({ where: { boletimUrl: null } });
-  }
+export function BadgeStatus({ children, tone = 'default' }: { children: React.ReactNode; tone?: Tone }) {
+  return (
+    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${toneClasses[tone]}`}>
+      {children}
+    </span>
+  );
 }
 ```
 
-## Padrão de mapper
+## Card
 
 ```typescript
-// src/infrastructure/database/mappers/raq.mapper.ts
-
-import type { RAQ as PrismaRAQ } from '@prisma/client';
-import type { Prisma } from '@prisma/client';
-import { RAQ } from '@/domain/entities/raq.entity';
-
-export class RAQMapper {
-  static toDomain(raw: PrismaRAQ): RAQ {
-    return RAQ.reconstituir({
-      id:                  raw.id,
-      postoId:             raw.postoId,
-      responsavelId:       raw.responsavelId,
-      produto:             raw.produto as any,
-      temperaturaObservada: raw.temperaturaObservada,
-      densidadeObservada:  raw.densidadeObservada,
-      aspecto:             raw.aspecto as any,
-      cor:                 raw.cor as any,
-      faseAquosa:          raw.faseAquosa ?? undefined,
-      teorAlcoolico:       raw.teorAlcoolico ?? undefined,
-      distribuidora:       raw.distribuidora ?? undefined,
-      notaFiscal:          raw.notaFiscal ?? undefined,
-      placaCaminhao:       raw.placaCaminhao ?? undefined,
-      tanqueDestino:       raw.tanqueDestino ?? undefined,
-      resultado:           raw.resultado as any,
-      boletimUrl:          raw.boletimUrl ?? undefined,
-      fotoProvetaUrl:      raw.fotoProvetaUrl ?? undefined,
-      criadoEm:            raw.criadoEm,
-    });
-  }
-
-  static toPrisma(raq: RAQ): Prisma.RAQCreateInput {
-    return {
-      id:                  raq.id,
-      posto:               { connect: { id: raq.postoId } },
-      responsavel:         { connect: { id: raq.responsavelId } },
-      produto:             raq.produto,
-      temperaturaObservada: raq.temperaturaObservada,
-      densidadeObservada:  raq.densidadeObservada,
-      aspecto:             raq.aspecto,
-      cor:                 raq.cor,
-      faseAquosa:          raq.faseAquosa ?? null,
-      teorAlcoolico:       raq.teorAlcoolico ?? null,
-      distribuidora:       raq.distribuidora ?? null,
-      notaFiscal:          raq.notaFiscal ?? null,
-      placaCaminhao:       raq.placaCaminhao ?? null,
-      tanqueDestino:       raq.tanqueDestino ?? null,
-      resultado:           raq.resultado,
-      boletimUrl:          raq.boletimUrl ?? null,
-      fotoProvetaUrl:      raq.fotoProvetaUrl ?? null,
-      criadoEm:            raq.criadoEm,
-    };
-  }
+// src/components/ui/card-base.tsx
+export function CardBase({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm ${className}`}>
+      {children}
+    </div>
+  );
 }
 ```
 
-## Seed dos 19 postos
+## StatCard
 
 ```typescript
-// prisma/seeds/postos.seed.ts
+// src/components/dashboard/stat-card.tsx
+import type { LucideIcon } from 'lucide-react';
+import { CardBase } from '@/components/ui/card-base';
 
-import type { PrismaClient } from '@prisma/client';
+type Tone = 'orange' | 'green' | 'yellow' | 'red';
 
-export const postosSeed = [
-  { nome: 'Free Rosendo',          razaoSocial: 'Free Rosendo Combustíveis LTDA',      cnpj: '00.000.001/0001-01', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free M.A.',             razaoSocial: 'Free M.A. Combustíveis LTDA',         cnpj: '00.000.002/0001-02', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Atacadão',         razaoSocial: 'Free Atacadão Combustíveis LTDA',     cnpj: '00.000.003/0001-03', cidade: 'Várzea Grande',       uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Vitória',          razaoSocial: 'Free Vitória Combustíveis LTDA',      cnpj: '00.000.004/0001-04', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Inovar',           razaoSocial: 'Free Inovar Combustíveis LTDA',       cnpj: '00.000.005/0001-05', cidade: 'Várzea Grande',       uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Realeza',          razaoSocial: 'Free Realeza Combustíveis LTDA',      cnpj: '00.000.006/0001-06', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free XV',               razaoSocial: 'Free XV Combustíveis LTDA',           cnpj: '00.000.007/0001-07', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free VEM',              razaoSocial: 'Free VEM Combustíveis LTDA',          cnpj: '00.000.008/0001-08', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Brauna',           razaoSocial: 'Free Brauna Combustíveis LTDA',       cnpj: '00.000.009/0001-09', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Foz',              razaoSocial: 'Free Foz Combustíveis LTDA',          cnpj: '00.000.010/0001-10', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Palmeiras',        razaoSocial: 'Free Palmeiras Combustíveis LTDA',    cnpj: '00.000.011/0001-11', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Torres',           razaoSocial: 'Free Torres Combustíveis LTDA',       cnpj: '00.000.012/0001-12', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Dakar',            razaoSocial: 'Free Dakar Combustíveis LTDA',        cnpj: '00.000.013/0001-13', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Viena',            razaoSocial: 'Free Viena Combustíveis LTDA',        cnpj: '00.000.014/0001-14', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Riviera',          razaoSocial: 'Free Riviera Combustíveis LTDA',      cnpj: '00.000.015/0001-15', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Alphaville',       razaoSocial: 'Free Alphaville Combustíveis LTDA',   cnpj: '00.000.016/0001-16', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Petro Chapadão',   razaoSocial: 'Free Petro Chapadão Combustíveis LTDA', cnpj: '00.000.017/0001-17', cidade: 'Chapadão do Sul', uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Point',            razaoSocial: 'Free Point Combustíveis LTDA',        cnpj: '00.000.018/0001-18', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Lucas do Rio Verde', razaoSocial: 'Free Lucas Combustíveis LTDA',     cnpj: '00.000.019/0001-19', cidade: 'Lucas do Rio Verde',  uf: 'MT', endereco: 'A definir' },
-];
+const toneClasses: Record<Tone, string> = {
+  orange: 'bg-orange-50 text-orange-600',
+  green:  'bg-emerald-50 text-emerald-600',
+  yellow: 'bg-amber-50 text-amber-600',
+  red:    'bg-red-50 text-red-600',
+};
 
-export async function seedPostos(db: PrismaClient) {
-  for (const posto of postosSeed) {
-    await db.posto.upsert({
-      where:  { cnpj: posto.cnpj },
-      create: posto,
-      update: { nome: posto.nome, cidade: posto.cidade },
-    });
-  }
-  console.log(`✅ ${postosSeed.length} postos inseridos/atualizados`);
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  subtitle: string;
+  icon: LucideIcon;
+  tone?: Tone;
+}
+
+export function StatCard({ title, value, subtitle, icon: Icon, tone = 'orange' }: StatCardProps) {
+  return (
+    <CardBase>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-zinc-500">{title}</p>
+          <h3 className="mt-2 text-3xl font-bold text-zinc-950">{value}</h3>
+          <p className="mt-1 text-sm text-zinc-500">{subtitle}</p>
+        </div>
+        <div className={`rounded-2xl p-3 ${toneClasses[tone]}`}>
+          <Icon className="h-6 w-6" />
+        </div>
+      </div>
+    </CardBase>
+  );
 }
 ```
 
-## Regras que o Codex deve seguir nesta camada
+## ProgressBar
 
-1. Campos em `snake_case` no banco, `camelCase` no TypeScript — sempre usar `@map()`
-2. Relações sempre com `@relation` explícito — sem relações implícitas
-3. `upsert` em vez de `create` nos repositórios — idempotência
-4. Mapper nunca acessa banco — só converte tipos
-5. Nunca usar `prisma.xyz` direto nos casos de uso — sempre via repositório
-6. `null` do banco vira `undefined` no domínio — mapper faz a conversão com `?? undefined`
-7. `undefined` do domínio vira `null` no banco — mapper faz a conversão com `?? null`
-8. Queries de listagem sempre com `orderBy` explícito
-9. Seed usa `upsert` — pode rodar múltiplas vezes sem erro
+```typescript
+// src/components/ui/progress-bar.tsx
+export function ProgressBar({ value }: { value: number }) {
+  return (
+    <div className="h-2 rounded-full bg-zinc-100">
+      <div
+        className="h-2 rounded-full bg-orange-500 transition-all"
+        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+      />
+    </div>
+  );
+}
+```
+
+## PageHeader
+
+```typescript
+// src/components/layout/page-header.tsx
+import { ShieldCheck, Download, Plus } from 'lucide-react';
+
+interface PageHeaderProps {
+  title: string;
+  subtitle: string;
+  onNew?: () => void;
+  onExport?: () => void;
+  newLabel?: string;
+}
+
+export function PageHeader({ title, subtitle, onNew, onExport, newLabel = 'Novo registro' }: PageHeaderProps) {
+  return (
+    <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-orange-600">
+          <ShieldCheck className="h-4 w-4" /> FREE SAFE
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight text-zinc-950">{title}</h1>
+        <p className="mt-1 text-zinc-500">{subtitle}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {onExport && (
+          <button
+            onClick={onExport}
+            className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50"
+          >
+            <Download className="h-4 w-4" /> Exportar
+          </button>
+        )}
+        {onNew && (
+          <button
+            onClick={onNew}
+            className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-orange-600"
+          >
+            <Plus className="h-4 w-4" /> {newLabel}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+## LoadingSpinner
+
+```typescript
+// src/components/ui/loading-spinner.tsx
+export function LoadingSpinner({ label = 'Carregando...' }: { label?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
+      <p className="text-sm text-zinc-500">{label}</p>
+    </div>
+  );
+}
+```
+
+## ErrorState
+
+```typescript
+// src/components/ui/error-state.tsx
+import { AlertTriangle } from 'lucide-react';
+
+export function ErrorState({ message = 'Erro ao carregar dados.' }: { message?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-red-600">
+      <AlertTriangle className="h-10 w-10" />
+      <p className="text-sm font-medium">{message}</p>
+    </div>
+  );
+}
+```
+
+## EmptyState
+
+```typescript
+// src/components/ui/empty-state.tsx
+import type { LucideIcon } from 'lucide-react';
+
+interface EmptyStateProps {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}
+
+export function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps) {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-zinc-400">
+      <Icon className="h-12 w-12" />
+      <p className="text-lg font-semibold text-zinc-600">{title}</p>
+      <p className="text-sm text-center max-w-xs">{description}</p>
+      {action}
+    </div>
+  );
+}
+```
+
+## ResultadoRAQ — componente de resultado da análise
+
+```typescript
+// src/components/raq/resultado-raq.tsx
+import { CheckCircle2, AlertTriangle } from 'lucide-react';
+
+interface ResultadoRAQProps {
+  aprovado: boolean;
+  produto: string;
+  isEtanol: boolean;
+  isGasolina: boolean;
+}
+
+export function ResultadoRAQ({ aprovado, produto, isEtanol, isGasolina }: ResultadoRAQProps) {
+  return (
+    <div className={`rounded-2xl p-4 ${aprovado ? 'bg-emerald-500/15 text-emerald-200' : 'bg-red-500/15 text-red-200'}`}>
+      <div className="flex items-center gap-2 font-bold">
+        {aprovado
+          ? <CheckCircle2 className="h-5 w-5" />
+          : <AlertTriangle className="h-5 w-5" />
+        }
+        {aprovado ? 'Aprovado' : 'Reprovado'}
+      </div>
+      <p className="mt-1 text-sm">
+        {isEtanol
+          ? aprovado
+            ? 'Teor alcoólico dentro da faixa configurada de 92,5 a 95,4 INPM.'
+            : 'Teor alcoólico fora da faixa configurada.'
+          : isGasolina
+          ? aprovado
+            ? 'Teor de etanol e aspecto/cor dentro dos parâmetros.'
+            : 'Verificar teor de etanol, aspecto ou cor.'
+          : aprovado
+          ? 'Densidade dentro dos parâmetros ANP.'
+          : 'Densidade fora dos parâmetros ANP.'}
+      </p>
+    </div>
+  );
+}
+```
+
+## Regras que o Codex deve seguir nos componentes
+
+1. Todo componente exporta como named export (`export function X`) — nunca default em componentes reutilizáveis
+2. Props tipadas com interface explícita
+3. Classes Tailwind sem interpolação de string dinâmica — use objetos de mapeamento (como `toneClasses`)
+4. Loading state sempre com o spinner laranja (`border-orange-500`)
+5. Sem `console.log` em componentes de produção
+6. Componentes de UI puros (sem fetch) ficam em `src/components/ui/`
+7. Componentes com dados de domínio ficam em `src/components/{modulo}/`
+8. Nunca usar `style={{ color: 'orange' }}` — sempre classes Tailwind
+

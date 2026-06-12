@@ -7,6 +7,7 @@ type AfericaoRecord = Pick<
   | 'id'
   | 'postoId'
   | 'responsavelId'
+  | 'loteId'
   | 'bicoId'
   | 'produto'
   | 'bomba'
@@ -17,7 +18,9 @@ type AfericaoRecord = Pick<
   | 'observacoes'
   | 'fotoUrl'
   | 'criadoEm'
->;
+> & {
+  responsavelNome?: string | null;
+};
 
 export class AfericaoMapper {
   static toDomain(raw: AfericaoRecord): Afericao {
@@ -25,6 +28,8 @@ export class AfericaoMapper {
       id: raw.id,
       postoId: raw.postoId,
       responsavelId: raw.responsavelId,
+      responsavelNome: raw.responsavelNome ?? undefined,
+      loteId: raw.loteId ?? undefined,
       bicoId: raw.bicoId ?? undefined,
       produto: raw.produto,
       bomba: raw.bomba,
@@ -43,6 +48,7 @@ export class AfericaoMapper {
       id: afericao.id,
       posto: { connect: { id: afericao.postoId } },
       responsavelId: afericao.responsavelId,
+      loteId: afericao.loteId ?? null,
       bico: afericao.bicoId ? { connect: { id: afericao.bicoId } } : undefined,
       produto: afericao.produto,
       bomba: afericao.bomba,
@@ -62,6 +68,7 @@ export class AfericaoMapper {
     return {
       posto: { connect: { id: afericao.postoId } },
       responsavelId: afericao.responsavelId,
+      loteId: afericao.loteId ?? null,
       bico: afericao.bicoId ? { connect: { id: afericao.bicoId } } : { disconnect: true },
       produto: afericao.produto,
       bomba: afericao.bomba,

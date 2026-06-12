@@ -14,6 +14,8 @@ export interface ListAfericoesByPostoOutputItem {
   id: string;
   postoId: string;
   responsavelId: string;
+  responsavelNome?: string;
+  loteId?: string;
   produto: ProdutoCombustivel;
   bomba: number;
   bico: number;
@@ -21,6 +23,7 @@ export interface ListAfericoesByPostoOutputItem {
   resultadoMl: number;
   situacao: SituacaoAfericao;
   observacoes?: string;
+  fotoUrl?: string;
   criadoEm: Date;
 }
 
@@ -44,6 +47,8 @@ export class ListAfericoesByPostoUseCase {
       id: afericao.id,
       postoId: afericao.postoId,
       responsavelId: afericao.responsavelId,
+      responsavelNome: afericao.responsavelNome,
+      loteId: afericao.loteId,
       produto: afericao.produto,
       bomba: afericao.bomba,
       bico: afericao.bico,
@@ -51,6 +56,7 @@ export class ListAfericoesByPostoUseCase {
       resultadoMl: afericao.resultadoMl,
       situacao: afericao.situacao,
       observacoes: afericao.observacoes,
+      fotoUrl: afericao.fotoUrl,
       criadoEm: afericao.criadoEm,
     }));
   }

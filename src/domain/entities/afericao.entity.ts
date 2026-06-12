@@ -6,7 +6,9 @@ export type SituacaoAfericao = 'DENTRO_DA_LEGISLACAO' | 'FORA_DA_TOLERANCIA';
 export interface CriarAfericaoProps {
   postoId: string;
   responsavelId: string;
+  loteId?: string;
   bicoId?: string;
+  responsavelNome?: string;
   produto: ProdutoCombustivel;
   bomba: number;
   bico: number;
@@ -24,9 +26,11 @@ export interface ReconstituirAfericaoProps extends Omit<CriarAfericaoProps, 'med
 }
 
 export class Afericao {
+  private readonly props: ReconstituirAfericaoProps;
   readonly id: string;
   readonly postoId: string;
   readonly responsavelId: string;
+  readonly responsavelNome?: string;
   readonly bicoId?: string;
   readonly produto: ProdutoCombustivel;
   readonly bomba: number;
@@ -39,9 +43,11 @@ export class Afericao {
   readonly criadoEm: Date;
 
   private constructor(props: ReconstituirAfericaoProps) {
+    this.props = props;
     this.id = props.id;
     this.postoId = props.postoId;
     this.responsavelId = props.responsavelId;
+    this.responsavelNome = props.responsavelNome;
     this.bicoId = props.bicoId;
     this.produto = props.produto;
     this.bomba = props.bomba;
@@ -80,5 +86,9 @@ export class Afericao {
     return resultadoMl >= -100 && resultadoMl <= 100
       ? 'DENTRO_DA_LEGISLACAO'
       : 'FORA_DA_TOLERANCIA';
+  }
+
+  get loteId() {
+    return this.props.loteId;
   }
 }

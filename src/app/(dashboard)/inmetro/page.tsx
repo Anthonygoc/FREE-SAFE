@@ -1,6 +1,7 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
+import { ChevronDown, Download, FileSpreadsheet, FileText, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -13,6 +14,8 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import {
   useAfericoesByPosto,
   useCreateAfericaoLote,
+  useDeleteAfericao,
+  useDeleteLoteAfericao,
   type Afericao,
 } from '@/hooks/use-afericao';
 import { useBombasByPosto } from '@/hooks/use-bombas';
@@ -42,6 +45,16 @@ type BicoFormState = {
 };
 
 type FormState = Record<string, BicoFormState>;
+
+type HistoricoLote = {
+  loteId: string;
+  loteRealId?: string;
+  afericoes: Afericao[];
+  responsavelNome: string;
+  criadoEm: string;
+  totalBicos: number;
+  foraTolerancia: number;
+};
 
 const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader();
@@ -76,6 +89,14 @@ function formatarProduto(produto: string) {
 
 function formatarDataHora(value: string) {
   return dateTimeFormatter.format(new Date(value)).replace(',', ' às');
+}
+
+function formatarData(value: string) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(value));
 }
 
 function getResponsavelLabel(
@@ -119,10 +140,16 @@ export default function InmetroPage() {
   const { data: session } = useSession();
   const { data: postos, isLoading: loadingPostos } = usePostos();
   const { mutate: createAfericaoLote, isPending } = useCreateAfericaoLote();
+  const { mutate: deleteAfericao, isPending: isDeletingAfericao } = useDeleteAfericao();
+  const { mutate: deleteLoteAfericao, isPending: isDeletingLote } = useDeleteLoteAfericao();
 
   const [postoId, setPostoId] = useState('');
   const [formState, setFormState] = useState<FormState>({});
   const [imagemAmpliada, setImagemAmpliada] = useState<string | null>(null);
+  const [filtroDataDe, setFiltroDataDe] = useState('');
+  const [filtroDataAte, setFiltroDataAte] = useState('');
+  const [filtroSituacao, setFiltroSituacao] = useState<'TODOS' | 'DENTRO' | 'FORA'>('TODOS');
+  const [lotesAbertos, setLotesAbertos] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!postoId && postos && postos.length > 0) {
@@ -164,6 +191,10 @@ export default function InmetroPage() {
     setPostoId(nextPostoId);
     setFormState({});
     setImagemAmpliada(null);
+    setFiltroDataDe('');
+    setFiltroDataAte('');
+    setFiltroSituacao('TODOS');
+    setLotesAbertos(new Set());
   }
 
   function limparFormulario() {
@@ -218,6 +249,109 @@ export default function InmetroPage() {
   ), 0);
   const totalBicos = (bombas ?? []).reduce((count, bomba) => count + bomba.bicos.length, 0);
   const todosBicosPreenchidos = totalBicos > 0 && totalPreenchidas === totalBicos;
+  const historicoAgrupado = (historico ?? []).reduce<Record<string, HistoricoLote>>((acc, item) => {
+    const grupoId = item.loteId ?? item.id;
+    const grupoAtual = acc[grupoId];
+    const responsavelNome = getResponsavelLabel(item, session?.user);
+
+    if (!grupoAtual) {
+      acc[grupoId] = {
+        loteId: grupoId,
+        loteRealId: item.loteId,
+        afericoes: [item],
+        responsavelNome,
+        criadoEm: item.criadoEm,
+        totalBicos: 1,
+        foraTolerancia: item.situacao === 'FORA_DA_TOLERANCIA' ? 1 : 0,
+      };
+      return acc;
+    }
+
+    grupoAtual.afericoes.push(item);
+    grupoAtual.totalBicos += 1;
+    grupoAtual.foraTolerancia += item.situacao === 'FORA_DA_TOLERANCIA' ? 1 : 0;
+
+    if (new Date(item.criadoEm).getTime() > new Date(grupoAtual.criadoEm).getTime()) {
+      grupoAtual.criadoEm = item.criadoEm;
+    }
+
+    return acc;
+  }, {});
+
+  const lotesFiltrados = Object.values(historicoAgrupado)
+    .map((lote) => ({
+      ...lote,
+      afericoes: [...lote.afericoes].sort((a, b) => (
+        new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime()
+      )),
+    }))
+    .filter((lote) => {
+      const afericoesCompativeis = lote.afericoes.filter((item) => {
+        const dataItem = new Date(item.criadoEm);
+        const dentroDataDe = !filtroDataDe || dataItem >= new Date(`${filtroDataDe}T00:00:00`);
+        const dentroDataAte = !filtroDataAte || dataItem <= new Date(`${filtroDataAte}T23:59:59`);
+        const dentroSituacao = filtroSituacao === 'TODOS'
+          || (filtroSituacao === 'DENTRO' && item.situacao === 'DENTRO_DA_LEGISLACAO')
+          || (filtroSituacao === 'FORA' && item.situacao === 'FORA_DA_TOLERANCIA');
+
+        return dentroDataDe && dentroDataAte && dentroSituacao;
+      });
+
+      return afericoesCompativeis.length > 0;
+    })
+    .sort((a, b) => new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime());
+
+  const totalAfericoesFiltradas = lotesFiltrados.reduce((count, lote) => {
+    return count + lote.afericoes.filter((item) => {
+      const dataItem = new Date(item.criadoEm);
+      const dentroDataDe = !filtroDataDe || dataItem >= new Date(`${filtroDataDe}T00:00:00`);
+      const dentroDataAte = !filtroDataAte || dataItem <= new Date(`${filtroDataAte}T23:59:59`);
+      const dentroSituacao = filtroSituacao === 'TODOS'
+        || (filtroSituacao === 'DENTRO' && item.situacao === 'DENTRO_DA_LEGISLACAO')
+        || (filtroSituacao === 'FORA' && item.situacao === 'FORA_DA_TOLERANCIA');
+
+      return dentroDataDe && dentroDataAte && dentroSituacao;
+    }).length;
+  }, 0);
+
+  function alternarLote(loteId: string) {
+    setLotesAbertos((current) => {
+      const next = new Set(current);
+
+      if (next.has(loteId)) {
+        next.delete(loteId);
+      } else {
+        next.add(loteId);
+      }
+
+      return next;
+    });
+  }
+
+  function handleExcluirAfericao(afericaoId: string) {
+    if (!postoId || !window.confirm('Excluir esta aferição?')) {
+      return;
+    }
+
+    deleteAfericao({ afericaoId, postoId });
+  }
+
+  function handleExcluirLote(lote: HistoricoLote) {
+    if (!postoId || !window.confirm('Excluir este lote de aferições?')) {
+      return;
+    }
+
+    if (!lote.loteRealId) {
+      deleteAfericao({ afericaoId: lote.afericoes[0].id, postoId });
+      return;
+    }
+
+    deleteLoteAfericao({ loteId: lote.loteRealId, postoId });
+  }
+
+  function handleAbrirDocumento(loteId: string, formato: 'pdf' | 'xlsx') {
+    window.open(`/api/afericao/lote/${loteId}/${formato}`, '_blank', 'noopener,noreferrer');
+  }
 
   if (loadingPostos) {
     return (
@@ -450,51 +584,206 @@ export default function InmetroPage() {
           ) : (historico ?? []).length === 0 ? (
             <p className="text-sm text-zinc-500">Nenhuma aferição registrada para o posto selecionado.</p>
           ) : (
-            <div className="space-y-3">
-              {(historico ?? []).map((item, index) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.03, duration: 0.25 }}
-                  className="rounded-2xl border border-zinc-200 p-4"
-                >
-                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div className="space-y-1.5">
-                      <p className="text-sm font-semibold text-zinc-900">
-                        {`Bomba ${formatarNumero(item.bomba)} → Bico ${formatarNumero(item.bico)} — ${formatarProduto(item.produto)}`}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm text-zinc-600">{`Resultado ${item.resultadoMl} mL`}</p>
-                        <BadgeStatus
-                          label={item.situacao === 'DENTRO_DA_LEGISLACAO' ? 'DENTRO' : 'FORA'}
-                          tone={item.situacao === 'DENTRO_DA_LEGISLACAO' ? 'green' : 'red'}
-                        />
-                      </div>
-                      <p className="text-sm text-zinc-500">
-                        {`Responsável: ${getResponsavelLabel(item, session?.user)} — ${formatarDataHora(item.criadoEm)}`}
-                      </p>
-                    </div>
+            <div className="space-y-4">
+              <div className="grid gap-3 rounded-2xl border border-zinc-200 bg-white p-4 md:grid-cols-[1fr_1fr_220px_auto] md:items-end">
+                <div>
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-[0.14em] text-zinc-500">De</label>
+                  <input
+                    type="date"
+                    value={filtroDataDe}
+                    onChange={(event) => setFiltroDataDe(event.target.value)}
+                    className={inputClassName}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-[0.14em] text-zinc-500">Até</label>
+                  <input
+                    type="date"
+                    value={filtroDataAte}
+                    onChange={(event) => setFiltroDataAte(event.target.value)}
+                    className={inputClassName}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-[0.14em] text-zinc-500">Situação</label>
+                  <select
+                    value={filtroSituacao}
+                    onChange={(event) => setFiltroSituacao(event.target.value as 'TODOS' | 'DENTRO' | 'FORA')}
+                    className={inputClassName}
+                  >
+                    <option value="TODOS">Todos</option>
+                    <option value="DENTRO">Dentro</option>
+                    <option value="FORA">Fora</option>
+                  </select>
+                </div>
+                <div className="text-sm font-medium text-zinc-500">
+                  {`${totalAfericoesFiltradas} aferições em ${lotesFiltrados.length} lotes`}
+                </div>
+              </div>
 
-                    {item.fotoUrl ? (
-                      <button
-                        type="button"
-                        onClick={() => setImagemAmpliada(item.fotoUrl ?? null)}
-                        className="overflow-hidden rounded-xl border border-zinc-200"
-                      >
-                        <Image
-                          src={item.fotoUrl}
-                          alt={`Foto da aferição ${item.id}`}
-                          width={40}
-                          height={40}
-                          unoptimized
-                          className="h-10 w-10 object-cover"
-                        />
-                      </button>
-                    ) : null}
-                  </div>
-                </motion.div>
-              ))}
+              {lotesFiltrados.length === 0 ? (
+                <p className="text-sm text-zinc-500">Nenhum lote encontrado com os filtros selecionados.</p>
+              ) : (
+                lotesFiltrados.map((lote, index) => {
+                  const aberto = lotesAbertos.has(lote.loteId);
+                  const loteLegado = !lote.loteRealId;
+
+                  return (
+                    <motion.div
+                      key={lote.loteId}
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.03, duration: 0.25 }}
+                      className="overflow-hidden rounded-2xl border border-zinc-200 bg-white"
+                    >
+                      <div className={`flex flex-col gap-4 p-4 transition md:flex-row md:items-center md:justify-between ${
+                        aberto ? 'bg-white' : 'bg-zinc-50'
+                      }`}>
+                        <button
+                          type="button"
+                          onClick={() => alternarLote(lote.loteId)}
+                          className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                        >
+                          <ChevronDown
+                            className={`mt-0.5 h-5 w-5 shrink-0 text-orange-500 transition-transform ${aberto ? 'rotate-180' : ''}`}
+                          />
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold text-zinc-900">
+                                {`Aferição de ${formatarDataHora(lote.criadoEm)}`}
+                              </p>
+                              {loteLegado ? (
+                                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-600">
+                                  Legado
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="text-sm text-zinc-500">{`Responsável: ${lote.responsavelNome}`}</p>
+                          </div>
+                        </button>
+
+                        <div className="flex flex-col gap-3 md:items-end">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
+                              {`${lote.totalBicos} bicos`}
+                            </span>
+                            {lote.foraTolerancia > 0 ? (
+                              <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+                                {`${lote.foraTolerancia} fora`}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={loteLegado}
+                              onClick={() => {
+                                if (!lote.loteRealId) {
+                                  return;
+                                }
+                                handleAbrirDocumento(lote.loteRealId, 'pdf');
+                              }}
+                              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:border-orange-300 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <FileText className="h-4 w-4" />
+                              <Download className="h-4 w-4" />
+                              PDF
+                            </button>
+                            <button
+                              type="button"
+                              disabled={loteLegado}
+                              onClick={() => {
+                                if (!lote.loteRealId) {
+                                  return;
+                                }
+                                handleAbrirDocumento(lote.loteRealId, 'xlsx');
+                              }}
+                              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:border-orange-300 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <FileSpreadsheet className="h-4 w-4" />
+                              <Download className="h-4 w-4" />
+                              Excel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleExcluirLote(lote)}
+                              disabled={isDeletingLote || isDeletingAfericao}
+                              className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Excluir lote
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <AnimatePresence initial={false}>
+                        {aberto ? (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.22, ease: 'easeInOut' }}
+                            className="overflow-hidden border-t border-zinc-100"
+                          >
+                            <div className="space-y-3 p-4">
+                              {lote.afericoes.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="flex flex-col gap-4 rounded-2xl border border-zinc-200 p-4 md:flex-row md:items-center md:justify-between"
+                                >
+                                  <div className="space-y-2">
+                                    <p className="text-sm font-semibold text-zinc-900">
+                                      {`Bomba ${formatarNumero(item.bomba)} → Bico ${formatarNumero(item.bico)} — ${formatarProduto(item.produto)}`}
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="text-sm text-zinc-600">{`Resultado ${item.resultadoMl} mL`}</p>
+                                      <BadgeStatus
+                                        label={item.situacao === 'DENTRO_DA_LEGISLACAO' ? 'DENTRO' : 'FORA'}
+                                        tone={item.situacao === 'DENTRO_DA_LEGISLACAO' ? 'green' : 'red'}
+                                      />
+                                    </div>
+                                    <p className="text-xs text-zinc-400">{formatarData(item.criadoEm)}</p>
+                                  </div>
+
+                                  <div className="flex items-center gap-3 self-start md:self-center">
+                                    {item.fotoUrl ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setImagemAmpliada(item.fotoUrl ?? null)}
+                                        className="overflow-hidden rounded-xl border border-zinc-200"
+                                      >
+                                        <Image
+                                          src={item.fotoUrl}
+                                          alt={`Foto da aferição ${item.id}`}
+                                          width={48}
+                                          height={48}
+                                          unoptimized
+                                          className="h-12 w-12 object-cover"
+                                        />
+                                      </button>
+                                    ) : null}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleExcluirAfericao(item.id)}
+                                      disabled={isDeletingAfericao || isDeletingLote}
+                                      className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      Excluir
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        ) : null}
+                      </AnimatePresence>
+                    </motion.div>
+                  );
+                })
+              )}
             </div>
           )}
         </CardBase>

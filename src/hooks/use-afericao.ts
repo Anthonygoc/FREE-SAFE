@@ -20,6 +20,7 @@ export interface Afericao {
   postoId: string;
   responsavelId: string;
   responsavelNome?: string;
+  loteId?: string;
   bicoId?: string;
   produto: ProdutoCombustivel;
   bomba: number;
@@ -107,6 +108,46 @@ export function useCreateAfericaoLote() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Erro ao registrar aferições.');
+    },
+  });
+}
+
+interface DeleteAfericaoInput {
+  afericaoId: string;
+  postoId: string;
+}
+
+export function useDeleteAfericao() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ afericaoId }: DeleteAfericaoInput) => apiClient.delete<void>(`/api/afericao/${afericaoId}`),
+    onSuccess: (_, input) => {
+      queryClient.invalidateQueries({ queryKey: ['afericao', input.postoId] });
+      toast.success('Aferição excluída com sucesso.');
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Erro ao excluir aferição.');
+    },
+  });
+}
+
+interface DeleteLoteAfericaoInput {
+  loteId: string;
+  postoId: string;
+}
+
+export function useDeleteLoteAfericao() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ loteId }: DeleteLoteAfericaoInput) => apiClient.delete<void>(`/api/afericao/lote/${loteId}`),
+    onSuccess: (_, input) => {
+      queryClient.invalidateQueries({ queryKey: ['afericao', input.postoId] });
+      toast.success('Lote de aferições excluído com sucesso.');
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Erro ao excluir lote de aferições.');
     },
   });
 }

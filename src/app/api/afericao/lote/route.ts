@@ -52,6 +52,7 @@ export async function POST(request: Request) {
   try {
     const session = await auth();
     const usuario = getUsuarioAutenticado(session);
+    const loteId = crypto.randomUUID();
 
     const body = await request.json();
     const parsed = createAfericaoLoteSchema.safeParse(body);
@@ -78,6 +79,7 @@ export async function POST(request: Request) {
       const resultado = await useCase.execute({
         usuario,
         postoId: parsed.data.postoId,
+        loteId,
         bicoId: afericao.bicoId,
         produto: afericao.produto,
         bomba: afericao.bomba,
@@ -95,6 +97,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
+      loteId,
       registradas: resultados.length,
       resultados,
     }, { status: 201 });

@@ -5,6 +5,31 @@ import type { AfericaoRepository } from '@/domain/ports/afericao.repository';
 import { AfericaoMapper } from '@/infrastructure/database/mappers/afericao.mapper';
 import { prisma } from '@/lib/prisma';
 
+type AfericaoRow = {
+  id: string;
+  postoId: string;
+  responsavelId: string;
+  loteId: string | null;
+  bicoId: string | null;
+  produto: Afericao['produto'];
+  bomba: number;
+  numeroBico: number;
+  medidaPadrao: number;
+  resultadoMl: number;
+  situacao: Afericao['situacao'];
+  observacoes: string | null;
+  fotoUrl: string | null;
+  criadoEm: Date;
+  responsavelNome?: string | null;
+};
+
+function mapAfericaoRows(rows: Array<AfericaoRow>, nomesPorResponsavel: Map<string, string>): Afericao[] {
+  return rows.map((raw) => AfericaoMapper.toDomain({
+    ...raw,
+    responsavelNome: raw.responsavelNome ?? nomesPorResponsavel.get(raw.responsavelId) ?? null,
+  }));
+}
+
 export class AfericaoPrismaRepository implements AfericaoRepository {
   constructor(private readonly db: PrismaClient = prisma) {}
 
@@ -23,6 +48,7 @@ export class AfericaoPrismaRepository implements AfericaoRepository {
         id: true,
         postoId: true,
         responsavelId: true,
+        loteId: true,
         bicoId: true,
         produto: true,
         bomba: true,
@@ -35,7 +61,17 @@ export class AfericaoPrismaRepository implements AfericaoRepository {
         criadoEm: true,
       },
     });
-    return raw ? AfericaoMapper.toDomain(raw) : null;
+    if (!raw) return null;
+
+    const responsavel = await this.db.user.findUnique({
+      where: { id: raw.responsavelId },
+      select: { nome: true },
+    });
+
+    return AfericaoMapper.toDomain({
+      ...raw,
+      responsavelNome: responsavel?.nome ?? null,
+    });
   }
 
   async listarPorPosto(postoId: string): Promise<Afericao[]> {
@@ -45,6 +81,7 @@ export class AfericaoPrismaRepository implements AfericaoRepository {
         id: true,
         postoId: true,
         responsavelId: true,
+        loteId: true,
         bicoId: true,
         produto: true,
         bomba: true,
@@ -59,7 +96,8 @@ export class AfericaoPrismaRepository implements AfericaoRepository {
       orderBy: { criadoEm: 'desc' },
     });
 
-    return raws.map(AfericaoMapper.toDomain);
+    const nomesPorResponsavel = await this.buscarNomesResponsaveis(raws);
+    return mapAfericaoRows(raws, nomesPorResponsavel);
   }
 
   async listarPorBomba(postoId: string, bomba: number): Promise<Afericao[]> {
@@ -69,6 +107,7 @@ export class AfericaoPrismaRepository implements AfericaoRepository {
         id: true,
         postoId: true,
         responsavelId: true,
+        loteId: true,
         bicoId: true,
         produto: true,
         bomba: true,
@@ -83,12 +122,69 @@ export class AfericaoPrismaRepository implements AfericaoRepository {
       orderBy: { criadoEm: 'desc' },
     });
 
-    return raws.map(AfericaoMapper.toDomain);
+    const nomesPorResponsavel = await this.buscarNomesResponsaveis(raws);
+    return mapAfericaoRows(raws, nomesPorResponsavel);
+  }
+
+  async listarPorLote(loteId: string): Promise<Afericao[]> {
+    const raws = await this.db.afericao.findMany({
+      where: { loteId },
+      select: {
+        id: true,
+        postoId: true,
+        responsavelId: true,
+        loteId: true,
+        bicoId: true,
+        produto: true,
+        bomba: true,
+        numeroBico: true,
+        medidaPadrao: true,
+        resultadoMl: true,
+        situacao: true,
+        observacoes: true,
+        fotoUrl: true,
+        criadoEm: true,
+      },
+      orderBy: [
+        { bomba: 'asc' },
+        { numeroBico: 'asc' },
+        { criadoEm: 'asc' },
+      ],
+    });
+
+    const nomesPorResponsavel = await this.buscarNomesResponsaveis(raws);
+    return mapAfericaoRows(raws, nomesPorResponsavel);
+  }
+
+  async deletar(id: string): Promise<void> {
+    await this.db.afericao.delete({
+      where: { id },
+    });
+  }
+
+  async deletarLote(loteId: string): Promise<void> {
+    await this.db.afericao.deleteMany({
+      where: { loteId },
+    });
   }
 
   async contarForaDaTolerancia(): Promise<number> {
     return this.db.afericao.count({
       where: { situacao: 'FORA_DA_TOLERANCIA' },
     });
+  }
+
+  private async buscarNomesResponsaveis(rows: Array<{ responsavelId: string }>): Promise<Map<string, string>> {
+    const responsavelIds = [...new Set(rows.map((row) => row.responsavelId))];
+    if (responsavelIds.length === 0) {
+      return new Map<string, string>();
+    }
+
+    const responsaveis = await this.db.user.findMany({
+      where: { id: { in: responsavelIds } },
+      select: { id: true, nome: true },
+    });
+
+    return new Map(responsaveis.map((user) => [user.id, user.nome]));
   }
 }

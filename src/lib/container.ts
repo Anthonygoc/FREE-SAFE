@@ -1,4 +1,8 @@
 import { CreateAfericaoUseCase } from '@/application/use-cases/afericao/create-afericao.use-case';
+import { DeleteAfericaoUseCase } from '@/application/use-cases/afericao/delete-afericao.use-case';
+import { DeleteLoteAfericaoUseCase } from '@/application/use-cases/afericao/delete-lote-afericao.use-case';
+import { EmitAfericaoPdfUseCase } from '@/application/use-cases/afericao/emit-afericao-pdf.use-case';
+import { EmitAfericaoXlsxUseCase } from '@/application/use-cases/afericao/emit-afericao-xlsx.use-case';
 import { GetAfericaoByIdUseCase } from '@/application/use-cases/afericao/get-afericao-by-id.use-case';
 import { ListAfericoesByPostoUseCase } from '@/application/use-cases/afericao/list-afericoes-by-posto.use-case';
 import { ListBicosByBombaUseCase } from '@/application/use-cases/bicos/list-bicos-by-bomba.use-case';
@@ -42,6 +46,7 @@ import { TreinamentoPrismaRepository } from '@/infrastructure/database/prisma/re
 import { DocumentoPrismaRepository } from '@/infrastructure/database/prisma/repositories/documento.prisma-repository';
 import { PostoPrismaRepository } from '@/infrastructure/database/prisma/repositories/posto.prisma-repository';
 import { RAQPrismaRepository } from '@/infrastructure/database/prisma/repositories/raq.prisma-repository';
+import { AfericaoPdfAdapter } from '@/infrastructure/pdf/afericao-pdf.adapter';
 import { CertificadoAdapter } from '@/infrastructure/pdf/certificado.adapter';
 import { ReactPDFAdapter } from '@/infrastructure/pdf/react-pdf.adapter';
 
@@ -67,6 +72,29 @@ export function listAfericoesByPostoUseCase(): ListAfericoesByPostoUseCase {
 
 export function getAfericaoByIdUseCase(): GetAfericaoByIdUseCase {
   return new GetAfericaoByIdUseCase(new AfericaoPrismaRepository());
+}
+
+export function deleteAfericaoUseCase(): DeleteAfericaoUseCase {
+  return new DeleteAfericaoUseCase(new AfericaoPrismaRepository());
+}
+
+export function deleteLoteAfericaoUseCase(): DeleteLoteAfericaoUseCase {
+  return new DeleteLoteAfericaoUseCase(new AfericaoPrismaRepository());
+}
+
+export function emitAfericaoPdfUseCase(): EmitAfericaoPdfUseCase {
+  return new EmitAfericaoPdfUseCase(
+    new AfericaoPrismaRepository(),
+    new PostoPrismaRepository(),
+    new AfericaoPdfAdapter(),
+  );
+}
+
+export function emitAfericaoXlsxUseCase(): EmitAfericaoXlsxUseCase {
+  return new EmitAfericaoXlsxUseCase(
+    new AfericaoPrismaRepository(),
+    new PostoPrismaRepository(),
+  );
 }
 
 export function listBombasByPostoUseCase(): ListBombasByPostoUseCase {

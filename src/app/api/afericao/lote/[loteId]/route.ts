@@ -4,10 +4,10 @@ import { z } from 'zod';
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
 import { DomainError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
-import { deleteAfericaoUseCase, getAfericaoByIdUseCase } from '@/lib/container';
+import { deleteLoteAfericaoUseCase } from '@/lib/container';
 import { handleApiError } from '@/lib/handle-api-error';
 
-const idSchema = z.string().uuid();
+const loteIdSchema = z.string().uuid();
 
 function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
@@ -23,13 +23,13 @@ function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   };
 }
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(_request: Request, context: { params: Promise<{ loteId: string }> }) {
   try {
     const session = await auth();
     const usuario = getUsuarioAutenticado(session);
 
-    const { id } = await context.params;
-    const parsed = idSchema.safeParse(id);
+    const { loteId } = await context.params;
+    const parsed = loteIdSchema.safeParse(loteId);
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -38,37 +38,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       );
     }
 
-    const useCase = getAfericaoByIdUseCase();
+    const useCase = deleteLoteAfericaoUseCase();
     const data = await useCase.execute({
       usuario,
-      afericaoId: parsed.data,
-    });
-
-    return NextResponse.json({ data }, { status: 200 });
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
-
-export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await auth();
-    const usuario = getUsuarioAutenticado(session);
-
-    const { id } = await context.params;
-    const parsed = idSchema.safeParse(id);
-
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: parsed.error.flatten() },
-        { status: 422 },
-      );
-    }
-
-    const useCase = deleteAfericaoUseCase();
-    const data = await useCase.execute({
-      usuario,
-      afericaoId: parsed.data,
+      loteId: parsed.data,
     });
 
     return NextResponse.json({ data }, { status: 200 });

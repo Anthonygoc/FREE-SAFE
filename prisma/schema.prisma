@@ -358,6 +358,7 @@ model Afericao {
   id            String             @id @default(uuid())
   postoId       String             @map("posto_id")
   responsavelId String             @map("responsavel_id")
+  loteId        String?            @map("lote_id")
   bicoId        String?            @map("bico_id")
   produto       ProdutoCombustivel
   bomba         Int
@@ -366,7 +367,7 @@ model Afericao {
   resultadoMl   Float              @map("resultado_ml")
   situacao      SituacaoAfericao
   observacoes   String?            @db.Text
-  fotoUrl       String?            @map("foto_url") @db.VarChar(500)
+  fotoUrl       String?            @map("foto_url") @db.Text
   fotosUrls     String[]           @map("fotos_urls")
   relatorioUrl  String?            @map("relatorio_url") @db.VarChar(500)
   data          DateTime           @default(now())

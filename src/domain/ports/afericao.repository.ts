@@ -5,5 +5,8 @@ export interface AfericaoRepository {
   buscarPorId(id: string): Promise<Afericao | null>;
   listarPorPosto(postoId: string): Promise<Afericao[]>;
   listarPorBomba(postoId: string, bomba: number): Promise<Afericao[]>;
+  listarPorLote(loteId: string): Promise<Afericao[]>;
+  deletar(id: string): Promise<void>;
+  deletarLote(loteId: string): Promise<void>;
   contarForaDaTolerancia(): Promise<number>;
 }
