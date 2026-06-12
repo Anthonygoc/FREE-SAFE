@@ -178,8 +178,8 @@ export default function DashboardPage() {
                 <p className="text-sm text-zinc-500">Nenhum alerta no momento.</p>
               ) : (
                 (kpis?.alertas ?? []).map((alerta) => {
-                  const nivelLabel = alerta.nivel === 'critico' ? 'Crítico' : alerta.nivel === 'revisar' ? 'Revisar' : 'Atenção';
-                  const tone = alerta.nivel === 'critico' ? 'red' : alerta.nivel === 'revisar' ? 'orange' : 'yellow';
+                  const nivelLabel = alerta.nivel === 'critico' ? 'Crítico' : 'Atenção';
+                  const tone = alerta.nivel === 'critico' ? 'red' : 'yellow';
 
                   return (
                     <div key={alerta.tipo} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
