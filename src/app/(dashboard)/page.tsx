@@ -32,7 +32,7 @@ export default function DashboardPage() {
   const ranking = [...(postos ?? [])].sort((a, b) => b.conformidade - a.conformidade);
 
   return (
-    <motion.div {...animation} className="space-y-6">
+    <motion.div {...animation} className="min-w-0 space-y-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight text-zinc-950">Dashboard Geral</h1>
         <p className="mt-1 text-zinc-500">Visão consolidada dos postos, treinamentos e conformidade.</p>
@@ -45,8 +45,8 @@ export default function DashboardPage() {
         <StatCard title="Pendências abertas" value={kpis?.totalPendencias ?? 0} subtitle="Itens para regularizar" icon={AlertTriangle} tone="red" />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <motion.div {...animation} className="xl:col-span-2">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-3">
+        <motion.div {...animation} className="min-w-0 xl:col-span-2">
           <CardBase>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold text-zinc-900">Ranking de conformidade</h2>
@@ -77,7 +77,7 @@ export default function DashboardPage() {
           </CardBase>
         </motion.div>
 
-        <motion.div {...animation}>
+        <motion.div {...animation} className="min-w-0">
           <CardBase>
             <h2 className="text-lg font-bold text-zinc-900">Alertas críticos</h2>
             <div className="mt-5 space-y-3">

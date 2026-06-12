@@ -18,8 +18,8 @@ export function Header() {
             <span className="text-sm font-black tracking-tight text-zinc-900">FREE SAFE</span>
           </div>
 
-          <div className="hidden items-center gap-3 rounded-2xl bg-zinc-100 px-4 py-2 text-zinc-500 lg:flex lg:min-w-[420px]">
-            <Search className="h-4 w-4" />
+          <div className="hidden items-center gap-3 rounded-2xl bg-zinc-100 px-4 py-2 text-zinc-500 transition focus-within:ring-2 focus-within:ring-orange-500/20 lg:flex lg:min-w-[420px]">
+            <Search className="h-5 w-5" />
             <input
               type="text"
               placeholder="Buscar posto, colaborador, documento..."
@@ -29,17 +29,17 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="rounded-2xl border border-zinc-200 bg-white p-2.5 text-zinc-600 transition hover:bg-zinc-100">
-            <Bell className="h-4 w-4" />
+          <button className="rounded-2xl border border-zinc-200 bg-white p-3 text-zinc-600 transition hover:bg-zinc-100 active:scale-95">
+            <Bell className="h-5 w-5" />
           </button>
-          <button className="rounded-2xl border border-zinc-200 bg-white p-2.5 text-zinc-600 transition hover:bg-zinc-100">
-            <Settings className="h-4 w-4" />
+          <button className="rounded-2xl border border-zinc-200 bg-white p-3 text-zinc-600 transition hover:bg-zinc-100 active:scale-95">
+            <Settings className="h-5 w-5" />
           </button>
           <button
             onClick={() => signOut()}
-            className="flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white"
+            className="flex items-center gap-2 rounded-2xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white transition active:scale-95"
           >
-            <UserRound className="h-4 w-4" />
+            <UserRound className="h-5 w-5" />
             Admin
           </button>
         </div>

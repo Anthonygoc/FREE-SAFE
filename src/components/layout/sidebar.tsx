@@ -57,13 +57,13 @@ export function Sidebar() {
                 key={item.href}
                 href={item.href}
                 className={[
-                  'flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-colors',
+                  'flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-colors duration-150',
                   isActive
-                    ? 'bg-orange-500 text-white shadow-lg'
+                    ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
                     : 'text-zinc-300 hover:bg-white/10',
                 ].join(' ')}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-5 w-5" />
                 <span>{item.label}</span>
               </Link>
             );

@@ -33,11 +33,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <QueryClientProvider client={queryClient}>
       <Toaster richColors position="top-right" />
-      <div className="min-h-screen bg-zinc-100">
+      <div className="min-h-screen overflow-x-hidden bg-zinc-100">
         <Sidebar />
-        <div className="min-h-screen lg:pl-72">
+        <div className="min-h-screen overflow-x-hidden lg:pl-72">
           <Header />
-          <main className="p-5 lg:p-8">{children}</main>
+          <main className="min-w-0 w-full p-5 lg:p-8">{children}</main>
         </div>
       </div>
     </QueryClientProvider>
