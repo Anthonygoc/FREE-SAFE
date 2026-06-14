@@ -1,5 +1,6 @@
 import { BarChart3 } from 'lucide-react';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { CardBase } from '@/components/ui/card-base';
 
 const itens = [
@@ -10,7 +11,8 @@ const itens = [
 
 export default function RelatoriosPage() {
   return (
-    <div className="space-y-6">
+    <RouteGuard recurso="relatorios">
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Relatórios</h1>
         <p className="mt-1 text-zinc-500">Painel de análises e documentos gerenciais do FREE SAFE.</p>
@@ -29,6 +31,7 @@ export default function RelatoriosPage() {
           </CardBase>
         ))}
       </div>
-    </div>
+      </div>
+    </RouteGuard>
   );
 }

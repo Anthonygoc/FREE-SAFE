@@ -1,5 +1,6 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
+import { autorizar } from '@/application/shared/authorize';
+import { DomainError } from '@/domain/errors/domain.errors';
 import type { DocumentoRepository } from '@/domain/ports/documento.repository';
 
 export interface DeleteDocumentoInput {
@@ -15,24 +16,12 @@ export class DeleteDocumentoUseCase {
   constructor(private readonly documentoRepo: DocumentoRepository) {}
 
   async execute(input: DeleteDocumentoInput): Promise<DeleteDocumentoOutput> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
     const documento = await this.documentoRepo.buscarPorId(input.documentoId);
     if (!documento) {
       throw new DomainError('Documento não encontrado');
     }
 
-    if (input.usuario.perfil === 'GERENTE') {
-      if (!input.usuario.postoId) {
-        throw new UnauthorizedError('Gerente sem posto vinculado');
-      }
-
-      if (input.usuario.postoId !== documento.postoId) {
-        throw new UnauthorizedError('Gerente só pode excluir documentos do próprio posto');
-      }
-    }
+    autorizar(input.usuario, 'documentos', 'excluir', documento.postoId);
 
     await this.documentoRepo.deletar(input.documentoId);
 

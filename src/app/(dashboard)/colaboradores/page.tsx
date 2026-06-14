@@ -10,6 +10,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { ProgressBar } from '@/components/ui/progress-bar';
@@ -136,14 +137,17 @@ export default function ColaboradoresPage() {
 
   if (loadingPostos || loadingColaboradores) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <LoadingSpinner size={30} />
-      </div>
+      <RouteGuard recurso="colaboradores">
+        <div className="flex h-64 items-center justify-center">
+          <LoadingSpinner size={30} />
+        </div>
+      </RouteGuard>
     );
   }
 
   return (
-    <motion.div {...animation} className="space-y-6">
+    <RouteGuard recurso="colaboradores">
+      <motion.div {...animation} className="space-y-6">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Colaboradores</h1>
@@ -340,6 +344,7 @@ export default function ColaboradoresPage() {
           </motion.div>
         ) : null}
       </AnimatePresence>
-    </motion.div>
+      </motion.div>
+    </RouteGuard>
   );
 }

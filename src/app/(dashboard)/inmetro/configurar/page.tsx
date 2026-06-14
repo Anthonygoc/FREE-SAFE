@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { CardBase } from '@/components/ui/card-base';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import {
@@ -175,9 +176,11 @@ export default function ConfigurarBombasPage() {
 
   if (status === "loading" || loadingPostos) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <LoadingSpinner size={30} />
-      </div>
+      <RouteGuard recurso="inmetro">
+        <div className="flex h-64 items-center justify-center">
+          <LoadingSpinner size={30} />
+        </div>
+      </RouteGuard>
     );
   }
 
@@ -354,7 +357,8 @@ export default function ConfigurarBombasPage() {
   }
 
   return (
-    <motion.div {...animation} className="space-y-6">
+    <RouteGuard recurso="inmetro">
+      <motion.div {...animation} className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Configuração de Bombas</h1>
@@ -583,6 +587,7 @@ export default function ConfigurarBombasPage() {
           })}
         </div>
       )}
-    </motion.div>
+      </motion.div>
+    </RouteGuard>
   );
 }

@@ -1,6 +1,6 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { autorizar } from '@/application/shared/authorize';
 import { Colaborador, type StatusColaborador } from '@/domain/entities/colaborador.entity';
-import { UnauthorizedError } from '@/domain/errors/domain.errors';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
 
 export interface CreateColaboradorInput {
@@ -26,13 +26,7 @@ export class CreateColaboradorUseCase {
   async execute(input: CreateColaboradorInput): Promise<{ id: string }> {
     const { usuario } = input;
 
-    if (usuario.perfil !== 'ADMIN' && usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
-    if (usuario.perfil === 'GERENTE' && usuario.postoId !== input.postoId) {
-      throw new UnauthorizedError('Gerente só pode criar colaborador no próprio posto');
-    }
+    autorizar(usuario, 'colaboradores', 'criar', input.postoId);
 
     const colaborador = Colaborador.criar({
       postoId: input.postoId,

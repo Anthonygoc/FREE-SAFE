@@ -1,6 +1,7 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { autorizar } from '@/application/shared/authorize';
 import type { ProdutoCombustivel } from '@/domain/entities/raq.entity';
-import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
+import { DomainError } from '@/domain/errors/domain.errors';
 import type { BicoRepository } from '@/domain/ports/bico.repository';
 import type { BombaRepository } from '@/domain/ports/bomba.repository';
 
@@ -24,10 +25,6 @@ export class UpdateBicoUseCase {
   ) {}
 
   async execute(input: UpdateBicoInput): Promise<UpdateBicoOutput> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
     const bico = await this.bicoRepo.buscarPorId(input.bicoId);
     if (!bico) {
       throw new DomainError('Bico não encontrado');
@@ -38,15 +35,7 @@ export class UpdateBicoUseCase {
       throw new DomainError('Bomba não encontrada');
     }
 
-    if (input.usuario.perfil === 'GERENTE') {
-      if (!input.usuario.postoId) {
-        throw new UnauthorizedError('Gerente sem posto vinculado');
-      }
-
-      if (input.usuario.postoId !== bomba.postoId) {
-        throw new UnauthorizedError('Gerente só pode configurar bicos do próprio posto');
-      }
-    }
+    autorizar(input.usuario, 'bombas', 'editar', bomba.postoId);
 
     await this.bicoRepo.salvar({
       ...bico,

@@ -1,5 +1,6 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
+import { autorizar } from '@/application/shared/authorize';
+import { DomainError } from '@/domain/errors/domain.errors';
 import type { BombaRepository } from '@/domain/ports/bomba.repository';
 
 export interface UpdateBombaInput {
@@ -17,24 +18,12 @@ export class UpdateBombaUseCase {
   constructor(private readonly bombaRepo: BombaRepository) {}
 
   async execute(input: UpdateBombaInput): Promise<UpdateBombaOutput> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
     const bomba = await this.bombaRepo.buscarPorId(input.bombaId);
     if (!bomba) {
       throw new DomainError('Bomba não encontrada');
     }
 
-    if (input.usuario.perfil === 'GERENTE') {
-      if (!input.usuario.postoId) {
-        throw new UnauthorizedError('Gerente sem posto vinculado');
-      }
-
-      if (input.usuario.postoId !== bomba.postoId) {
-        throw new UnauthorizedError('Gerente só pode editar bombas do próprio posto');
-      }
-    }
+    autorizar(input.usuario, 'bombas', 'editar', bomba.postoId);
 
     if (input.modelo === undefined && input.numero === undefined) {
       throw new DomainError('Nenhum dado informado para atualização');

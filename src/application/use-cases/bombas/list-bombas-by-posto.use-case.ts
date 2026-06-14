@@ -1,5 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { UnauthorizedError } from '@/domain/errors/domain.errors';
+import { autorizar } from '@/application/shared/authorize';
 import type { BombaRepository } from '@/domain/ports/bomba.repository';
 
 export interface ListBombasByPostoInput {
@@ -23,15 +23,7 @@ export class ListBombasByPostoUseCase {
   constructor(private readonly bombaRepo: BombaRepository) {}
 
   async execute(input: ListBombasByPostoInput): Promise<ListBombasByPostoOutputItem[]> {
-    if (input.usuario.perfil === 'GERENTE') {
-      if (!input.usuario.postoId) {
-        throw new UnauthorizedError('Gerente sem posto vinculado');
-      }
-
-      if (input.usuario.postoId !== input.postoId) {
-        throw new UnauthorizedError('Gerente só pode visualizar bombas do próprio posto');
-      }
-    }
+    autorizar(input.usuario, 'bombas', 'ver', input.postoId);
 
     const bombas = await this.bombaRepo.listarPorPosto(input.postoId);
 

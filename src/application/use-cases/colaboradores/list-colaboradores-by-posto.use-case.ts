@@ -1,5 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { UnauthorizedError } from '@/domain/errors/domain.errors';
+import { autorizar } from '@/application/shared/authorize';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
 import type { StatusColaborador } from '@/domain/entities/colaborador.entity';
 
@@ -32,13 +32,7 @@ export class ListColaboradoresByPostoUseCase {
   constructor(private readonly colaboradorRepo: ColaboradorRepository) {}
 
   async execute(input: ListColaboradoresByPostoInput): Promise<ListColaboradoresByPostoOutputItem[]> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
-    if (input.usuario.perfil === 'GERENTE' && input.usuario.postoId !== input.postoId) {
-      throw new UnauthorizedError('Gerente só pode listar colaboradores do próprio posto');
-    }
+    autorizar(input.usuario, 'colaboradores', 'ver', input.postoId);
 
     const colaboradores = await this.colaboradorRepo.listarPorPosto(input.postoId, {
       cargo: input.cargo,

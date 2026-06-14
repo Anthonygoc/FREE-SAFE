@@ -10,6 +10,7 @@ datasource db {
 enum PerfilUsuario {
   ADMIN
   GERENTE
+  ADMINISTRATIVO
   RH
   COLABORADOR
   MANUTENCAO
@@ -128,6 +129,8 @@ model Posto {
   cidade            String   @db.VarChar(100)
   uf                String   @db.Char(2)
   gerenteId         String?  @map("gerente_id")
+  maxGerentes       Int      @default(1) @map("max_gerentes")
+  maxAdministrativos Int     @default(1) @map("max_administrativos")
   ativo             Boolean  @default(true)
   criadoEm          DateTime @default(now()) @map("criado_em")
   atualizadoEm      DateTime @updatedAt @map("atualizado_em")

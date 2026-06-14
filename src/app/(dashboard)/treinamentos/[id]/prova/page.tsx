@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Award, CheckCircle2, GraduationCap } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
@@ -131,29 +132,34 @@ export default function ProvaCursoPage() {
 
   if (sessionStatus === 'loading' || loadingQuestoes || (isAdminFlow && loadingColaboradores)) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center">
-        <LoadingSpinner size={30} />
-      </div>
+      <RouteGuard recurso="cursos">
+        <div className="flex min-h-[320px] items-center justify-center">
+          <LoadingSpinner size={30} />
+        </div>
+      </RouteGuard>
     );
   }
 
   if (!cursoId || !questao) {
     return (
-      <div className="space-y-6">
-        <Link href={cursoId ? `/treinamentos/${cursoId}` : '/treinamentos'} className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-600">
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
-        </Link>
-        <CardBase>
-          <p className="text-sm text-zinc-500">A prova deste curso ainda não está disponível.</p>
-        </CardBase>
-      </div>
+      <RouteGuard recurso="cursos">
+        <div className="space-y-6">
+          <Link href={cursoId ? `/treinamentos/${cursoId}` : '/treinamentos'} className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-600">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </Link>
+          <CardBase>
+            <p className="text-sm text-zinc-500">A prova deste curso ainda não está disponível.</p>
+          </CardBase>
+        </div>
+      </RouteGuard>
     );
   }
 
   if (resultado) {
     return (
-      <div className="space-y-6">
+      <RouteGuard recurso="cursos">
+        <div className="space-y-6">
         <Link href={`/treinamentos/${cursoId}`} className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-600 transition hover:text-zinc-900">
           <ArrowLeft className="h-4 w-4" />
           Voltar ao curso
@@ -219,14 +225,16 @@ export default function ProvaCursoPage() {
             </div>
           </CardBase>
         </motion.div>
-      </div>
+        </div>
+      </RouteGuard>
     );
   }
 
   const progresso = ((questaoAtual + 1) / totalQuestoes) * 100;
 
   return (
-    <div className="space-y-6">
+    <RouteGuard recurso="cursos">
+      <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
         <Link href={`/treinamentos/${cursoId}`} className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-600 transition hover:text-zinc-900">
           <ArrowLeft className="h-4 w-4" />
@@ -401,6 +409,7 @@ export default function ProvaCursoPage() {
           ) : null}
         </div>
       </CardBase>
-    </div>
+      </div>
+    </RouteGuard>
   );
 }

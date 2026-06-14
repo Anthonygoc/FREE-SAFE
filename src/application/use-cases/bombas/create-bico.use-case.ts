@@ -1,6 +1,7 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { autorizar } from '@/application/shared/authorize';
 import type { ProdutoCombustivel } from '@/domain/entities/raq.entity';
-import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
+import { DomainError } from '@/domain/errors/domain.errors';
 import type { BicoRepository } from '@/domain/ports/bico.repository';
 import type { BombaRepository } from '@/domain/ports/bomba.repository';
 
@@ -23,24 +24,12 @@ export class CreateBicoUseCase {
   ) {}
 
   async execute(input: CreateBicoInput): Promise<CreateBicoOutput> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
     const bomba = await this.bombaRepo.buscarPorId(input.bombaId);
     if (!bomba) {
       throw new DomainError('Bomba não encontrada');
     }
 
-    if (input.usuario.perfil === 'GERENTE') {
-      if (!input.usuario.postoId) {
-        throw new UnauthorizedError('Gerente sem posto vinculado');
-      }
-
-      if (input.usuario.postoId !== bomba.postoId) {
-        throw new UnauthorizedError('Gerente só pode criar bico no próprio posto');
-      }
-    }
+    autorizar(input.usuario, 'bombas', 'criar', bomba.postoId);
 
     const id = crypto.randomUUID();
 

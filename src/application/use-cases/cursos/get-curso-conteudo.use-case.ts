@@ -1,4 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { autorizar } from '@/application/shared/authorize';
 import { DomainError } from '@/domain/errors/domain.errors';
 import type { CursoConteudoRepository } from '@/domain/ports/curso-conteudo.repository';
 import type { CursoRepository } from '@/domain/ports/curso.repository';
@@ -32,6 +33,8 @@ export class GetCursoConteudoUseCase {
   ) {}
 
   async execute(input: GetCursoConteudoInput): Promise<GetCursoConteudoOutput> {
+    autorizar(input.usuario, 'cursos', 'ver');
+
     const curso = await this.cursoRepo.buscarPorId(input.cursoId);
 
     if (!curso || !curso.ativo) {

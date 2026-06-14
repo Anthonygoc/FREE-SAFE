@@ -1,5 +1,6 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
+import { autorizar } from '@/application/shared/authorize';
+import { DomainError } from '@/domain/errors/domain.errors';
 import type { CategoriaDocumentoRepository } from '@/domain/ports/categoria-documento.repository';
 import type { DocumentoRepository, StatusDocumento } from '@/domain/ports/documento.repository';
 
@@ -37,19 +38,7 @@ export class CreateDocumentoUseCase {
   ) {}
 
   async execute(input: CreateDocumentoInput): Promise<CreateDocumentoOutput> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
-    if (input.usuario.perfil === 'GERENTE') {
-      if (!input.usuario.postoId) {
-        throw new UnauthorizedError('Gerente sem posto vinculado');
-      }
-
-      if (input.usuario.postoId !== input.postoId) {
-        throw new UnauthorizedError('Gerente só pode criar documentos no próprio posto');
-      }
-    }
+    autorizar(input.usuario, 'documentos', 'criar', input.postoId);
 
     const categoria = await this.categoriaDocumentoRepo.buscarPorId(input.categoriaId);
     if (!categoria) {

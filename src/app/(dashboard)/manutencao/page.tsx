@@ -1,5 +1,6 @@
 import { Wrench } from 'lucide-react';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { CardBase } from '@/components/ui/card-base';
 
 const itens = [
@@ -10,7 +11,8 @@ const itens = [
 
 export default function ManutencaoPage() {
   return (
-    <div className="space-y-6">
+    <RouteGuard recurso="manutencao">
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Manutenção</h1>
         <p className="mt-1 text-zinc-500">Gestão de manutenção preventiva, corretiva e emergencial.</p>
@@ -29,6 +31,7 @@ export default function ManutencaoPage() {
           </CardBase>
         ))}
       </div>
-    </div>
+      </div>
+    </RouteGuard>
   );
 }

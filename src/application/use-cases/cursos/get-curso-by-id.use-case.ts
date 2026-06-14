@@ -1,4 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { autorizar } from '@/application/shared/authorize';
 import { DomainError } from '@/domain/errors/domain.errors';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
 import type { CursoRepository } from '@/domain/ports/curso.repository';
@@ -40,6 +41,8 @@ export class GetCursoByIdUseCase {
   ) {}
 
   async execute(input: GetCursoByIdInput): Promise<GetCursoByIdOutput> {
+    autorizar(input.usuario, 'cursos', 'ver');
+
     const colaborador = await this.colaboradorRepo.buscarPorUserId(input.usuario.id);
 
     const curso = await this.cursoRepo.buscarPorIdComProgresso(input.cursoId, {

@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3,
@@ -14,11 +15,14 @@ import {
   Gauge,
   GraduationCap,
   LayoutDashboard,
+  UserCog,
   X,
   Users,
   Wrench,
 } from 'lucide-react';
 
+import type { Recurso } from '@/domain/permissions/permissions';
+import { podeVer } from '@/lib/can-access';
 import { cn } from '@/lib/utils';
 
 import { useSidebar } from './sidebar-context';
@@ -27,38 +31,69 @@ const navGroups = [
   {
     label: 'PRINCIPAL',
     items: [
-      { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/', label: 'Dashboard', icon: LayoutDashboard, recurso: 'dashboard' as Recurso },
     ],
   },
   {
     label: 'OPERAÇÃO',
     items: [
-      { href: '/anp', label: 'ANP / RAQ', icon: FlaskConical },
-      { href: '/inmetro', label: 'INMETRO', icon: Gauge },
-      { href: '/manutencao', label: 'Manutenção', icon: Wrench },
-      { href: '/drenagem', label: 'Drenagem', icon: Droplets },
+      { href: '/anp', label: 'ANP / RAQ', icon: FlaskConical, recurso: 'anp' as Recurso },
+      { href: '/inmetro', label: 'INMETRO', icon: Gauge, recurso: 'inmetro' as Recurso },
+      { href: '/manutencao', label: 'Manutenção', icon: Wrench, recurso: 'manutencao' as Recurso },
+      { href: '/drenagem', label: 'Drenagem', icon: Droplets, recurso: 'drenagem' as Recurso },
     ],
   },
   {
     label: 'PESSOAS',
     items: [
-      { href: '/colaboradores', label: 'Colaboradores', icon: Users },
-      { href: '/treinamentos', label: 'Treinamentos', icon: GraduationCap },
-      { href: '/entrevistas', label: 'Entrevistas', icon: ClipboardCheck },
+      { href: '/colaboradores', label: 'Colaboradores', icon: Users, recurso: 'colaboradores' as Recurso },
+      { href: '/treinamentos', label: 'Treinamentos', icon: GraduationCap, recurso: 'cursos' as Recurso },
+      { href: '/entrevistas', label: 'Entrevistas', icon: ClipboardCheck, recurso: 'entrevistas' as Recurso },
     ],
   },
   {
     label: 'CONFORMIDADE',
     items: [
-      { href: '/postos', label: 'Postos', icon: Building2 },
-      { href: '/documentos', label: 'Documentos', icon: FolderCheck },
-      { href: '/auditorias', label: 'Auditorias', icon: ClipboardList },
-      { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
+      { href: '/postos', label: 'Postos', icon: Building2, recurso: 'postos' as Recurso },
+      { href: '/documentos', label: 'Documentos', icon: FolderCheck, recurso: 'documentos' as Recurso },
+      { href: '/auditorias', label: 'Auditorias', icon: ClipboardList, recurso: 'auditorias' as Recurso },
+      { href: '/relatorios', label: 'Relatórios', icon: BarChart3, recurso: 'relatorios' as Recurso },
     ],
   },
 ] as const;
 
-function SidebarContent({ pathname, onNavigate, mobile = false }: { pathname: string; onNavigate?: () => void; mobile?: boolean }) {
+function SidebarContent({
+  pathname,
+  onNavigate,
+  mobile = false,
+  isAdmin,
+  perfil,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+  mobile?: boolean;
+  isAdmin: boolean;
+  perfil?: string;
+}) {
+  const groups = isAdmin
+    ? [
+        ...navGroups,
+        {
+          label: 'ADMINISTRAÇÃO',
+          items: [
+            { href: '/usuarios', label: 'Usuários', icon: UserCog, recurso: 'usuarios' as Recurso },
+          ],
+        },
+      ]
+    : navGroups;
+
+  const filteredGroups = groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => podeVer(perfil, item.recurso)),
+    }))
+    .filter((group) => group.items.length > 0);
+
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="flex h-full flex-col p-6">
       <div className="mb-8 flex items-center justify-between gap-4">
@@ -83,7 +118,7 @@ function SidebarContent({ pathname, onNavigate, mobile = false }: { pathname: st
 
       <div className="min-h-0 flex-1">
         <nav className="h-full space-y-1 overflow-y-auto pr-1">
-          {navGroups.map((group, groupIndex) => (
+          {filteredGroups.map((group, groupIndex) => (
             <div key={group.label}>
               <p className={cn(
                 'mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-500',
@@ -130,11 +165,14 @@ function SidebarContent({ pathname, onNavigate, mobile = false }: { pathname: st
 export function Sidebar() {
   const pathname = usePathname();
   const { isOpen, closeSidebar } = useSidebar();
+  const { data: session } = useSession();
+  const perfil = session?.user?.perfil;
+  const isAdmin = perfil === 'ADMIN';
 
   return (
     <>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-white/10 bg-zinc-950 lg:flex lg:flex-col">
-        <SidebarContent pathname={pathname} />
+        <SidebarContent pathname={pathname} isAdmin={isAdmin} perfil={perfil} />
       </aside>
 
       <AnimatePresence>
@@ -155,7 +193,7 @@ export function Sidebar() {
               transition={{ duration: 0.24, ease: 'easeOut' }}
               className="fixed inset-y-0 left-0 z-50 w-72 border-r border-white/10 bg-zinc-950 lg:hidden"
             >
-              <SidebarContent pathname={pathname} onNavigate={closeSidebar} mobile />
+              <SidebarContent pathname={pathname} onNavigate={closeSidebar} mobile isAdmin={isAdmin} perfil={perfil} />
             </motion.aside>
           </>
         ) : null}

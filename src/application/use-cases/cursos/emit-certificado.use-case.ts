@@ -1,4 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { autorizar } from '@/application/shared/authorize';
 import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
 import type { CertificadoPort } from '@/domain/ports/certificado.port';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
@@ -21,6 +22,8 @@ export class EmitCertificadoUseCase {
   ) {}
 
   async execute(input: EmitCertificadoInput): Promise<Buffer> {
+    autorizar(input.usuario, 'cursos', 'ver');
+
     const attempt = await this.attemptRepo.buscarPorId(input.attemptId);
     if (!attempt) {
       throw new DomainError('Tentativa de prova não encontrada');

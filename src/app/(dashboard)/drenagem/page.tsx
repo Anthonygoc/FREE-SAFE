@@ -1,5 +1,6 @@
 import { Droplets } from 'lucide-react';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { CardBase } from '@/components/ui/card-base';
 
 const itens = [
@@ -10,7 +11,8 @@ const itens = [
 
 export default function DrenagemPage() {
   return (
-    <div className="space-y-6">
+    <RouteGuard recurso="drenagem">
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Drenagem</h1>
         <p className="mt-1 text-zinc-500">Controle operacional e ambiental dos processos de drenagem.</p>
@@ -29,6 +31,7 @@ export default function DrenagemPage() {
           </CardBase>
         ))}
       </div>
-    </div>
+      </div>
+    </RouteGuard>
   );
 }

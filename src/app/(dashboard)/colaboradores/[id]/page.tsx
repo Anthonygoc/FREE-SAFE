@@ -7,6 +7,7 @@ import type { ChangeEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
@@ -118,36 +119,41 @@ export default function ColaboradorPerfilPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <LoadingSpinner size={30} />
-      </div>
+      <RouteGuard recurso="colaboradores">
+        <div className="flex h-64 items-center justify-center">
+          <LoadingSpinner size={30} />
+        </div>
+      </RouteGuard>
     );
   }
 
   if (!colaborador) {
     return (
-      <div className="space-y-4">
-        <button
-          type="button"
-          onClick={() => router.push('/colaboradores')}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-orange-600 hover:text-orange-700"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar para a lista
-        </button>
-        <CardBase>
-          <p className="text-sm text-zinc-500">Colaborador não encontrado.</p>
-        </CardBase>
-      </div>
+      <RouteGuard recurso="colaboradores">
+        <div className="space-y-4">
+          <button
+            type="button"
+            onClick={() => router.push('/colaboradores')}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-orange-600 hover:text-orange-700"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Voltar para a lista
+          </button>
+          <CardBase>
+            <p className="text-sm text-zinc-500">Colaborador não encontrado.</p>
+          </CardBase>
+        </div>
+      </RouteGuard>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
+    <RouteGuard recurso="colaboradores">
+      <motion.div
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-6"
+      >
       <button
         type="button"
         onClick={() => router.push('/colaboradores')}
@@ -291,7 +297,8 @@ export default function ColaboradorPerfilPage() {
           <p className="mt-3 text-sm text-zinc-500">Em breve</p>
         </CardBase>
       </div>
-    </motion.div>
+      </motion.div>
+    </RouteGuard>
   );
 }
 

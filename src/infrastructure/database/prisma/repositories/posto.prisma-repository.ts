@@ -29,6 +29,8 @@ export class PostoPrismaRepository implements PostoRepository {
         cidade: posto.cidade,
         uf: posto.uf,
         gerenteId: posto.gerenteId ?? null,
+        maxGerentes: posto.maxGerentes,
+        maxAdministrativos: posto.maxAdministrativos,
         ativo: posto.ativo,
         criadoEm: posto.criadoEm,
         atualizadoEm: posto.atualizadoEm,
@@ -42,6 +44,8 @@ export class PostoPrismaRepository implements PostoRepository {
         cidade: posto.cidade,
         uf: posto.uf,
         gerenteId: posto.gerenteId ?? null,
+        maxGerentes: posto.maxGerentes,
+        maxAdministrativos: posto.maxAdministrativos,
         ativo: posto.ativo,
       },
     });

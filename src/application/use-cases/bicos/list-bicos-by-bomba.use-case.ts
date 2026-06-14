@@ -1,5 +1,6 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
+import { autorizar } from '@/application/shared/authorize';
+import { DomainError } from '@/domain/errors/domain.errors';
 import type { BicoRepository } from '@/domain/ports/bico.repository';
 import type { BombaRepository } from '@/domain/ports/bomba.repository';
 
@@ -28,15 +29,7 @@ export class ListBicosByBombaUseCase {
       throw new DomainError('Bomba não encontrada');
     }
 
-    if (input.usuario.perfil === 'GERENTE') {
-      if (!input.usuario.postoId) {
-        throw new UnauthorizedError('Gerente sem posto vinculado');
-      }
-
-      if (input.usuario.postoId !== bomba.postoId) {
-        throw new UnauthorizedError('Gerente só pode visualizar bicos do próprio posto');
-      }
-    }
+    autorizar(input.usuario, 'bombas', 'ver', bomba.postoId);
 
     const bicos = await this.bicoRepo.listarPorBomba(input.bombaId);
 

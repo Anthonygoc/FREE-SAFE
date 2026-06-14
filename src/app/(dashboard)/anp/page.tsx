@@ -7,6 +7,7 @@ import { AlertTriangle, Calendar, CheckCircle2, Download, Droplets, Factory, Fla
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus, CardBase, IconBadge, InputBase, LoadingSpinner, SelectBase } from '@/components/ui';
 import { usePostos } from '@/hooks/use-postos';
 import { useCreateRAQ, useRAQsByPosto, type RAQFiltros } from '@/hooks/use-raq';
@@ -203,14 +204,17 @@ export default function AnpPage() {
 
   if (loadingPostos || (loadingHistorico && !historico)) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <LoadingSpinner size={30} />
-      </div>
+      <RouteGuard recurso="anp">
+        <div className="flex h-64 items-center justify-center">
+          <LoadingSpinner size={30} />
+        </div>
+      </RouteGuard>
     );
   }
 
   return (
-    <motion.div {...animation} className="space-y-6">
+    <RouteGuard recurso="anp">
+      <motion.div {...animation} className="space-y-6">
       <section className="rounded-[28px] border border-zinc-200 bg-white shadow-sm">
         <div className="space-y-5 p-6 lg:p-7">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -746,7 +750,8 @@ export default function AnpPage() {
           </div>
         </div>
       </section>
-    </motion.div>
+      </motion.div>
+    </RouteGuard>
   );
 
   function handleLimparFiltros() {

@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { AlertTriangle, BadgeCheck, Building2, Fuel, Users } from 'lucide-react';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
@@ -36,9 +37,11 @@ export default function DashboardPage() {
 
   if (loadingKPIs || loadingPostos) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <LoadingSpinner size={30} />
-      </div>
+      <RouteGuard recurso="dashboard">
+        <div className="flex h-64 items-center justify-center">
+          <LoadingSpinner size={30} />
+        </div>
+      </RouteGuard>
     );
   }
 
@@ -49,7 +52,8 @@ export default function DashboardPage() {
   const totalAlertas = alertasCriticos + alertasAtencao;
 
   return (
-    <motion.div {...animation} className="min-w-0 space-y-6">
+    <RouteGuard recurso="dashboard">
+      <motion.div {...animation} className="min-w-0 space-y-6">
       <section className="rounded-[28px] border border-zinc-200 bg-white shadow-sm">
         <div className="space-y-5 p-6 lg:p-7">
           <div className="flex items-start gap-4">
@@ -198,6 +202,7 @@ export default function DashboardPage() {
           </CardBase>
         </motion.div>
       </div>
-    </motion.div>
+      </motion.div>
+    </RouteGuard>
   );
 }

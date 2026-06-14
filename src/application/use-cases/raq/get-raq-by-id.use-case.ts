@@ -1,5 +1,6 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
+import { autorizar } from '@/application/shared/authorize';
+import { DomainError } from '@/domain/errors/domain.errors';
 import type { RAQRepository } from '@/domain/ports/raq.repository';
 
 export interface GetRAQByIdInput {
@@ -39,18 +40,12 @@ export class GetRAQByIdUseCase {
   constructor(private readonly raqRepo: RAQRepository) {}
 
   async execute(input: GetRAQByIdInput): Promise<GetRAQByIdOutput> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
     const raq = await this.raqRepo.buscarPorId(input.raqId);
     if (!raq) {
       throw new DomainError('RAQ não encontrada');
     }
 
-    if (input.usuario.perfil === 'GERENTE' && input.usuario.postoId !== raq.postoId) {
-      throw new UnauthorizedError('Gerente só pode visualizar RAQ do próprio posto');
-    }
+    autorizar(input.usuario, 'anp', 'ver', raq.postoId);
 
     return {
       id: raq.id,

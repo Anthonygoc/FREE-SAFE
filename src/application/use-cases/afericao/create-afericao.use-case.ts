@@ -1,7 +1,7 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { autorizar } from '@/application/shared/authorize';
 import { Afericao, type SituacaoAfericao } from '@/domain/entities/afericao.entity';
 import type { ProdutoCombustivel } from '@/domain/entities/raq.entity';
-import { UnauthorizedError } from '@/domain/errors/domain.errors';
 import type { AfericaoRepository } from '@/domain/ports/afericao.repository';
 
 export interface CreateAfericaoInput {
@@ -28,13 +28,7 @@ export class CreateAfericaoUseCase {
   constructor(private readonly afericaoRepo: AfericaoRepository) {}
 
   async execute(input: CreateAfericaoInput): Promise<CreateAfericaoOutput> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
-    if (input.usuario.perfil === 'GERENTE' && input.usuario.postoId !== input.postoId) {
-      throw new UnauthorizedError('Gerente só pode registrar aferição no próprio posto');
-    }
+    autorizar(input.usuario, 'inmetro', 'criar', input.postoId);
 
     const afericao = Afericao.criar({
       postoId: input.postoId,

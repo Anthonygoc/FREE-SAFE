@@ -1,5 +1,6 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
+import { autorizar } from '@/application/shared/authorize';
+import { DomainError } from '@/domain/errors/domain.errors';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
 import type { StatusColaborador } from '@/domain/entities/colaborador.entity';
 
@@ -30,24 +31,12 @@ export class GetColaboradorByIdUseCase {
   constructor(private readonly colaboradorRepo: ColaboradorRepository) {}
 
   async execute(input: GetColaboradorByIdInput): Promise<GetColaboradorByIdOutput> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
     const colaborador = await this.colaboradorRepo.buscarPorId(input.colaboradorId);
     if (!colaborador) {
       throw new DomainError('Colaborador não encontrado');
     }
 
-    if (input.usuario.perfil === 'GERENTE') {
-      if (!input.usuario.postoId) {
-        throw new UnauthorizedError('Gerente sem posto vinculado');
-      }
-
-      if (input.usuario.postoId !== colaborador.postoId) {
-        throw new UnauthorizedError('Gerente só pode visualizar colaborador do próprio posto');
-      }
-    }
+    autorizar(input.usuario, 'colaboradores', 'ver', colaborador.postoId);
 
     return {
       id: colaborador.id,

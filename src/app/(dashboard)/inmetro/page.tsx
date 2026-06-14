@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus, CardBase, IconBadge, InputBase, LoadingSpinner, SelectBase } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import {
@@ -379,14 +380,17 @@ export default function InmetroPage() {
 
   if (loadingPostos) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <LoadingSpinner size={30} />
-      </div>
+      <RouteGuard recurso="inmetro">
+        <div className="flex h-64 items-center justify-center">
+          <LoadingSpinner size={30} />
+        </div>
+      </RouteGuard>
     );
   }
 
   return (
-    <>
+    <RouteGuard recurso="inmetro">
+      <>
       <motion.div {...animation} className="space-y-6">
         <section className="rounded-[28px] border border-zinc-200 bg-white shadow-sm">
           <div className="space-y-5 p-6 lg:p-7">
@@ -1000,6 +1004,7 @@ export default function InmetroPage() {
           </motion.button>
         ) : null}
       </AnimatePresence>
-    </>
+      </>
+    </RouteGuard>
   );
 }

@@ -1,4 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { autorizar } from '@/application/shared/authorize';
 import { UnauthorizedError } from '@/domain/errors/domain.errors';
 import type { PostoRepository } from '@/domain/ports/posto.repository';
 
@@ -17,6 +18,8 @@ export class ListPostosUseCase {
   constructor(private readonly postoRepo: PostoRepository) {}
 
   async execute(usuario: UsuarioAutenticado): Promise<ListPostosOutputItem[]> {
+    autorizar(usuario, 'postos', 'ver');
+
     if (usuario.perfil === 'ADMIN') {
       const postos = await this.postoRepo.listar();
       return postos.map((posto) => ({
@@ -31,9 +34,9 @@ export class ListPostosUseCase {
       }));
     }
 
-    if (usuario.perfil === 'GERENTE') {
+    if (usuario.perfil === 'GERENTE' || usuario.perfil === 'ADMINISTRATIVO') {
       if (!usuario.postoId) {
-        throw new UnauthorizedError('Gerente sem posto vinculado');
+        throw new UnauthorizedError('Usuário sem posto vinculado');
       }
 
       const posto = await this.postoRepo.buscarPorId(usuario.postoId);

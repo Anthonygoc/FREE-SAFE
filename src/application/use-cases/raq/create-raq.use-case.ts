@@ -1,6 +1,6 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { autorizar } from '@/application/shared/authorize';
 import { RAQ, type AspectoCombustivel, type ProdutoCombustivel } from '@/domain/entities/raq.entity';
-import { UnauthorizedError } from '@/domain/errors/domain.errors';
 import type { RAQRepository } from '@/domain/ports/raq.repository';
 
 export interface CreateRAQInput {
@@ -38,13 +38,7 @@ export class CreateRAQUseCase {
   constructor(private readonly raqRepo: RAQRepository) {}
 
   async execute(input: CreateRAQInput): Promise<CreateRAQOutput> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
-    if (input.usuario.perfil === 'GERENTE' && input.usuario.postoId !== input.postoId) {
-      throw new UnauthorizedError('Gerente só pode registrar RAQ no próprio posto');
-    }
+    autorizar(input.usuario, 'anp', 'criar', input.postoId);
 
     const raq = RAQ.criar({
       postoId: input.postoId,

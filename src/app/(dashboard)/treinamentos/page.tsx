@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowRight, GraduationCap } from 'lucide-react';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -43,32 +44,37 @@ export default function TreinamentosPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center">
-        <LoadingSpinner size={30} />
-      </div>
+      <RouteGuard recurso="cursos">
+        <div className="flex min-h-[320px] items-center justify-center">
+          <LoadingSpinner size={30} />
+        </div>
+      </RouteGuard>
     );
   }
 
   if (!cursos?.length) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Cursos e Treinamentos</h1>
-          <p className="mt-1 text-zinc-500">Acompanhe os cursos obrigatórios e o progresso da equipe.</p>
+      <RouteGuard recurso="cursos">
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Cursos e Treinamentos</h1>
+            <p className="mt-1 text-zinc-500">Acompanhe os cursos obrigatórios e o progresso da equipe.</p>
+          </div>
+          <CardBase>
+            <EmptyState
+              icon={GraduationCap}
+              title="Nenhum curso disponível"
+              description="Os cursos ativos aparecerão aqui assim que forem publicados."
+            />
+          </CardBase>
         </div>
-        <CardBase>
-          <EmptyState
-            icon={GraduationCap}
-            title="Nenhum curso disponível"
-            description="Os cursos ativos aparecerão aqui assim que forem publicados."
-          />
-        </CardBase>
-      </div>
+      </RouteGuard>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <RouteGuard recurso="cursos">
+      <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Cursos e Treinamentos</h1>
         <p className="mt-1 text-zinc-500">Acesse os conteúdos, acompanhe o progresso e realize as provas.</p>
@@ -136,6 +142,7 @@ export default function TreinamentosPage() {
           );
         })}
       </motion.div>
-    </div>
+      </div>
+    </RouteGuard>
   );
 }

@@ -1,5 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { UnauthorizedError } from '@/domain/errors/domain.errors';
+import { autorizar } from '@/application/shared/authorize';
 import type { CategoriaDocumento, CategoriaDocumentoRepository } from '@/domain/ports/categoria-documento.repository';
 
 export interface ListCategoriasInput {
@@ -12,9 +12,7 @@ export class ListCategoriasUseCase {
   constructor(private readonly categoriaDocumentoRepo: CategoriaDocumentoRepository) {}
 
   async execute(input: ListCategoriasInput): Promise<ListCategoriasOutputItem[]> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
+    autorizar(input.usuario, 'documentos', 'ver');
 
     return this.categoriaDocumentoRepo.listarTodas();
   }

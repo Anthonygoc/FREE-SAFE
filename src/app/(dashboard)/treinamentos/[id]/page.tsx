@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, FileText, GraduationCap, PlayCircle } from 'lucide-react';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
@@ -144,30 +145,35 @@ export default function CursoDetalhePage() {
 
   if (isLoading || !cursoId) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center">
-        <LoadingSpinner size={30} />
-      </div>
+      <RouteGuard recurso="cursos">
+        <div className="flex min-h-[320px] items-center justify-center">
+          <LoadingSpinner size={30} />
+        </div>
+      </RouteGuard>
     );
   }
 
   if (!data || !secao) {
     return (
-      <div className="space-y-6">
-        <Link href="/treinamentos" className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-600">
-          <ArrowLeft className="h-4 w-4" />
-          Voltar para treinamentos
-        </Link>
-        <CardBase>
-          <p className="text-sm text-zinc-500">Conteúdo do curso indisponível.</p>
-        </CardBase>
-      </div>
+      <RouteGuard recurso="cursos">
+        <div className="space-y-6">
+          <Link href="/treinamentos" className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-600">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar para treinamentos
+          </Link>
+          <CardBase>
+            <p className="text-sm text-zinc-500">Conteúdo do curso indisponível.</p>
+          </CardBase>
+        </div>
+      </RouteGuard>
     );
   }
 
   const Icon = tipoIconMap[secao.tipo];
 
   return (
-    <div className="space-y-6">
+    <RouteGuard recurso="cursos">
+      <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
         <Link href="/treinamentos" className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-600 transition hover:text-zinc-900">
           <ArrowLeft className="h-4 w-4" />
@@ -270,6 +276,7 @@ export default function CursoDetalhePage() {
           </CardBase>
         </motion.div>
       </div>
-    </div>
+      </div>
+    </RouteGuard>
   );
 }

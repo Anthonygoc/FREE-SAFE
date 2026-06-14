@@ -1,4 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { autorizar } from '@/application/shared/authorize';
 import { UnauthorizedError } from '@/domain/errors/domain.errors';
 import type { AfericaoRepository } from '@/domain/ports/afericao.repository';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
@@ -28,13 +29,11 @@ export class GetDashboardKPIsUseCase {
   ) {}
 
   async execute(usuario: UsuarioAutenticado): Promise<GetDashboardKPIsOutput> {
-    if (usuario.perfil !== 'ADMIN' && usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
+    autorizar(usuario, 'dashboard', 'ver');
 
-    if (usuario.perfil === 'GERENTE') {
+    if (usuario.perfil === 'GERENTE' || usuario.perfil === 'ADMINISTRATIVO') {
       if (!usuario.postoId) {
-        throw new UnauthorizedError('Gerente sem posto vinculado');
+        throw new UnauthorizedError('Usuário sem posto vinculado');
       }
 
       const [colaboradoresAtivos, raqsPosto, afericoesPosto] = await Promise.all([

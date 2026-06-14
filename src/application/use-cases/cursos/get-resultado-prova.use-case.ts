@@ -1,4 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { autorizar } from '@/application/shared/authorize';
 import { DomainError } from '@/domain/errors/domain.errors';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
 import type { CursoRepository } from '@/domain/ports/curso.repository';
@@ -25,6 +26,8 @@ export class GetResultadoProvaUseCase {
   ) {}
 
   async execute(input: GetResultadoProvaInput): Promise<GetResultadoProvaOutput | null> {
+    autorizar(input.usuario, 'cursos', 'ver');
+
     const colaborador = await this.resolverColaboradorAlvo(input);
     if (!colaborador) {
       throw new DomainError('Usuário não está vinculado a um colaborador');

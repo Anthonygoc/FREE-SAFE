@@ -1,7 +1,8 @@
 import ExcelJS, { type Cell, type Fill } from 'exceljs';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
+import { autorizar } from '@/application/shared/authorize';
+import { DomainError } from '@/domain/errors/domain.errors';
 import type { PostoRepository } from '@/domain/ports/posto.repository';
 import type { RAQRepository } from '@/domain/ports/raq.repository';
 
@@ -48,18 +49,12 @@ export class EmitRAQXlsxUseCase {
   ) {}
 
   async execute(input: EmitRAQXlsxInput): Promise<Buffer> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
     const raq = await this.raqRepo.buscarPorId(input.raqId);
     if (!raq) {
       throw new DomainError('RAQ não encontrada');
     }
 
-    if (input.usuario.perfil === 'GERENTE' && input.usuario.postoId !== raq.postoId) {
-      throw new UnauthorizedError('Gerente só pode emitir planilha de RAQ do próprio posto');
-    }
+    autorizar(input.usuario, 'anp', 'ver', raq.postoId);
 
     const posto = await this.postoRepo.buscarPorId(raq.postoId);
     if (!posto) {

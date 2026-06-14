@@ -1,4 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { autorizar } from '@/application/shared/authorize';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
 import type { CursoRepository } from '@/domain/ports/curso.repository';
 import type { ProvaAttemptRepository } from '@/domain/ports/prova-attempt.repository';
@@ -38,6 +39,8 @@ export class ListCursosUseCase {
   ) {}
 
   async execute(input: ListCursosInput): Promise<ListCursosOutputItem[]> {
+    autorizar(input.usuario, 'cursos', 'ver');
+
     const colaborador = await this.colaboradorRepo.buscarPorUserId(input.usuario.id);
 
     const [cursos, attempts] = await Promise.all([

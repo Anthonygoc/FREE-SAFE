@@ -1,5 +1,6 @@
 import { ClipboardCheck } from 'lucide-react';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { CardBase } from '@/components/ui/card-base';
 
 const tipos = [
@@ -15,7 +16,8 @@ const tipos = [
 
 export default function EntrevistasPage() {
   return (
-    <div className="space-y-6">
+    <RouteGuard recurso="entrevistas">
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Entrevistas e Acompanhamentos</h1>
         <p className="mt-1 text-zinc-500">Modelos de entrevistas para gestão de pessoas e conformidade.</p>
@@ -32,6 +34,7 @@ export default function EntrevistasPage() {
           </CardBase>
         ))}
       </div>
-    </div>
+      </div>
+    </RouteGuard>
   );
 }

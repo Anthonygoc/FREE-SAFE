@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronRight, Search } from 'lucide-react';
 
+import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
@@ -47,14 +48,17 @@ export default function PostosPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <LoadingSpinner size={30} />
-      </div>
+      <RouteGuard recurso="postos">
+        <div className="flex h-64 items-center justify-center">
+          <LoadingSpinner size={30} />
+        </div>
+      </RouteGuard>
     );
   }
 
   return (
-    <motion.div {...animation} className="space-y-6">
+    <RouteGuard recurso="postos">
+      <motion.div {...animation} className="space-y-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Postos da Rede Free</h1>
         <p className="mt-1 text-zinc-500">Acompanhe conformidade, risco e status operacional dos postos.</p>
@@ -118,6 +122,7 @@ export default function PostosPage() {
           );
         })}
       </motion.div>
-    </motion.div>
+      </motion.div>
+    </RouteGuard>
   );
 }

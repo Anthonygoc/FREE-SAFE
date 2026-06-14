@@ -1,5 +1,6 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
+import { autorizar } from '@/application/shared/authorize';
+import { DomainError } from '@/domain/errors/domain.errors';
 import type { BicoRepository } from '@/domain/ports/bico.repository';
 import type { BombaRepository } from '@/domain/ports/bomba.repository';
 
@@ -19,10 +20,6 @@ export class DeleteBicoUseCase {
   ) {}
 
   async execute(input: DeleteBicoInput): Promise<DeleteBicoOutput> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
     const bico = await this.bicoRepo.buscarPorId(input.bicoId);
     if (!bico) {
       throw new DomainError('Bico não encontrado');
@@ -33,15 +30,7 @@ export class DeleteBicoUseCase {
       throw new DomainError('Bomba não encontrada');
     }
 
-    if (input.usuario.perfil === 'GERENTE') {
-      if (!input.usuario.postoId) {
-        throw new UnauthorizedError('Gerente sem posto vinculado');
-      }
-
-      if (input.usuario.postoId !== bomba.postoId) {
-        throw new UnauthorizedError('Gerente só pode excluir bicos do próprio posto');
-      }
-    }
+    autorizar(input.usuario, 'bombas', 'excluir', bomba.postoId);
 
     const totalAfericoes = await this.bicoRepo.contarAfericoes(bico.id);
 

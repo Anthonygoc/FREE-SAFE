@@ -1,4 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { autorizar } from '@/application/shared/authorize';
 import type { AlternativaQuestao } from '@/domain/entities/curso-questao.entity';
 import { ProvaAttempt } from '@/domain/entities/prova-attempt.entity';
 import { DomainError } from '@/domain/errors/domain.errors';
@@ -43,6 +44,8 @@ export class SubmitProvaUseCase {
   ) {}
 
   async execute(input: SubmitProvaInput): Promise<SubmitProvaOutput> {
+    autorizar(input.usuario, 'cursos', 'criar');
+
     if (input.respostas.length === 0) {
       throw new DomainError('A prova precisa de ao menos uma resposta');
     }

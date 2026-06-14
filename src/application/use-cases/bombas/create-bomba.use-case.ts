@@ -1,5 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { UnauthorizedError } from '@/domain/errors/domain.errors';
+import { autorizar } from '@/application/shared/authorize';
 import type { BombaRepository } from '@/domain/ports/bomba.repository';
 
 export interface CreateBombaInput {
@@ -17,19 +17,7 @@ export class CreateBombaUseCase {
   constructor(private readonly bombaRepo: BombaRepository) {}
 
   async execute(input: CreateBombaInput): Promise<CreateBombaOutput> {
-    if (input.usuario.perfil !== 'ADMIN' && input.usuario.perfil !== 'GERENTE') {
-      throw new UnauthorizedError();
-    }
-
-    if (input.usuario.perfil === 'GERENTE') {
-      if (!input.usuario.postoId) {
-        throw new UnauthorizedError('Gerente sem posto vinculado');
-      }
-
-      if (input.usuario.postoId !== input.postoId) {
-        throw new UnauthorizedError('Gerente só pode criar bomba no próprio posto');
-      }
-    }
+    autorizar(input.usuario, 'bombas', 'criar', input.postoId);
 
     const id = crypto.randomUUID();
 
