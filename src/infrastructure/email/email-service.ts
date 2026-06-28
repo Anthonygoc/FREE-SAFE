@@ -1,5 +1,11 @@
 import { EMAIL_FROM, resend } from './resend-client';
 import { templateResetSenha } from './templates/reset-senha.template';
+import {
+  templateVencimento,
+  type DocumentoVencimentoEmail,
+} from './templates/vencimento-documentos.template';
+
+export type { DocumentoVencimentoEmail } from './templates/vencimento-documentos.template';
 
 type EnviarEmailParams = {
   para: string | string[];
@@ -47,6 +53,20 @@ export async function enviarEmailResetSenha(
   return enviarEmail({
     para,
     assunto: 'Redefinição de senha — FREE SAFE',
+    html,
+  });
+}
+
+export async function enviarEmailVencimentoDocumentos(
+  para: string | string[],
+  nomePosto: string,
+  docs: DocumentoVencimentoEmail[],
+): Promise<boolean> {
+  const html = templateVencimento(nomePosto, docs);
+
+  return enviarEmail({
+    para,
+    assunto: `Documentos a vencer — ${nomePosto}`,
     html,
   });
 }

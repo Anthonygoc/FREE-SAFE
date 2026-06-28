@@ -1,9 +1,10 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Bell, Menu, Search, Settings, UserRound } from 'lucide-react';
+import { Menu, Search, Settings, UserRound } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 
+import { NotificationBell } from './notification-bell';
 import { useSidebar } from './sidebar-context';
 
 export function Header() {
@@ -40,9 +41,7 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="rounded-xl border border-zinc-200 bg-white p-2.5 text-zinc-600 transition-all hover:bg-zinc-100 active:scale-95">
-            <Bell className="h-5 w-5" />
-          </button>
+          <NotificationBell />
           <button className="rounded-xl border border-zinc-200 bg-white p-2.5 text-zinc-600 transition-all hover:bg-zinc-100 active:scale-95">
             <Settings className="h-5 w-5" />
           </button>

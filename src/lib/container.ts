@@ -19,6 +19,8 @@ import { ListCategoriasUseCase } from '@/application/use-cases/categorias/list-c
 import { GetColaboradorByIdUseCase } from '@/application/use-cases/colaboradores/get-colaborador-by-id.use-case';
 import { UpdateColaboradorUseCase } from '@/application/use-cases/colaboradores/update-colaborador.use-case';
 import { GetDashboardKPIsUseCase } from '@/application/use-cases/dashboard/get-dashboard-kpis.use-case';
+import { ListarNotificacoesUseCase } from '@/application/use-cases/notificacoes/listar-notificacoes.use-case';
+import { NotificarVencimentosUseCase } from '@/application/use-cases/notificacoes/notificar-vencimentos.use-case';
 import { GetCursoByIdUseCase } from '@/application/use-cases/cursos/get-curso-by-id.use-case';
 import { GetCursoConteudoUseCase } from '@/application/use-cases/cursos/get-curso-conteudo.use-case';
 import { GetCursoQuestoesUseCase } from '@/application/use-cases/cursos/get-curso-questoes.use-case';
@@ -177,6 +179,13 @@ export function getDashboardKPIsUseCase(): GetDashboardKPIsUseCase {
   );
 }
 
+export function listarNotificacoesUseCase(): ListarNotificacoesUseCase {
+  return new ListarNotificacoesUseCase(
+    new DocumentoPrismaRepository(),
+    new PostoPrismaRepository(),
+  );
+}
+
 export function documentoRepository(): DocumentoPrismaRepository {
   return new DocumentoPrismaRepository();
 }
@@ -206,6 +215,14 @@ export function createDocumentoUseCase(): CreateDocumentoUseCase {
 
 export function deleteDocumentoUseCase(): DeleteDocumentoUseCase {
   return new DeleteDocumentoUseCase(new DocumentoPrismaRepository());
+}
+
+export function notificarVencimentosUseCase(): NotificarVencimentosUseCase {
+  return new NotificarVencimentosUseCase(
+    new DocumentoPrismaRepository(),
+    new UserPrismaRepository(),
+    new PostoPrismaRepository(),
+  );
 }
 
 export function listCategoriasUseCase(): ListCategoriasUseCase {
