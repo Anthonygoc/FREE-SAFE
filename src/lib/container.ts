@@ -5,6 +5,7 @@ import { EmitAfericaoPdfUseCase } from '@/application/use-cases/afericao/emit-af
 import { EmitAfericaoXlsxUseCase } from '@/application/use-cases/afericao/emit-afericao-xlsx.use-case';
 import { GetAfericaoByIdUseCase } from '@/application/use-cases/afericao/get-afericao-by-id.use-case';
 import { ListAfericoesByPostoUseCase } from '@/application/use-cases/afericao/list-afericoes-by-posto.use-case';
+import { ListAuditoriaUseCase } from '@/application/use-cases/auditoria/list-auditoria.use-case';
 import { ListBicosByBombaUseCase } from '@/application/use-cases/bicos/list-bicos-by-bomba.use-case';
 import { CreateBicoUseCase } from '@/application/use-cases/bombas/create-bico.use-case';
 import { CreateBombaUseCase } from '@/application/use-cases/bombas/create-bomba.use-case';
@@ -24,6 +25,8 @@ import { GetCursoQuestoesUseCase } from '@/application/use-cases/cursos/get-curs
 import { GetResultadoProvaUseCase } from '@/application/use-cases/cursos/get-resultado-prova.use-case';
 import { ListCursosUseCase } from '@/application/use-cases/cursos/list-cursos.use-case';
 import { EmitCertificadoUseCase } from '@/application/use-cases/cursos/emit-certificado.use-case';
+import { RedefinirSenhaUseCase } from '@/application/use-cases/auth/redefinir-senha.use-case';
+import { SolicitarResetSenhaUseCase } from '@/application/use-cases/auth/solicitar-reset-senha.use-case';
 import { CreateUsuarioUseCase } from '@/application/use-cases/usuarios/create-usuario.use-case';
 import { ListUsuariosUseCase } from '@/application/use-cases/usuarios/list-usuarios.use-case';
 import { ToggleUsuarioAtivoUseCase } from '@/application/use-cases/usuarios/toggle-usuario-ativo.use-case';
@@ -38,6 +41,7 @@ import { EmitRAQXlsxUseCase } from '@/application/use-cases/raq/emit-raq-xlsx.us
 import { GetRAQByIdUseCase } from '@/application/use-cases/raq/get-raq-by-id.use-case';
 import { ListRAQByPostoUseCase } from '@/application/use-cases/raq/list-raq-by-posto.use-case';
 import { AfericaoPrismaRepository } from '@/infrastructure/database/prisma/repositories/afericao.prisma-repository';
+import { AuditLogPrismaRepository } from '@/infrastructure/database/prisma/repositories/audit-log.prisma-repository';
 import { BicoPrismaRepository } from '@/infrastructure/database/prisma/repositories/bico.prisma-repository';
 import { BombaPrismaRepository } from '@/infrastructure/database/prisma/repositories/bomba.prisma-repository';
 import { CategoriaDocumentoPrismaRepository } from '@/infrastructure/database/prisma/repositories/categoria-documento.prisma-repository';
@@ -181,6 +185,14 @@ export function categoriaDocumentoRepository(): CategoriaDocumentoPrismaReposito
   return new CategoriaDocumentoPrismaRepository();
 }
 
+export function auditLogRepository(): AuditLogPrismaRepository {
+  return new AuditLogPrismaRepository();
+}
+
+export function listAuditoriaUseCase(): ListAuditoriaUseCase {
+  return new ListAuditoriaUseCase(new AuditLogPrismaRepository());
+}
+
 export function listDocumentosByPostoUseCase(): ListDocumentosByPostoUseCase {
   return new ListDocumentosByPostoUseCase(new DocumentoPrismaRepository());
 }
@@ -273,6 +285,14 @@ export function emitCertificadoUseCase(): EmitCertificadoUseCase {
 
 export function createUsuarioUseCase(): CreateUsuarioUseCase {
   return new CreateUsuarioUseCase(new UserPrismaRepository());
+}
+
+export function solicitarResetSenhaUseCase(): SolicitarResetSenhaUseCase {
+  return new SolicitarResetSenhaUseCase(new UserPrismaRepository());
+}
+
+export function redefinirSenhaUseCase(): RedefinirSenhaUseCase {
+  return new RedefinirSenhaUseCase(new UserPrismaRepository());
 }
 
 export function listUsuariosUseCase(): ListUsuariosUseCase {

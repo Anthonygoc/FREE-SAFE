@@ -192,7 +192,9 @@ export default function DashboardPage() {
                           <p className="text-sm font-semibold text-zinc-900">{alerta.tipo}</p>
                           <p className="mt-2 text-sm tabular-nums text-zinc-600">{alerta.quantidade} ocorrência(s)</p>
                         </div>
-                        <BadgeStatus label={nivelLabel} tone={tone} />
+                        <div className={alerta.nivel === 'critico' ? 'animate-pulse-orange rounded-full' : undefined}>
+                          <BadgeStatus label={nivelLabel} tone={tone} />
+                        </div>
                       </div>
                     </div>
                   );

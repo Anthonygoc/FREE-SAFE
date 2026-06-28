@@ -7,14 +7,28 @@ export class DomainError extends Error {
 
 export class CampoObrigatorioError extends DomainError {
   constructor(campo: string) {
-    super(`Campo obrigatório ausente: ${campo}`);
+    super(`O campo "${campo}" é obrigatório.`);
     this.name = 'CampoObrigatorioError';
   }
 }
 
+export class AuthenticationError extends Error {
+  constructor(message = 'Sua sessão expirou. Faça login novamente.') {
+    super(message);
+    this.name = 'AuthenticationError';
+  }
+}
+
 export class UnauthorizedError extends DomainError {
-  constructor(message = 'Não autorizado') {
+  constructor(message = 'Você não tem permissão para esta ação') {
     super(message);
     this.name = 'UnauthorizedError';
+  }
+}
+
+export class NotFoundError extends DomainError {
+  constructor(message = 'Registro não encontrado') {
+    super(message);
+    this.name = 'NotFoundError';
   }
 }

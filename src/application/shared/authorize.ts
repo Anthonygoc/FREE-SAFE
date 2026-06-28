@@ -9,10 +9,10 @@ export function autorizar(
   postoIdAlvo?: string,
 ) {
   if (!podeAcessar(usuario.perfil, recurso, acao)) {
-    throw new ForbiddenError(`Perfil ${usuario.perfil} não pode ${acao} em ${recurso}.`);
+    throw new ForbiddenError('Você não tem permissão para acessar este recurso');
   }
 
   if (postoIdAlvo && !podeAcessarPosto(usuario, postoIdAlvo)) {
-    throw new ForbiddenError('Usuário não pode acessar dados de outro posto.');
+    throw new ForbiddenError('Você só pode acessar dados do seu posto');
   }
 }

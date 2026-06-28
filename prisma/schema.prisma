@@ -100,23 +100,67 @@ enum TipoConteudo {
   TEXTO_RICO
 }
 
-model User {
-  id           String        @id @default(uuid())
-  nome         String        @db.VarChar(150)
-  email        String        @unique @db.VarChar(200)
-  senhaHash    String        @map("senha_hash")
-  perfil       PerfilUsuario @default(COLABORADOR)
-  postoId      String?       @map("posto_id")
-  ativo        Boolean       @default(true)
-  criadoEm    DateTime      @default(now()) @map("criado_em")
-  atualizadoEm DateTime     @updatedAt @map("atualizado_em")
+enum AuditAcao {
+  CRIAR
+  EDITAR
+  EXCLUIR
+  LOGIN
+  LOGOUT
+  EXPORTAR
+}
 
-  posto        Posto?        @relation("UsuariosPosto", fields: [postoId], references: [id])
-  raqsCriadas  RAQ[]
-  entrevistas  Entrevista[]
-  colaborador  Colaborador?
+enum AuditRecurso {
+  AFERICAO
+  BOMBA
+  RAQ
+  DOCUMENTO
+  COLABORADOR
+  USUARIO
+  CURSO
+  CERTIFICADO
+  CATEGORIA
+}
+
+model User {
+  id                 String        @id @default(uuid())
+  nome               String        @db.VarChar(150)
+  email              String        @unique @db.VarChar(200)
+  senhaHash          String        @map("senha_hash")
+  resetToken         String?       @map("reset_token")
+  resetTokenExpiraEm DateTime? @map("reset_token_expira_em")
+  perfil             PerfilUsuario @default(COLABORADOR)
+  postoId            String?       @map("posto_id")
+  ativo              Boolean       @default(true)
+  criadoEm           DateTime      @default(now()) @map("criado_em")
+  atualizadoEm       DateTime      @updatedAt @map("atualizado_em")
+
+  posto              Posto?        @relation("UsuariosPosto", fields: [postoId], references: [id])
+  raqsCriadas        RAQ[]
+  entrevistas        Entrevista[]
+  colaborador        Colaborador?
 
   @@map("users")
+}
+
+model AuditLog {
+  id           String       @id @default(uuid())
+  usuarioId    String?      @map("usuario_id")
+  usuarioNome  String       @map("usuario_nome") @db.VarChar(150)
+  usuarioEmail String       @map("usuario_email") @db.VarChar(200)
+  perfil       String       @db.VarChar(30)
+  acao         AuditAcao
+  recurso      AuditRecurso
+  entidadeId   String?      @map("entidade_id")
+  postoId      String?      @map("posto_id")
+  descricao    String       @db.VarChar(300)
+  detalhes     String?      @db.Text
+  ip           String?      @db.VarChar(60)
+  criadoEm     DateTime     @default(now()) @map("criado_em")
+
+  @@index([postoId, criadoEm])
+  @@index([usuarioId, criadoEm])
+  @@index([recurso, acao])
+  @@map("audit_logs")
 }
 
 model Posto {

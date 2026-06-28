@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { AuthenticationError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
 import { createUsuarioUseCase, listUsuariosUseCase } from '@/lib/container';
-import { handleApiError } from '@/lib/handle-api-error';
+import { handleApiError, validationErrorResponse } from '@/lib/handle-api-error';
 
 const listUsuariosQuerySchema = z.object({
   postoId: z.string().uuid().optional(),
@@ -21,7 +21,7 @@ const createUsuarioSchema = z.object({
 
 function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
-    throw new DomainError('Não autenticado');
+    throw new AuthenticationError();
   }
 
   return {
@@ -44,10 +44,7 @@ export async function GET(request: Request) {
     });
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: parsed.error.flatten() },
-        { status: 422 },
-      );
+      return validationErrorResponse(parsed.error.flatten());
     }
 
     const data = await listUsuariosUseCase().execute({
@@ -69,10 +66,7 @@ export async function POST(request: Request) {
 
     const parsed = createUsuarioSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: parsed.error.flatten() },
-        { status: 422 },
-      );
+      return validationErrorResponse(parsed.error.flatten());
     }
 
     const data = await createUsuarioUseCase().execute({

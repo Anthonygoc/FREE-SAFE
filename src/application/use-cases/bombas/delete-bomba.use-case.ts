@@ -1,6 +1,7 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { NotFoundError } from '@/domain/errors/domain.errors';
 import type { BicoRepository } from '@/domain/ports/bico.repository';
 import type { BombaRepository } from '@/domain/ports/bomba.repository';
 
@@ -22,7 +23,7 @@ export class DeleteBombaUseCase {
   async execute(input: DeleteBombaInput): Promise<DeleteBombaOutput> {
     const bomba = await this.bombaRepo.buscarPorId(input.bombaId);
     if (!bomba) {
-      throw new DomainError('Bomba não encontrada');
+      throw new NotFoundError('Bomba não encontrada');
     }
 
     autorizar(input.usuario, 'bombas', 'excluir', bomba.postoId);
@@ -51,6 +52,18 @@ export class DeleteBombaUseCase {
     } else {
       await this.bombaRepo.deletar(bomba.id);
     }
+    await registrarAuditoria({
+      usuario: input.usuario,
+      acao: 'EXCLUIR',
+      recurso: 'BOMBA',
+      entidadeId: bomba.id,
+      postoId: bomba.postoId,
+      descricao: `Removeu bomba ${bomba.numero}`,
+      detalhes: {
+        bicosProcessados: bicos.length,
+        desativada: deveDesativarBomba,
+      },
+    });
 
     return { deletado: true };
   }

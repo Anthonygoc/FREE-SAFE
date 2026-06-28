@@ -3,10 +3,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { AuthenticationError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
 import { createDocumentoUseCase, listDocumentosByPostoUseCase } from '@/lib/container';
-import { handleApiError } from '@/lib/handle-api-error';
+import { handleApiError, validationErrorResponse } from '@/lib/handle-api-error';
 
 const createDocumentoSchema = z.object({
   postoId: z.string().uuid(),
@@ -20,7 +20,7 @@ const createDocumentoSchema = z.object({
 
 function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
-    throw new DomainError('Não autenticado');
+    throw new AuthenticationError();
   }
 
   return {
@@ -41,10 +41,7 @@ export async function GET(request: Request) {
     const postoId = searchParams.get('postoId');
 
     if (!postoId) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: { postoId: ['postoId é obrigatório'] } },
-        { status: 422 },
-      );
+      return validationErrorResponse({ postoId: ['postoId é obrigatório'] });
     }
 
     const vencendoRaw = searchParams.get('vencendo');
@@ -53,10 +50,7 @@ export async function GET(request: Request) {
       : z.coerce.number().int().positive().safeParse(vencendoRaw);
 
     if (!vencendoParsed.success) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: vencendoParsed.error.flatten() },
-        { status: 422 },
-      );
+      return validationErrorResponse(vencendoParsed.error.flatten());
     }
 
     const useCase = listDocumentosByPostoUseCase();
@@ -81,10 +75,7 @@ export async function POST(request: Request) {
     const parsed = createDocumentoSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: parsed.error.flatten() },
-        { status: 422 },
-      );
+      return validationErrorResponse(parsed.error.flatten());
     }
 
     const useCase = createDocumentoUseCase();

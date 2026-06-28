@@ -1,6 +1,6 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
 import { autorizar } from '@/application/shared/authorize';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { NotFoundError } from '@/domain/errors/domain.errors';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
 import type { StatusColaborador } from '@/domain/entities/colaborador.entity';
 
@@ -33,7 +33,7 @@ export class GetColaboradorByIdUseCase {
   async execute(input: GetColaboradorByIdInput): Promise<GetColaboradorByIdOutput> {
     const colaborador = await this.colaboradorRepo.buscarPorId(input.colaboradorId);
     if (!colaborador) {
-      throw new DomainError('Colaborador não encontrado');
+      throw new NotFoundError('Colaborador não encontrado');
     }
 
     autorizar(input.usuario, 'colaboradores', 'ver', colaborador.postoId);

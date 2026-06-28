@@ -3,6 +3,10 @@ type RequestOptions = {
   signal?: AbortSignal;
 };
 
+function getDefaultErrorMessage() {
+  return 'Ocorreu um erro. Tente novamente.';
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -13,15 +17,23 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    let message = `HTTP ${response.status}`;
+    let message = getDefaultErrorMessage();
 
     try {
-      const body = await response.json();
-      if (body?.error) {
+      const body = await response.json() as { mensagem?: string; error?: string };
+      if (body?.mensagem) {
+        message = body.mensagem;
+      } else if (typeof body?.error === 'string' && body.error.trim()) {
         message = body.error;
       }
     } catch {
       // noop
+    }
+
+    if (response.status === 401 && typeof window !== 'undefined') {
+      const callbackUrl = `${window.location.pathname}${window.location.search}`;
+      const redirectUrl = `/login?erro=sessao-expirada&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+      window.location.assign(redirectUrl);
     }
 
     throw new Error(message);

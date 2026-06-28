@@ -1,4 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
 import { DomainError } from '@/domain/errors/domain.errors';
 import type { AfericaoRepository } from '@/domain/ports/afericao.repository';
@@ -24,6 +25,19 @@ export class DeleteAfericaoUseCase {
     autorizar(input.usuario, 'inmetro', 'excluir', afericao.postoId);
 
     await this.afericaoRepo.deletar(input.afericaoId);
+    await registrarAuditoria({
+      usuario: input.usuario,
+      acao: 'EXCLUIR',
+      recurso: 'AFERICAO',
+      entidadeId: input.afericaoId,
+      postoId: afericao.postoId,
+      descricao: `Excluiu aferição do bico ${afericao.bico} (bomba ${afericao.bomba})`,
+      detalhes: {
+        loteId: afericao.loteId ?? null,
+        situacao: afericao.situacao,
+        resultadoMl: afericao.resultadoMl,
+      },
+    });
 
     return { deletado: true };
   }

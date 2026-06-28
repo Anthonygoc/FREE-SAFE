@@ -2,6 +2,7 @@
 import { Suspense, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, BarChart3, BadgeCheck, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -9,6 +10,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get('callbackUrl') ?? '/';
+  const sessionExpired = searchParams.get('erro') === 'sessao-expirada';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -84,13 +86,35 @@ function LoginForm() {
           ) : null}
         </AnimatePresence>
 
+        <AnimatePresence>
+          {!error && sessionExpired ? (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+            >
+              Sua sessão expirou. Faça login novamente.
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <div className="flex justify-end">
+          <Link
+            href="/esqueci-senha"
+            className="text-sm font-medium text-orange-600 transition hover:text-orange-700"
+          >
+            Esqueci minha senha
+          </Link>
+        </div>
+
         <motion.button
           type="submit"
           disabled={isPending}
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
           transition={{ delay: 0.3 }}
-          className="flex w-full items-center justify-center rounded-xl bg-orange-500 py-3 font-bold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-70"
+          className="btn-orange-gradient flex w-full items-center justify-center rounded-xl py-3 font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
         >
           {isPending ? (
             <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />

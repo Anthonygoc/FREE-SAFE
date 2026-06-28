@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { registrarAuditoria } from '@/application/shared/audit';
+import { AuthenticationError, DomainError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
 import { createAfericaoUseCase } from '@/lib/container';
-import { handleApiError } from '@/lib/handle-api-error';
+import { handleApiError, validationErrorResponse } from '@/lib/handle-api-error';
 
 const produtoSchema = z.enum([
   'GASOLINA_COMUM',
@@ -36,7 +37,7 @@ const createAfericaoLoteSchema = z.object({
 
 function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
-    throw new DomainError('Não autenticado');
+    throw new AuthenticationError();
   }
 
   return {
@@ -58,10 +59,7 @@ export async function POST(request: Request) {
     const parsed = createAfericaoLoteSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: parsed.error.flatten() },
-        { status: 422 },
-      );
+      return validationErrorResponse(parsed.error.flatten());
     }
 
     const useCase = createAfericaoUseCase();
@@ -81,6 +79,7 @@ export async function POST(request: Request) {
         postoId: parsed.data.postoId,
         loteId,
         bicoId: afericao.bicoId,
+        registrarLog: false,
         produto: afericao.produto,
         bomba: afericao.bomba,
         bico: afericao.bico,
@@ -93,6 +92,20 @@ export async function POST(request: Request) {
         bicoId: afericao.bicoId,
         situacao: resultado.situacao,
         dentro: resultado.dentro,
+      });
+    }
+
+    if (resultados.length > 0) {
+      const foraCount = resultados.filter((resultado) => !resultado.dentro).length;
+
+      await registrarAuditoria({
+        usuario,
+        acao: 'CRIAR',
+        recurso: 'AFERICAO',
+        entidadeId: loteId,
+        postoId: parsed.data.postoId,
+        descricao: `Registrou aferição em lote (${resultados.length} bicos${foraCount > 0 ? `, ${foraCount} fora da tolerância` : ''})`,
+        detalhes: { loteId, total: resultados.length, fora: foraCount },
       });
     }
 

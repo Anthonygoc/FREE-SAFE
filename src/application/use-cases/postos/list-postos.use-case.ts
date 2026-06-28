@@ -36,7 +36,7 @@ export class ListPostosUseCase {
 
     if (usuario.perfil === 'GERENTE' || usuario.perfil === 'ADMINISTRATIVO') {
       if (!usuario.postoId) {
-        throw new UnauthorizedError('Usuário sem posto vinculado');
+        throw new UnauthorizedError('Você só pode acessar dados do seu posto');
       }
 
       const posto = await this.postoRepo.buscarPorId(usuario.postoId);
@@ -58,7 +58,7 @@ export class ListPostosUseCase {
       ];
     }
 
-    throw new UnauthorizedError();
+    throw new UnauthorizedError('Você não tem permissão para acessar este recurso');
   }
 
   private calcularConformidade(ativo: boolean): number {

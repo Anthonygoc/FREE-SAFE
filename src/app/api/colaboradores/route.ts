@@ -4,10 +4,10 @@ import { z } from 'zod';
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
 import { CreateColaboradorUseCase } from '@/application/use-cases/colaboradores/create-colaborador.use-case';
 import { ListColaboradoresByPostoUseCase } from '@/application/use-cases/colaboradores/list-colaboradores-by-posto.use-case';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { AuthenticationError, DomainError } from '@/domain/errors/domain.errors';
 import { ColaboradorPrismaRepository } from '@/infrastructure/database/prisma/repositories/colaborador.prisma-repository';
 import { auth } from '@/lib/auth';
-import { handleApiError } from '@/lib/handle-api-error';
+import { handleApiError, validationErrorResponse } from '@/lib/handle-api-error';
 
 const statusSchema = z.enum(['ATIVO', 'AFASTADO', 'DESLIGADO']);
 
@@ -29,7 +29,7 @@ const createColaboradorSchema = z.object({
 
 function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
-    throw new DomainError('Não autenticado');
+    throw new AuthenticationError();
   }
 
   return {
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
     const statusRaw = searchParams.get('status') ?? undefined;
 
     if (!postoId) {
-      return NextResponse.json({ error: 'postoId é obrigatório' }, { status: 400 });
+      return validationErrorResponse({ postoId: ['postoId é obrigatório'] });
     }
 
     const status = statusRaw ? statusSchema.parse(statusRaw) : undefined;
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ data }, { status: 200 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Parâmetros inválidos', details: error.issues }, { status: 400 });
+      return validationErrorResponse(error.flatten());
     }
 
     return handleApiError(error);
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ data: output }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Payload inválido', details: error.issues }, { status: 400 });
+      return validationErrorResponse(error.flatten());
     }
 
     return handleApiError(error);

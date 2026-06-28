@@ -1,4 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
 import { RAQ, type AspectoCombustivel, type ProdutoCombustivel } from '@/domain/entities/raq.entity';
 import type { RAQRepository } from '@/domain/ports/raq.repository';
@@ -66,6 +67,21 @@ export class CreateRAQUseCase {
     });
 
     await this.raqRepo.salvar(raq);
+    const produtoDescricao = raq.produto.toLowerCase().replace(/_/g, ' ');
+
+    await registrarAuditoria({
+      usuario: input.usuario,
+      acao: 'CRIAR',
+      recurso: 'RAQ',
+      entidadeId: raq.id,
+      postoId: raq.postoId,
+      descricao: `Registrou análise RAQ de ${produtoDescricao}`,
+      detalhes: {
+        produto: raq.produto,
+        resultado: raq.resultado,
+        aprovado: raq.estaAprovado,
+      },
+    });
 
     return {
       raqId: raq.id,

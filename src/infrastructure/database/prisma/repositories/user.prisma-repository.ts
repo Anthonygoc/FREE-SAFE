@@ -30,6 +30,8 @@ function mapUser(raw: {
   nome: string;
   email: string;
   senhaHash: string;
+  resetToken: string | null;
+  resetTokenExpiraEm: Date | null;
   perfil: User['perfil'];
   postoId: string | null;
   ativo: boolean;
@@ -41,6 +43,8 @@ function mapUser(raw: {
     nome: raw.nome,
     email: raw.email,
     senhaHash: raw.senhaHash,
+    resetToken: raw.resetToken,
+    resetTokenExpiraEm: raw.resetTokenExpiraEm,
     perfil: raw.perfil,
     postoId: raw.postoId,
     ativo: raw.ativo,
@@ -97,6 +101,11 @@ export class UserPrismaRepository implements UserRepository {
     return raw ? mapUser(raw) : null;
   }
 
+  async buscarPorResetToken(token: string): Promise<User | null> {
+    const raw = await this.db.user.findFirst({ where: { resetToken: token } });
+    return raw ? mapUser(raw) : null;
+  }
+
   async salvar(user: User): Promise<void> {
     await this.db.user.create({
       data: {
@@ -104,6 +113,8 @@ export class UserPrismaRepository implements UserRepository {
         nome: user.nome,
         email: user.email,
         senhaHash: user.senhaHash,
+        resetToken: user.resetToken ?? null,
+        resetTokenExpiraEm: user.resetTokenExpiraEm ?? null,
         perfil: user.perfil,
         postoId: user.postoId,
         ativo: user.ativo,
@@ -119,9 +130,32 @@ export class UserPrismaRepository implements UserRepository {
       data: {
         nome: user.nome,
         senhaHash: user.senhaHash,
+        resetToken: user.resetToken,
+        resetTokenExpiraEm: user.resetTokenExpiraEm,
         perfil: user.perfil,
         postoId: user.postoId,
         ativo: user.ativo,
+      },
+    });
+  }
+
+  async salvarResetToken(userId: string, token: string, expiraEm: Date): Promise<void> {
+    await this.db.user.update({
+      where: { id: userId },
+      data: {
+        resetToken: token,
+        resetTokenExpiraEm: expiraEm,
+      },
+    });
+  }
+
+  async atualizarSenhaELimparToken(userId: string, senhaHash: string): Promise<void> {
+    await this.db.user.update({
+      where: { id: userId },
+      data: {
+        senhaHash,
+        resetToken: null,
+        resetTokenExpiraEm: null,
       },
     });
   }

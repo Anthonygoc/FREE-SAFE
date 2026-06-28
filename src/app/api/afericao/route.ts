@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { AuthenticationError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
 import { createAfericaoUseCase, listAfericoesByPostoUseCase } from '@/lib/container';
 import { handleApiError } from '@/lib/handle-api-error';
@@ -30,7 +30,7 @@ const createAfericaoSchema = z.object({
 
 function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
-    throw new DomainError('Não autenticado');
+    throw new AuthenticationError();
   }
 
   return {

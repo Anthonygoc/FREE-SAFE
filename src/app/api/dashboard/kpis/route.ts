@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { AuthenticationError, DomainError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
 import { getDashboardKPIsUseCase } from '@/lib/container';
 import { handleApiError } from '@/lib/handle-api-error';
 
 function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
-    throw new DomainError('Não autenticado');
+    throw new AuthenticationError();
   }
 
   return {

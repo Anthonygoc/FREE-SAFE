@@ -297,7 +297,7 @@ export default function DocumentosPage() {
                 type="button"
                 onClick={() => setModalAberto(true)}
                 disabled={!postoId}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-600 hover:shadow-md active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60"
+                className="btn-orange-gradient inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60"
               >
                 <Plus className="h-4 w-4" />
                 Adicionar documento

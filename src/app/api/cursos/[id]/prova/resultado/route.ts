@@ -2,16 +2,16 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { AuthenticationError, DomainError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
 import { getResultadoProvaUseCase } from '@/lib/container';
-import { handleApiError } from '@/lib/handle-api-error';
+import { handleApiError, validationErrorResponse } from '@/lib/handle-api-error';
 
 const idSchema = z.string().uuid();
 
 function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
-    throw new DomainError('Não autenticado');
+    throw new AuthenticationError();
   }
 
   return {
@@ -51,7 +51,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ data }, { status: 200 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Parâmetros inválidos', details: error.issues }, { status: 400 });
+      return validationErrorResponse(error.flatten());
     }
 
     return handleApiError(error);

@@ -514,7 +514,7 @@ export default function AnpPage() {
                     <button
                       type="submit"
                       disabled={isPending}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-600 hover:shadow-md active:scale-[0.98] disabled:opacity-60"
+                      className="btn-orange-gradient inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-60"
                     >
                       {isPending ? 'Salvando...' : 'Registrar análise'}
                     </button>

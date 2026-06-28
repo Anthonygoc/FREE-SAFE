@@ -1,8 +1,9 @@
 import bcrypt from 'bcryptjs';
 
 import type { PerfilUsuario, UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { DomainError, NotFoundError } from '@/domain/errors/domain.errors';
 import type { UserRepository } from '@/domain/ports/user.repository';
 
 export interface UpdateUsuarioInput {
@@ -31,7 +32,7 @@ export class UpdateUsuarioUseCase {
 
     const alvo = await this.userRepo.buscarPorId(input.usuarioId);
     if (!alvo) {
-      throw new DomainError('Usuário não encontrado.');
+      throw new NotFoundError('Usuário não encontrado');
     }
 
     if (
@@ -46,21 +47,20 @@ export class UpdateUsuarioUseCase {
     }
 
     if (input.novaSenha !== undefined && input.novaSenha.length < 8) {
-      throw new DomainError('A nova senha deve ter pelo menos 8 caracteres.');
+      throw new DomainError('A senha deve ter no mínimo 8 caracteres');
     }
 
     const perfilFinal = input.perfil ?? alvo.perfil;
     const postoIdFinal = input.postoId ?? alvo.postoId;
 
     if ((perfilFinal === 'GERENTE' || perfilFinal === 'ADMINISTRATIVO') && !postoIdFinal) {
-      throw new DomainError('GERENTE e ADMINISTRATIVO exigem posto vinculado.');
+      throw new DomainError('Selecione um posto para este perfil.');
     }
 
     const senhaHash = input.novaSenha
       ? await bcrypt.hash(input.novaSenha, 10)
       : alvo.senhaHash;
-
-    await this.userRepo.atualizar({
+    const atualizado = {
       ...alvo,
       nome: input.nome ?? alvo.nome,
       perfil: perfilFinal,
@@ -68,6 +68,22 @@ export class UpdateUsuarioUseCase {
       ativo: input.ativo ?? alvo.ativo,
       senhaHash,
       atualizadoEm: new Date(),
+    };
+
+    await this.userRepo.atualizar(atualizado);
+    await registrarAuditoria({
+      usuario: input.usuario,
+      acao: 'EDITAR',
+      recurso: 'USUARIO',
+      entidadeId: atualizado.id,
+      postoId: atualizado.postoId,
+      descricao: `Editou usuário ${atualizado.nome}`,
+      detalhes: {
+        perfil: atualizado.perfil,
+        postoId: atualizado.postoId,
+        ativo: atualizado.ativo,
+        senhaAlterada: input.novaSenha !== undefined,
+      },
     });
 
     return { id: alvo.id };

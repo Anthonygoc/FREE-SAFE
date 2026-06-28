@@ -5,6 +5,8 @@ export interface User {
   nome: string;
   email: string;
   senhaHash: string;
+  resetToken?: string | null;
+  resetTokenExpiraEm?: Date | null;
   perfil: PerfilUsuario;
   postoId: string | null;
   ativo: boolean;
@@ -27,6 +29,9 @@ export interface UserRepository {
   listarTodos(): Promise<UserResumo[]>;
   buscarPorId(id: string): Promise<User | null>;
   buscarPorEmail(email: string): Promise<User | null>;
+  buscarPorResetToken(token: string): Promise<User | null>;
   salvar(user: User): Promise<void>;
   atualizar(user: User): Promise<void>;
+  salvarResetToken(userId: string, token: string, expiraEm: Date): Promise<void>;
+  atualizarSenhaELimparToken(userId: string, senhaHash: string): Promise<void>;
 }

@@ -1,4 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
 import { Afericao, type SituacaoAfericao } from '@/domain/entities/afericao.entity';
 import type { ProdutoCombustivel } from '@/domain/entities/raq.entity';
@@ -9,6 +10,7 @@ export interface CreateAfericaoInput {
   postoId: string;
   loteId?: string;
   bicoId?: string;
+  registrarLog?: boolean;
   produto: ProdutoCombustivel;
   bomba: number;
   bico: number;
@@ -45,6 +47,24 @@ export class CreateAfericaoUseCase {
     });
 
     await this.afericaoRepo.salvar(afericao);
+    if (input.registrarLog !== false) {
+      await registrarAuditoria({
+        usuario: input.usuario,
+        acao: 'CRIAR',
+        recurso: 'AFERICAO',
+        entidadeId: afericao.id,
+        postoId: afericao.postoId,
+        descricao: input.loteId
+          ? `Registrou aferição em lote no bico ${afericao.bico} (bomba ${afericao.bomba})`
+          : `Registrou aferição do bico ${afericao.bico} (bomba ${afericao.bomba})`,
+        detalhes: {
+          loteId: afericao.loteId ?? null,
+          produto: afericao.produto,
+          situacao: afericao.situacao,
+          resultadoMl: afericao.resultadoMl,
+        },
+      });
+    }
 
     return {
       afericaoId: afericao.id,

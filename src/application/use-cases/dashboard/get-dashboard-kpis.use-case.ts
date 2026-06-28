@@ -33,7 +33,7 @@ export class GetDashboardKPIsUseCase {
 
     if (usuario.perfil === 'GERENTE' || usuario.perfil === 'ADMINISTRATIVO') {
       if (!usuario.postoId) {
-        throw new UnauthorizedError('Usuário sem posto vinculado');
+        throw new UnauthorizedError('Você só pode acessar dados do seu posto');
       }
 
       const [colaboradoresAtivos, raqsPosto, afericoesPosto] = await Promise.all([

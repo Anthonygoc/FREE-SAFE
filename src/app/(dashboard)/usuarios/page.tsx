@@ -278,7 +278,7 @@ export default function UsuariosPage() {
             <button
               type="button"
               onClick={abrirNovoUsuario}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-600 hover:shadow-md active:scale-[0.98]"
+              className="btn-orange-gradient inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
             >
               <UserPlus className="h-4 w-4" />
               Novo usuário

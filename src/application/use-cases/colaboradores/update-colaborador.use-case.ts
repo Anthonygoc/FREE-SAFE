@@ -1,7 +1,8 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
 import { Colaborador, type StatusColaborador } from '@/domain/entities/colaborador.entity';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { DomainError, NotFoundError } from '@/domain/errors/domain.errors';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
 
 export interface UpdateColaboradorInput {
@@ -29,7 +30,7 @@ export class UpdateColaboradorUseCase {
   async execute(input: UpdateColaboradorInput): Promise<UpdateColaboradorOutput> {
     const colaborador = await this.colaboradorRepo.buscarPorId(input.colaboradorId);
     if (!colaborador) {
-      throw new DomainError('Colaborador não encontrado');
+      throw new NotFoundError('Colaborador não encontrado');
     }
 
     autorizar(input.usuario, 'colaboradores', 'editar', colaborador.postoId);
@@ -64,6 +65,18 @@ export class UpdateColaboradorUseCase {
     });
 
     await this.colaboradorRepo.atualizar(atualizado);
+    await registrarAuditoria({
+      usuario: input.usuario,
+      acao: 'EDITAR',
+      recurso: 'COLABORADOR',
+      entidadeId: atualizado.id,
+      postoId: atualizado.postoId,
+      descricao: `Editou dados do colaborador ${atualizado.nome}`,
+      detalhes: {
+        cargo: atualizado.cargo,
+        status: atualizado.status,
+      },
+    });
 
     return { id: atualizado.id };
   }

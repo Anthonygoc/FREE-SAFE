@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { AuthenticationError, DomainError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
-import { handleApiError } from '@/lib/handle-api-error';
+import { handleApiError, validationErrorResponse } from '@/lib/handle-api-error';
 import { createBombaUseCase, listBombasByPostoUseCase } from '@/lib/container';
 
 const querySchema = z.object({
@@ -19,7 +19,7 @@ const createBombaSchema = z.object({
 
 function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
-    throw new DomainError('Não autenticado');
+    throw new AuthenticationError();
   }
 
   return {
@@ -42,10 +42,7 @@ export async function GET(request: Request) {
     });
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: parsed.error.flatten() },
-        { status: 422 },
-      );
+      return validationErrorResponse(parsed.error.flatten());
     }
 
     const useCase = listBombasByPostoUseCase();
@@ -69,10 +66,7 @@ export async function POST(request: Request) {
     const parsed = createBombaSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: parsed.error.flatten() },
-        { status: 422 },
-      );
+      return validationErrorResponse(parsed.error.flatten());
     }
 
     const useCase = createBombaUseCase();

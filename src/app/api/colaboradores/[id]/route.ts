@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { AuthenticationError, DomainError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
 import { getColaboradorByIdUseCase, updateColaboradorUseCase } from '@/lib/container';
-import { handleApiError } from '@/lib/handle-api-error';
+import { handleApiError, validationErrorResponse } from '@/lib/handle-api-error';
 
 const statusSchema = z.enum(['ATIVO', 'AFASTADO', 'DESLIGADO']);
 
@@ -31,7 +31,7 @@ const updateColaboradorSchema = z.object({
 
 function getUsuarioAutenticado(session: any): UsuarioAutenticado {
   if (!session?.user) {
-    throw new DomainError('Não autenticado');
+    throw new AuthenticationError();
   }
 
   return {
@@ -52,10 +52,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const parsedParams = paramsSchema.safeParse(params);
 
     if (!parsedParams.success) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: parsedParams.error.flatten() },
-        { status: 422 },
-      );
+      return validationErrorResponse(parsedParams.error.flatten());
     }
 
     const useCase = getColaboradorByIdUseCase();
@@ -79,20 +76,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const parsedParams = paramsSchema.safeParse(params);
 
     if (!parsedParams.success) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: parsedParams.error.flatten() },
-        { status: 422 },
-      );
+      return validationErrorResponse(parsedParams.error.flatten());
     }
 
     const body = await request.json();
     const parsedBody = updateColaboradorSchema.safeParse(body);
 
     if (!parsedBody.success) {
-      return NextResponse.json(
-        { error: 'dados_invalidos', detalhes: parsedBody.error.flatten() },
-        { status: 422 },
-      );
+      return validationErrorResponse(parsedBody.error.flatten());
     }
 
     const useCase = updateColaboradorUseCase();

@@ -670,7 +670,7 @@ export default function InmetroPage() {
                         type="button"
                         onClick={handleRegistrarTodas}
                         disabled={isPending || !todosBicosPreenchidos}
-                        className="w-full rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 md:min-w-[280px]"
+                        className="btn-orange-gradient w-full rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 md:min-w-[280px]"
                       >
                         {isPending ? 'Registrando aferições...' : 'Registrar aferições'}
                       </button>

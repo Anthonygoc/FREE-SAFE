@@ -5,11 +5,8 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 import {
-  BarChart3,
   Building2,
-  ClipboardCheck,
   ClipboardList,
-  Droplets,
   FlaskConical,
   FolderCheck,
   Gauge,
@@ -18,7 +15,6 @@ import {
   UserCog,
   X,
   Users,
-  Wrench,
 } from 'lucide-react';
 
 import type { Recurso } from '@/domain/permissions/permissions';
@@ -32,6 +28,7 @@ const navGroups = [
     label: 'PRINCIPAL',
     items: [
       { href: '/', label: 'Dashboard', icon: LayoutDashboard, recurso: 'dashboard' as Recurso },
+      { href: '/postos', label: 'Postos', icon: Building2, recurso: 'postos' as Recurso },
     ],
   },
   {
@@ -39,8 +36,7 @@ const navGroups = [
     items: [
       { href: '/anp', label: 'ANP / RAQ', icon: FlaskConical, recurso: 'anp' as Recurso },
       { href: '/inmetro', label: 'INMETRO', icon: Gauge, recurso: 'inmetro' as Recurso },
-      { href: '/manutencao', label: 'Manutenção', icon: Wrench, recurso: 'manutencao' as Recurso },
-      { href: '/drenagem', label: 'Drenagem', icon: Droplets, recurso: 'drenagem' as Recurso },
+      { href: '/documentos', label: 'Documentos', icon: FolderCheck, recurso: 'documentos' as Recurso },
     ],
   },
   {
@@ -48,16 +44,6 @@ const navGroups = [
     items: [
       { href: '/colaboradores', label: 'Colaboradores', icon: Users, recurso: 'colaboradores' as Recurso },
       { href: '/treinamentos', label: 'Treinamentos', icon: GraduationCap, recurso: 'cursos' as Recurso },
-      { href: '/entrevistas', label: 'Entrevistas', icon: ClipboardCheck, recurso: 'entrevistas' as Recurso },
-    ],
-  },
-  {
-    label: 'CONFORMIDADE',
-    items: [
-      { href: '/postos', label: 'Postos', icon: Building2, recurso: 'postos' as Recurso },
-      { href: '/documentos', label: 'Documentos', icon: FolderCheck, recurso: 'documentos' as Recurso },
-      { href: '/auditorias', label: 'Auditorias', icon: ClipboardList, recurso: 'auditorias' as Recurso },
-      { href: '/relatorios', label: 'Relatórios', icon: BarChart3, recurso: 'relatorios' as Recurso },
     ],
   },
 ] as const;
@@ -82,6 +68,7 @@ function SidebarContent({
           label: 'ADMINISTRAÇÃO',
           items: [
             { href: '/usuarios', label: 'Usuários', icon: UserCog, recurso: 'usuarios' as Recurso },
+            { href: '/auditoria', label: 'Auditoria', icon: ClipboardList, recurso: 'auditorias' as Recurso },
           ],
         },
       ]

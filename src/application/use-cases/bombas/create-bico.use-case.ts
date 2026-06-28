@@ -1,7 +1,8 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
 import type { ProdutoCombustivel } from '@/domain/entities/raq.entity';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { NotFoundError } from '@/domain/errors/domain.errors';
 import type { BicoRepository } from '@/domain/ports/bico.repository';
 import type { BombaRepository } from '@/domain/ports/bomba.repository';
 
@@ -26,7 +27,7 @@ export class CreateBicoUseCase {
   async execute(input: CreateBicoInput): Promise<CreateBicoOutput> {
     const bomba = await this.bombaRepo.buscarPorId(input.bombaId);
     if (!bomba) {
-      throw new DomainError('Bomba não encontrada');
+      throw new NotFoundError('Bomba não encontrada');
     }
 
     autorizar(input.usuario, 'bombas', 'criar', bomba.postoId);
@@ -41,6 +42,19 @@ export class CreateBicoUseCase {
       capacidade: input.capacidade,
       ativo: true,
       criadoEm: new Date(),
+    });
+    await registrarAuditoria({
+      usuario: input.usuario,
+      acao: 'CRIAR',
+      recurso: 'BOMBA',
+      entidadeId: id,
+      postoId: bomba.postoId,
+      descricao: `Adicionou bico ${input.numero} da bomba ${bomba.numero}`,
+      detalhes: {
+        bombaNumero: bomba.numero,
+        bicoNumero: input.numero,
+        produto: input.produto,
+      },
     });
 
     return { id };

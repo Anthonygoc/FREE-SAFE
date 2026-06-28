@@ -1,4 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
 import { Colaborador, type StatusColaborador } from '@/domain/entities/colaborador.entity';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
@@ -45,6 +46,18 @@ export class CreateColaboradorUseCase {
     });
 
     await this.colaboradorRepo.salvar(colaborador);
+    await registrarAuditoria({
+      usuario,
+      acao: 'CRIAR',
+      recurso: 'COLABORADOR',
+      entidadeId: colaborador.id,
+      postoId: colaborador.postoId,
+      descricao: `Cadastrou colaborador ${colaborador.nome}`,
+      detalhes: {
+        cargo: colaborador.cargo,
+        status: colaborador.status,
+      },
+    });
 
     return { id: colaborador.id };
   }

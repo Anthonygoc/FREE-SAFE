@@ -1,4 +1,5 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
 import { DomainError, UnauthorizedError } from '@/domain/errors/domain.errors';
 import type { CertificadoPort } from '@/domain/ports/certificado.port';
@@ -50,7 +51,7 @@ export class EmitCertificadoUseCase {
       throw new DomainError('Posto do colaborador não encontrado');
     }
 
-    return this.certificadoPort.gerar({
+    const certificado = await this.certificadoPort.gerar({
       colaboradorNome: colaborador.nome,
       cargo: colaborador.cargo,
       postoNome: posto.nome,
@@ -61,6 +62,21 @@ export class EmitCertificadoUseCase {
       dataConclusao: attempt.criadoEm,
       codigoVerificacao: attempt.id.slice(0, 8),
     });
+    await registrarAuditoria({
+      usuario: input.usuario,
+      acao: 'EXPORTAR',
+      recurso: 'CERTIFICADO',
+      entidadeId: attempt.id,
+      postoId: colaborador.postoId,
+      descricao: `Emitiu certificado do curso ${curso.nome} para ${colaborador.nome}`,
+      detalhes: {
+        attemptId: attempt.id,
+        cursoId: curso.id,
+        nota: attempt.nota,
+      },
+    });
+
+    return certificado;
   }
 
   private async validarAcesso(
@@ -74,11 +90,11 @@ export class EmitCertificadoUseCase {
 
     if (usuario.perfil === 'GERENTE') {
       if (!usuario.postoId) {
-        throw new UnauthorizedError('Gerente sem posto vinculado');
+        throw new UnauthorizedError('Você só pode acessar dados do seu posto');
       }
 
       if (usuario.postoId !== postoId) {
-        throw new UnauthorizedError('Gerente só pode emitir certificado do próprio posto');
+        throw new UnauthorizedError('Você só pode acessar dados do seu posto');
       }
 
       return;
@@ -86,11 +102,11 @@ export class EmitCertificadoUseCase {
 
     const colaboradorUsuario = await this.colaboradorRepo.buscarPorUserId(usuario.id);
     if (!colaboradorUsuario) {
-      throw new UnauthorizedError('Usuário não está vinculado a um colaborador');
+      throw new UnauthorizedError('Você não tem permissão para acessar este recurso');
     }
 
     if (colaboradorUsuario.id !== colaboradorId) {
-      throw new UnauthorizedError('Usuário só pode emitir o próprio certificado');
+      throw new UnauthorizedError('Você não tem permissão para acessar este recurso');
     }
   }
 }

@@ -1,6 +1,7 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
-import { DomainError } from '@/domain/errors/domain.errors';
+import { NotFoundError } from '@/domain/errors/domain.errors';
 import type { CategoriaDocumentoRepository } from '@/domain/ports/categoria-documento.repository';
 import type { DocumentoRepository, StatusDocumento } from '@/domain/ports/documento.repository';
 
@@ -42,11 +43,12 @@ export class CreateDocumentoUseCase {
 
     const categoria = await this.categoriaDocumentoRepo.buscarPorId(input.categoriaId);
     if (!categoria) {
-      throw new DomainError('Categoria de documento não encontrada');
+      throw new NotFoundError('Categoria de documento não encontrada');
     }
 
     const id = crypto.randomUUID();
     const agora = new Date();
+    const status = calcularStatus(input.dataVencimento);
 
     await this.documentoRepo.salvar({
       id,
@@ -57,9 +59,21 @@ export class CreateDocumentoUseCase {
       dataEmissao: input.dataEmissao,
       dataVencimento: input.dataVencimento,
       arquivoUrl: input.arquivoUrl,
-      status: calcularStatus(input.dataVencimento),
+      status,
       criadoEm: agora,
       atualizadoEm: agora,
+    });
+    await registrarAuditoria({
+      usuario: input.usuario,
+      acao: 'CRIAR',
+      recurso: 'DOCUMENTO',
+      entidadeId: id,
+      postoId: input.postoId,
+      descricao: `Adicionou documento '${input.titulo}'`,
+      detalhes: {
+        categoria: categoria.nome,
+        status,
+      },
     });
 
     return { id };
