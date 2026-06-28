@@ -52,14 +52,38 @@ export interface UpdateColaboradorInput {
   fotoUrl?: string;
 }
 
-export function useColaboradores(postoId?: string, cargo?: string, status?: StatusColaborador) {
+export interface ColaboradoresResponse {
+  itens: Colaborador[];
+  total: number;
+  pagina: number;
+  totalPaginas: number;
+}
+
+export function useColaboradores(
+  postoId?: string,
+  cargo?: string,
+  status?: StatusColaborador,
+  pagina = 1,
+) {
   return useQuery({
-    queryKey: ['colaboradores', postoId, cargo, status],
+    queryKey: ['colaboradores', postoId, cargo, status, pagina],
     queryFn: () => {
       const params = new URLSearchParams({ postoId: postoId ?? '' });
       if (cargo) params.set('cargo', cargo);
       if (status) params.set('status', status);
-      return apiClient.get<Colaborador[]>(`/api/colaboradores?${params.toString()}`);
+      if (pagina > 1) params.set('pagina', String(pagina));
+      return apiClient.get<ColaboradoresResponse>(`/api/colaboradores?${params.toString()}`);
+    },
+    enabled: !!postoId,
+  });
+}
+
+export function useColaboradoresTodos(postoId?: string) {
+  return useQuery({
+    queryKey: ['colaboradores', 'todos', postoId],
+    queryFn: () => {
+      const params = new URLSearchParams({ postoId: postoId ?? '', todos: 'true' });
+      return apiClient.get<ColaboradoresResponse>(`/api/colaboradores?${params.toString()}`);
     },
     enabled: !!postoId,
   });

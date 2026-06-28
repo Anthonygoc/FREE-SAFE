@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus, CardBase, IconBadge, InputBase, LoadingSpinner, SelectBase } from '@/components/ui';
 import { cn } from '@/lib/utils';
+import { useConfirm } from '@/hooks/use-confirm';
 import {
   useAfericoesByPosto,
   useCreateAfericaoLote,
@@ -151,6 +152,7 @@ export default function InmetroPage() {
   const { mutate: createAfericaoLote, isPending } = useCreateAfericaoLote();
   const { mutate: deleteAfericao, isPending: isDeletingAfericao } = useDeleteAfericao();
   const { mutate: deleteLoteAfericao, isPending: isDeletingLote } = useDeleteLoteAfericao();
+  const { confirmar, ConfirmDialogElement } = useConfirm();
 
   const [postoId, setPostoId] = useState('');
   const [formState, setFormState] = useState<FormState>({});
@@ -353,16 +355,38 @@ export default function InmetroPage() {
     });
   }
 
-  function handleExcluirAfericao(afericaoId: string) {
-    if (!postoId || !window.confirm('Excluir esta aferição?')) {
+  async function handleExcluirAfericao(afericaoId: string) {
+    if (!postoId) {
+      return;
+    }
+
+    const ok = await confirmar({
+      titulo: 'Excluir aferição?',
+      descricao: 'Esta ação não pode ser desfeita.',
+      severidade: 'destrutivo',
+      textoConfirmar: 'Excluir',
+    });
+
+    if (!ok) {
       return;
     }
 
     deleteAfericao({ afericaoId, postoId });
   }
 
-  function handleExcluirLote(lote: HistoricoLote) {
-    if (!postoId || !window.confirm('Excluir este lote de aferições?')) {
+  async function handleExcluirLote(lote: HistoricoLote) {
+    if (!postoId) {
+      return;
+    }
+
+    const ok = await confirmar({
+      titulo: 'Excluir lote de aferições?',
+      descricao: 'Todas as aferições deste lote serão removidas. Esta ação não pode ser desfeita.',
+      severidade: 'destrutivo',
+      textoConfirmar: 'Excluir lote',
+    });
+
+    if (!ok) {
       return;
     }
 
@@ -1004,6 +1028,7 @@ export default function InmetroPage() {
           </motion.button>
         ) : null}
       </AnimatePresence>
+      {ConfirmDialogElement}
       </>
     </RouteGuard>
   );

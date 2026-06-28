@@ -8,17 +8,30 @@ import { prisma } from '@/lib/prisma';
 export class ColaboradorPrismaRepository implements ColaboradorRepository {
   constructor(private readonly db: PrismaClient = prisma) {}
 
-  async listarPorPosto(postoId: string, filtros?: ListarColaboradoresFiltros): Promise<Colaborador[]> {
-    const registros = await this.db.colaborador.findMany({
-      where: {
-        postoId,
-        ...(filtros?.cargo ? { cargo: filtros.cargo } : {}),
-        ...(filtros?.status ? { status: filtros.status } : {}),
-      },
-      orderBy: { nome: 'asc' },
-    });
+  async listarPorPosto(
+    postoId: string,
+    filtros?: ListarColaboradoresFiltros,
+  ): Promise<{ itens: Colaborador[]; total: number }> {
+    const where = {
+      postoId,
+      ...(filtros?.cargo ? { cargo: filtros.cargo } : {}),
+      ...(filtros?.status ? { status: filtros.status } : {}),
+    };
 
-    return registros.map(ColaboradorMapper.toDomain);
+    const [registros, total] = await Promise.all([
+      this.db.colaborador.findMany({
+        where,
+        orderBy: { nome: 'asc' },
+        take: filtros?.limite,
+        skip: filtros?.offset,
+      }),
+      this.db.colaborador.count({ where }),
+    ]);
+
+    return {
+      itens: registros.map(ColaboradorMapper.toDomain),
+      total,
+    };
   }
 
   async buscarPorId(id: string): Promise<Colaborador | null> {

@@ -139,6 +139,8 @@ model User {
   entrevistas        Entrevista[]
   colaborador        Colaborador?
 
+  @@index([postoId])
+  @@index([resetToken])
   @@map("users")
 }
 
@@ -247,6 +249,7 @@ model Colaborador {
   entrevistas  Entrevista[]
   attempts     ProvaAttempt[]
 
+  @@index([postoId])
   @@map("colaboradores")
 }
 
@@ -398,6 +401,7 @@ model RAQ {
   posto       Posto @relation(fields: [postoId], references: [id])
   responsavel User  @relation(fields: [responsavelId], references: [id])
 
+  @@index([postoId, data])
   @@map("raqs")
 }
 
@@ -423,6 +427,9 @@ model Afericao {
   posto Posto @relation(fields: [postoId], references: [id])
   bico  Bico? @relation(fields: [bicoId], references: [id], map: "afericoes_bico_id_fkey")
 
+  @@index([postoId, criadoEm])
+  @@index([loteId])
+  @@index([bicoId])
   @@map("afericoes")
 }
 
@@ -453,6 +460,9 @@ model Documento {
   posto     Posto              @relation(fields: [postoId], references: [id])
   categoria CategoriaDocumento @relation(fields: [categoriaId], references: [id])
 
+  @@index([postoId])
+  @@index([dataVencimento])
+  @@index([status])
   @@map("documentos")
 }
 

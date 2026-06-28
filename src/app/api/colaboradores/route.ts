@@ -10,6 +10,7 @@ import { auth } from '@/lib/auth';
 import { handleApiError, validationErrorResponse } from '@/lib/handle-api-error';
 
 const statusSchema = z.enum(['ATIVO', 'AFASTADO', 'DESLIGADO']);
+const paginaSchema = z.coerce.number().int().positive();
 
 const createColaboradorSchema = z.object({
   postoId: z.string().uuid(),
@@ -50,12 +51,15 @@ export async function GET(request: Request) {
     const postoId = searchParams.get('postoId');
     const cargo = searchParams.get('cargo') ?? undefined;
     const statusRaw = searchParams.get('status') ?? undefined;
+    const paginaRaw = searchParams.get('pagina') ?? undefined;
+    const todos = searchParams.get('todos') === 'true';
 
     if (!postoId) {
       return validationErrorResponse({ postoId: ['postoId é obrigatório'] });
     }
 
     const status = statusRaw ? statusSchema.parse(statusRaw) : undefined;
+    const pagina = paginaRaw ? paginaSchema.parse(paginaRaw) : undefined;
 
     const useCase = new ListColaboradoresByPostoUseCase(new ColaboradorPrismaRepository());
     const data = await useCase.execute({
@@ -63,6 +67,8 @@ export async function GET(request: Request) {
       postoId,
       cargo,
       status,
+      pagina,
+      semPaginacao: todos,
     });
 
     return NextResponse.json({ data }, { status: 200 });

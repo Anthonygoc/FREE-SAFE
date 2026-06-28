@@ -3,11 +3,15 @@ import { autorizar } from '@/application/shared/authorize';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
 import type { StatusColaborador } from '@/domain/entities/colaborador.entity';
 
+const LIMITE_POR_PAGINA = 20;
+
 export interface ListColaboradoresByPostoInput {
   usuario: UsuarioAutenticado;
   postoId: string;
   cargo?: string;
   status?: StatusColaborador;
+  pagina?: number;
+  semPaginacao?: boolean;
 }
 
 export interface ListColaboradoresByPostoOutputItem {
@@ -28,33 +32,54 @@ export interface ListColaboradoresByPostoOutputItem {
   criadoEm: Date;
 }
 
+export interface ListColaboradoresByPostoOutput {
+  itens: ListColaboradoresByPostoOutputItem[];
+  total: number;
+  pagina: number;
+  totalPaginas: number;
+}
+
 export class ListColaboradoresByPostoUseCase {
   constructor(private readonly colaboradorRepo: ColaboradorRepository) {}
 
-  async execute(input: ListColaboradoresByPostoInput): Promise<ListColaboradoresByPostoOutputItem[]> {
+  async execute(input: ListColaboradoresByPostoInput): Promise<ListColaboradoresByPostoOutput> {
     autorizar(input.usuario, 'colaboradores', 'ver', input.postoId);
+    const pagina = input.semPaginacao ? 1 : input.pagina && input.pagina > 0 ? Math.floor(input.pagina) : 1;
+    const offset = (pagina - 1) * LIMITE_POR_PAGINA;
 
-    const colaboradores = await this.colaboradorRepo.listarPorPosto(input.postoId, {
-      cargo: input.cargo,
-      status: input.status,
-    });
+    const { itens, total } = await this.colaboradorRepo.listarPorPosto(input.postoId, input.semPaginacao
+      ? {
+          cargo: input.cargo,
+          status: input.status,
+        }
+      : {
+          cargo: input.cargo,
+          status: input.status,
+          limite: LIMITE_POR_PAGINA,
+          offset,
+        });
 
-    return colaboradores.map((colaborador) => ({
-      id: colaborador.id,
-      postoId: colaborador.postoId,
-      userId: colaborador.userId,
-      nome: colaborador.nome,
-      cpf: colaborador.cpf,
-      fotoUrl: colaborador.fotoUrl,
-      cargo: colaborador.cargo,
-      dataAdmissao: colaborador.dataAdmissao,
-      status: colaborador.status,
-      turno: colaborador.turno,
-      escala: colaborador.escala,
-      telefone: colaborador.telefone,
-      email: colaborador.email,
-      endereco: colaborador.endereco,
-      criadoEm: colaborador.criadoEm,
-    }));
+    return {
+      itens: itens.map((colaborador) => ({
+        id: colaborador.id,
+        postoId: colaborador.postoId,
+        userId: colaborador.userId,
+        nome: colaborador.nome,
+        cpf: colaborador.cpf,
+        fotoUrl: colaborador.fotoUrl,
+        cargo: colaborador.cargo,
+        dataAdmissao: colaborador.dataAdmissao,
+        status: colaborador.status,
+        turno: colaborador.turno,
+        escala: colaborador.escala,
+        telefone: colaborador.telefone,
+        email: colaborador.email,
+        endereco: colaborador.endereco,
+        criadoEm: colaborador.criadoEm,
+      })),
+      total,
+      pagina,
+      totalPaginas: input.semPaginacao ? 1 : Math.max(1, Math.ceil(total / LIMITE_POR_PAGINA)),
+    };
   }
 }

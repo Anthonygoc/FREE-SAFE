@@ -13,6 +13,7 @@ import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { useConfirm } from '@/hooks/use-confirm';
 import { usePostos } from '@/hooks/use-postos';
 import {
   type CreateUsuarioInput,
@@ -104,6 +105,7 @@ export default function UsuariosPage() {
   const createUsuario = useCreateUsuario();
   const updateUsuario = useUpdateUsuario();
   const toggleUsuarioAtivo = useToggleUsuarioAtivo();
+  const { confirmar, ConfirmDialogElement } = useConfirm();
 
   useEffect(() => {
     if (status === 'authenticated' && !isAdmin) {
@@ -223,8 +225,14 @@ export default function UsuariosPage() {
     const proximoStatus = !usuario.ativo;
 
     if (!proximoStatus) {
-      const confirmou = window.confirm('Desativar este usuário? Ele não poderá mais fazer login.');
-      if (!confirmou) {
+      const ok = await confirmar({
+        titulo: 'Desativar usuário?',
+        descricao: 'O usuário não poderá mais fazer login. Você pode reativá-lo depois.',
+        severidade: 'destrutivo',
+        textoConfirmar: 'Desativar',
+      });
+
+      if (!ok) {
         return;
       }
     }
@@ -576,6 +584,7 @@ export default function UsuariosPage() {
           </motion.div>
         ) : null}
       </AnimatePresence>
+      {ConfirmDialogElement}
       </>
     </RouteGuard>
   );

@@ -11,6 +11,7 @@ import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { EmptyState } from '@/components/ui/empty-state';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { useConfirm } from '@/hooks/use-confirm';
 import {
   type Documento,
   useCategorias,
@@ -110,6 +111,7 @@ export default function DocumentosPage() {
   const createCategoria = useCreateCategoria();
   const createDocumento = useCreateDocumento();
   const deleteDocumento = useDeleteDocumento();
+  const { confirmar, ConfirmDialogElement } = useConfirm();
 
   useEffect(() => {
     if (!postoId && postos && postos.length > 0) {
@@ -234,7 +236,14 @@ export default function DocumentosPage() {
   }
 
   async function handleExcluirDocumento(id: string) {
-    if (!window.confirm('Deseja excluir este documento?')) {
+    const ok = await confirmar({
+      titulo: 'Excluir documento?',
+      descricao: 'Esta ação não pode ser desfeita.',
+      severidade: 'destrutivo',
+      textoConfirmar: 'Excluir',
+    });
+
+    if (!ok) {
       return;
     }
 
@@ -669,6 +678,7 @@ export default function DocumentosPage() {
           </motion.div>
         ) : null}
       </AnimatePresence>
+      {ConfirmDialogElement}
       </>
     </RouteGuard>
   );

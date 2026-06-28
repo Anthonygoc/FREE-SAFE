@@ -1,6 +1,7 @@
 export { BadgeStatus } from './badge-status';
 export { Button, buttonVariants } from './button';
 export { CardBase } from './card-base';
+export { ConfirmDialog } from './confirm-dialog';
 export { EmptyState } from './empty-state';
 export { FieldError, FieldLabel, InputBase, TextInput, TextareaInput } from './input-base';
 export { IconBadge } from './icon-badge';

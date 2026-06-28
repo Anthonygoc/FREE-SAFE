@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { RouteGuard } from '@/components/auth/route-guard';
 import { CardBase } from '@/components/ui/card-base';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { useConfirm } from '@/hooks/use-confirm';
 import {
   useBombasByPosto,
   useCreateBico,
@@ -138,6 +139,7 @@ export default function ConfigurarBombasPage() {
   const { mutate: updateBomba, isPending: updatingBomba } = useUpdateBomba();
   const { mutate: deleteBico, isPending: deletingBico } = useDeleteBico();
   const { mutate: deleteBomba, isPending: deletingBomba } = useDeleteBomba();
+  const { confirmar, ConfirmDialogElement } = useConfirm();
 
   const [postoId, setPostoId] = useState('');
   const [bicoDrafts, setBicoDrafts] = useState<BicoDraftState>({});
@@ -324,8 +326,15 @@ export default function ConfigurarBombasPage() {
     );
   }
 
-  function handleExcluirBico(bombaId: string, bicoId: string) {
-    if (!window.confirm('Tem certeza que deseja excluir este bico?')) {
+  async function handleExcluirBico(bombaId: string, bicoId: string) {
+    const ok = await confirmar({
+      titulo: 'Excluir bico?',
+      descricao: 'Esta ação não pode ser desfeita.',
+      severidade: 'destrutivo',
+      textoConfirmar: 'Excluir',
+    });
+
+    if (!ok) {
       return;
     }
 
@@ -340,8 +349,15 @@ export default function ConfigurarBombasPage() {
     );
   }
 
-  function handleExcluirBomba(bombaId: string) {
-    if (!window.confirm('Tem certeza que deseja excluir esta bomba?')) {
+  async function handleExcluirBomba(bombaId: string) {
+    const ok = await confirmar({
+      titulo: 'Excluir bomba?',
+      descricao: 'A bomba e seus bicos serão removidos. Esta ação não pode ser desfeita.',
+      severidade: 'destrutivo',
+      textoConfirmar: 'Excluir bomba',
+    });
+
+    if (!ok) {
       return;
     }
 
@@ -358,6 +374,7 @@ export default function ConfigurarBombasPage() {
 
   return (
     <RouteGuard recurso="inmetro">
+      <>
       <motion.div {...animation} className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
@@ -588,6 +605,8 @@ export default function ConfigurarBombasPage() {
         </div>
       )}
       </motion.div>
+      {ConfirmDialogElement}
+      </>
     </RouteGuard>
   );
 }

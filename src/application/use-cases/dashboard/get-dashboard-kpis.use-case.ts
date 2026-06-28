@@ -59,7 +59,7 @@ export class GetDashboardKPIsUseCase {
 
       return {
         totalPostos: 1,
-        totalColaboradores: colaboradoresAtivos.length,
+        totalColaboradores: colaboradoresAtivos.total,
         mediaConformidade,
         totalPendencias: raqsSemBoletim + afericoesFora,
         alertas,

@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { PaginationControl } from '@/components/ui/pagination-control';
 import { ProgressBar } from '@/components/ui/progress-bar';
 import { useCreateColaborador, useColaboradores } from '@/hooks/use-colaboradores';
 import { usePostos } from '@/hooks/use-postos';
@@ -53,6 +54,7 @@ const statusTone = {
 export default function ColaboradoresPage() {
   const { data: postos, isLoading: loadingPostos } = usePostos();
   const [postoSelecionado, setPostoSelecionado] = useState<string>('');
+  const [pagina, setPagina] = useState(1);
   const [modalAberto, setModalAberto] = useState(false);
   const [fotoUrl, setFotoUrl] = useState<string>('');
 
@@ -67,8 +69,17 @@ export default function ColaboradoresPage() {
     [postos, postoSelecionado],
   );
 
-  const { data: colaboradores, isLoading: loadingColaboradores } = useColaboradores(postoSelecionado);
+  const { data: colaboradores, isLoading: loadingColaboradores } = useColaboradores(
+    postoSelecionado,
+    undefined,
+    undefined,
+    pagina,
+  );
   const { mutate: createColaborador, isPending } = useCreateColaborador();
+
+  useEffect(() => {
+    setPagina(1);
+  }, [postoSelecionado]);
 
   const {
     register,
@@ -193,7 +204,7 @@ export default function ColaboradoresPage() {
             </tr>
           </thead>
           <tbody>
-            {(colaboradores ?? []).map((colaborador) => (
+            {(colaboradores?.itens ?? []).map((colaborador) => (
               <tr key={colaborador.id} className="border-b border-zinc-100 transition-colors hover:bg-zinc-50">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
@@ -234,6 +245,13 @@ export default function ColaboradoresPage() {
           </tbody>
         </table>
       </div>
+
+      <PaginationControl
+        pagina={colaboradores?.pagina ?? 1}
+        totalPaginas={colaboradores?.totalPaginas ?? 1}
+        total={colaboradores?.total ?? 0}
+        onMudarPagina={setPagina}
+      />
 
       <AnimatePresence>
         {modalAberto ? (

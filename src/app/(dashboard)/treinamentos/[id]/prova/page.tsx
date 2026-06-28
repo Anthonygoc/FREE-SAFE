@@ -13,7 +13,7 @@ import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { ProgressBar } from '@/components/ui/progress-bar';
-import { useColaboradores } from '@/hooks/use-colaboradores';
+import { useColaboradoresTodos } from '@/hooks/use-colaboradores';
 import { usePostos } from '@/hooks/use-postos';
 import { useCursoQuestoes, useResultadoProva, useSubmitProva, type SubmitProvaOutput } from '@/hooks/use-cursos';
 
@@ -35,7 +35,7 @@ export default function ProvaCursoPage() {
   const isGerente = session?.user?.perfil === 'GERENTE';
   const postoGerenteId = session?.user?.postoId ?? '';
   const [postoSelecionado, setPostoSelecionado] = useState('');
-  const { data: colaboradores, isLoading: loadingColaboradores } = useColaboradores(
+  const { data: colaboradores, isLoading: loadingColaboradores } = useColaboradoresTodos(
     isAdmin ? postoSelecionado : isGerente ? postoGerenteId : undefined,
   );
   const [questaoAtual, setQuestaoAtual] = useState(0);
@@ -74,8 +74,8 @@ export default function ProvaCursoPage() {
       return;
     }
 
-    if (!colaboradorSelecionado && colaboradores?.length) {
-      setColaboradorSelecionado(colaboradores[0].id);
+    if (!colaboradorSelecionado && colaboradores?.itens.length) {
+      setColaboradorSelecionado(colaboradores.itens[0].id);
     }
   }, [colaboradorSelecionado, colaboradores, isAdminFlow]);
 
@@ -310,12 +310,12 @@ export default function ProvaCursoPage() {
                 value={colaboradorSelecionado}
                 onChange={(event) => setColaboradorSelecionado(event.target.value)}
                 className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700 outline-none transition focus:border-orange-500"
-                disabled={!colaboradores?.length}
+                disabled={!colaboradores?.itens.length}
               >
                 <option value="">
-                  {colaboradores?.length ? 'Selecione um colaborador' : 'Nenhum colaborador neste posto'}
+                  {colaboradores?.itens.length ? 'Selecione um colaborador' : 'Nenhum colaborador neste posto'}
                 </option>
-                {colaboradores?.map((colaborador) => (
+                {colaboradores?.itens.map((colaborador) => (
                   <option key={colaborador.id} value={colaborador.id}>
                     {colaborador.nome} · {colaborador.cargo}
                   </option>
