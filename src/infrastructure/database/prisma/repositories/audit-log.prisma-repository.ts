@@ -53,7 +53,7 @@ export class AuditLogPrismaRepository implements AuditLogRepository {
         usuarioEmail: input.usuarioEmail,
         perfil: input.perfil,
         acao: input.acao,
-        recurso: input.recurso,
+        recurso: input.recurso as Prisma.AuditLogCreateInput['recurso'],
         entidadeId: input.entidadeId ?? null,
         postoId: input.postoId ?? null,
         descricao: input.descricao,
@@ -67,7 +67,7 @@ export class AuditLogPrismaRepository implements AuditLogRepository {
     const where: Prisma.AuditLogWhereInput = {
       ...(filtro.postoId ? { postoId: filtro.postoId } : {}),
       ...(filtro.usuarioId ? { usuarioId: filtro.usuarioId } : {}),
-      ...(filtro.recurso ? { recurso: filtro.recurso } : {}),
+      ...(filtro.recurso ? { recurso: filtro.recurso as Prisma.AuditLogWhereInput['recurso'] } : {}),
       ...(filtro.acao ? { acao: filtro.acao } : {}),
       ...((filtro.dataInicio || filtro.dataFim)
         ? {

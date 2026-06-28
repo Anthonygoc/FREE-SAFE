@@ -119,6 +119,7 @@ enum AuditRecurso {
   CURSO
   CERTIFICADO
   CATEGORIA
+  POSTO
 }
 
 model User {

@@ -11,6 +11,7 @@ import {
   FolderCheck,
   Gauge,
   GraduationCap,
+  Info,
   LayoutDashboard,
   UserCog,
   X,
@@ -20,6 +21,7 @@ import {
 import type { Recurso } from '@/domain/permissions/permissions';
 import { podeVer } from '@/lib/can-access';
 import { cn } from '@/lib/utils';
+import { APP_NAME, APP_VERSION } from '@/lib/version';
 
 import { useSidebar } from './sidebar-context';
 
@@ -87,7 +89,7 @@ function SidebarContent({
         <div className="flex items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 text-2xl font-black text-white">F</div>
           <div>
-            <p className="text-xl font-black tracking-tight text-white">FREE SAFE</p>
+            <p className="text-xl font-black tracking-tight text-white">{APP_NAME}</p>
             <p className="text-xs text-zinc-400">Compliance Operacional</p>
           </div>
         </div>
@@ -144,6 +146,29 @@ function SidebarContent({
       <div className="mt-6 mt-auto flex-shrink-0 rounded-2xl border border-white/10 bg-white/5 p-4">
         <p className="text-sm font-semibold text-white">Rede Free</p>
         <p className="mt-1 text-xs text-zinc-400">Painel administrativo dos 19 postos</p>
+        <Link
+          href="/sobre"
+          onClick={onNavigate}
+          className={[
+            'mt-4 flex items-center gap-2 rounded-xl px-2 py-2 text-xs font-medium transition',
+            pathname === '/sobre'
+              ? 'bg-orange-500 text-white'
+              : 'text-zinc-300 hover:bg-white/10 hover:text-white',
+          ].join(' ')}
+        >
+          <Info className="h-4 w-4" />
+          <span>Sobre</span>
+        </Link>
+        <Link
+          href="/privacidade"
+          onClick={onNavigate}
+          className="mt-2 inline-flex text-xs font-medium text-orange-400 transition hover:text-orange-300"
+        >
+          Política de Privacidade
+        </Link>
+        <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
+          {APP_NAME} v{APP_VERSION}
+        </p>
       </div>
     </motion.div>
   );

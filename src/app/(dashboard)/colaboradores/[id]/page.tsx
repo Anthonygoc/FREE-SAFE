@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { ArrowLeft, Camera, Edit, Save, User } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import type { ChangeEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -11,7 +12,9 @@ import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { useColaborador, useUpdateColaborador } from '@/hooks/use-colaboradores';
+import { useConfirm } from '@/hooks/use-confirm';
+import { useAnonimizarColaborador, useColaborador, useUpdateColaborador } from '@/hooks/use-colaboradores';
+import { podeAcessar } from '@/domain/permissions/permissions';
 
 const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   const reader = new FileReader();
@@ -33,12 +36,15 @@ function formatarData(data?: string) {
 }
 
 export default function ColaboradorPerfilPage() {
+  const { data: session } = useSession();
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const colaboradorId = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const { data: colaborador, isLoading } = useColaborador(colaboradorId);
   const updateColaborador = useUpdateColaborador();
+  const anonimizarColaborador = useAnonimizarColaborador();
+  const { confirmar, ConfirmDialogElement } = useConfirm();
   const [editando, setEditando] = useState(false);
   const [form, setForm] = useState({
     nome: '',
@@ -83,6 +89,11 @@ export default function ColaboradorPerfilPage() {
       ...(form.status !== colaborador.status ? { status: form.status } : {}),
     };
   }, [colaborador, form]);
+  const podeAnonimizar = podeAcessar(
+    (session?.user?.perfil ?? 'COLABORADOR') as Parameters<typeof podeAcessar>[0],
+    'colaboradores',
+    'excluir',
+  );
 
   async function handleSalvar() {
     if (!colaborador) return;
@@ -115,6 +126,26 @@ export default function ColaboradorPerfilPage() {
     } finally {
       event.target.value = '';
     }
+  }
+
+  async function handleAnonimizar() {
+    if (!colaborador) {
+      return;
+    }
+
+    const ok = await confirmar({
+      titulo: 'Anonimizar dados deste colaborador?',
+      descricao: 'Os dados pessoais (nome, CPF, RG, foto, contato) serão removidos permanentemente conforme a LGPD. O histórico de treinamentos e certificados será mantido sem identificação. Esta ação não pode ser desfeita.',
+      severidade: 'destrutivo',
+      textoConfirmar: 'Anonimizar dados',
+    });
+
+    if (!ok) {
+      return;
+    }
+
+    await anonimizarColaborador.mutateAsync(colaborador.id);
+    router.push('/colaboradores');
   }
 
   if (isLoading) {
@@ -297,7 +328,30 @@ export default function ColaboradorPerfilPage() {
           <p className="mt-3 text-sm text-zinc-500">Em breve</p>
         </CardBase>
       </div>
+
+      {podeAnonimizar ? (
+        <CardBase className="rounded-2xl border border-red-100 bg-red-50/40">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold text-zinc-950">Privacidade</h2>
+              <p className="max-w-3xl text-sm text-zinc-600">
+                Remova permanentemente os dados pessoais deste colaborador, preservando o histórico de compliance.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAnonimizar}
+              disabled={anonimizarColaborador.isPending}
+              className="inline-flex items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {anonimizarColaborador.isPending ? 'Anonimizando...' : 'Anonimizar dados (LGPD)'}
+            </button>
+          </div>
+        </CardBase>
+      ) : null}
       </motion.div>
+      {ConfirmDialogElement}
     </RouteGuard>
   );
 }

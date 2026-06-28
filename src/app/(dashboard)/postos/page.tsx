@@ -3,12 +3,15 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronRight, Search } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 
 import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { ProgressBar } from '@/components/ui/progress-bar';
+import { podeAcessar } from '@/domain/permissions/permissions';
 import { usePostos } from '@/hooks/use-postos';
 
 const animation = {
@@ -36,8 +39,15 @@ function getRisco(conformidade: number): { label: string; tone: 'green' | 'yello
 }
 
 export default function PostosPage() {
+  const { data: session } = useSession();
+  const router = useRouter();
   const { data: postos, isLoading } = usePostos();
   const [termoBusca, setTermoBusca] = useState('');
+  const podeAbrirDetalhe = podeAcessar(
+    (session?.user?.perfil ?? 'COLABORADOR') as Parameters<typeof podeAcessar>[0],
+    'postos',
+    'ver',
+  );
 
   const postosFiltrados = useMemo(() => {
     const termo = termoBusca.trim().toLowerCase();
@@ -113,10 +123,16 @@ export default function PostosPage() {
                   <ProgressBar value={posto.conformidade} />
                 </div>
 
-                <button className="mt-5 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-50">
-                  Abrir
-                  <ChevronRight className="h-4 w-4 text-orange-500" />
-                </button>
+                {podeAbrirDetalhe ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/postos/${posto.id}`)}
+                    className="mt-5 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 transition-all hover:bg-zinc-50 active:scale-[0.98]"
+                  >
+                    Abrir
+                    <ChevronRight className="h-4 w-4 text-orange-500" />
+                  </button>
+                ) : null}
               </CardBase>
             </motion.div>
           );

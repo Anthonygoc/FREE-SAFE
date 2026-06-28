@@ -17,6 +17,7 @@ import { UpdateBicoUseCase } from '@/application/use-cases/bombas/update-bico.us
 import { CreateCategoriaUseCase } from '@/application/use-cases/categorias/create-categoria.use-case';
 import { ListCategoriasUseCase } from '@/application/use-cases/categorias/list-categorias.use-case';
 import { GetColaboradorByIdUseCase } from '@/application/use-cases/colaboradores/get-colaborador-by-id.use-case';
+import { AnonimizarColaboradorUseCase } from '@/application/use-cases/colaboradores/anonimizar-colaborador.use-case';
 import { UpdateColaboradorUseCase } from '@/application/use-cases/colaboradores/update-colaborador.use-case';
 import { GetDashboardKPIsUseCase } from '@/application/use-cases/dashboard/get-dashboard-kpis.use-case';
 import { ListarNotificacoesUseCase } from '@/application/use-cases/notificacoes/listar-notificacoes.use-case';
@@ -27,8 +28,10 @@ import { GetCursoQuestoesUseCase } from '@/application/use-cases/cursos/get-curs
 import { GetResultadoProvaUseCase } from '@/application/use-cases/cursos/get-resultado-prova.use-case';
 import { ListCursosUseCase } from '@/application/use-cases/cursos/list-cursos.use-case';
 import { EmitCertificadoUseCase } from '@/application/use-cases/cursos/emit-certificado.use-case';
+import { GetPostoByIdUseCase } from '@/application/use-cases/postos/get-posto-by-id.use-case';
 import { RedefinirSenhaUseCase } from '@/application/use-cases/auth/redefinir-senha.use-case';
 import { SolicitarResetSenhaUseCase } from '@/application/use-cases/auth/solicitar-reset-senha.use-case';
+import { UpdatePostoUseCase } from '@/application/use-cases/postos/update-posto.use-case';
 import { CreateUsuarioUseCase } from '@/application/use-cases/usuarios/create-usuario.use-case';
 import { ListUsuariosUseCase } from '@/application/use-cases/usuarios/list-usuarios.use-case';
 import { ToggleUsuarioAtivoUseCase } from '@/application/use-cases/usuarios/toggle-usuario-ativo.use-case';
@@ -179,6 +182,14 @@ export function getDashboardKPIsUseCase(): GetDashboardKPIsUseCase {
   );
 }
 
+export function getPostoByIdUseCase(): GetPostoByIdUseCase {
+  return new GetPostoByIdUseCase(new PostoPrismaRepository());
+}
+
+export function updatePostoUseCase(): UpdatePostoUseCase {
+  return new UpdatePostoUseCase(new PostoPrismaRepository());
+}
+
 export function listarNotificacoesUseCase(): ListarNotificacoesUseCase {
   return new ListarNotificacoesUseCase(
     new DocumentoPrismaRepository(),
@@ -239,6 +250,10 @@ export function getColaboradorByIdUseCase(): GetColaboradorByIdUseCase {
 
 export function updateColaboradorUseCase(): UpdateColaboradorUseCase {
   return new UpdateColaboradorUseCase(new ColaboradorPrismaRepository());
+}
+
+export function anonimizarColaboradorUseCase(): AnonimizarColaboradorUseCase {
+  return new AnonimizarColaboradorUseCase(new ColaboradorPrismaRepository());
 }
 
 export function listCursosUseCase(): ListCursosUseCase {

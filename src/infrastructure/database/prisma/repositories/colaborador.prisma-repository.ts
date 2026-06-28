@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 
 import type { ColaboradorRepository, ListarColaboradoresFiltros } from '@/domain/ports/colaborador.repository';
 import type { Colaborador } from '@/domain/entities/colaborador.entity';
@@ -68,6 +68,35 @@ export class ColaboradorPrismaRepository implements ColaboradorRepository {
         fotoUrl: colaborador.fotoUrl ?? null,
       },
     });
+  }
+
+  async anonimizar(colaboradorId: string): Promise<void> {
+    const cpfPlaceholder = `ANON-${colaboradorId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 9).toUpperCase()}`;
+
+    await this.db.$transaction([
+      this.db.colaborador.update({
+        where: { id: colaboradorId },
+        data: {
+          userId: null,
+          nome: 'Colaborador anonimizado',
+          cpf: cpfPlaceholder,
+          rg: null,
+          fotoUrl: null,
+          telefone: null,
+          email: null,
+          endereco: null,
+        },
+      }),
+      this.db.entrevista.updateMany({
+        where: { colaboradorId },
+        data: {
+          respostas: Prisma.DbNull,
+          observacoes: null,
+          compromissoColaborador: null,
+          assinaturaColaboradorUrl: null,
+        },
+      }),
+    ]);
   }
 
   async contarAtivos(): Promise<number> {

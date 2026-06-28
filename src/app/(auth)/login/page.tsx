@@ -153,7 +153,12 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <p className="text-sm text-zinc-600">Rede Free © 2026</p>
+          <div className="space-y-2 text-sm">
+            <p className="text-zinc-600">Rede Free © 2026</p>
+            <Link href="/privacidade" className="inline-flex font-medium text-orange-400 transition hover:text-orange-300">
+              Política de Privacidade
+            </Link>
+          </div>
         </section>
 
         <section className="flex items-center justify-center bg-zinc-50 px-6 py-10">
@@ -168,6 +173,12 @@ export default function LoginPage() {
               <Suspense fallback={<div className="text-sm text-zinc-500">Carregando...</div>}>
                 <LoginForm />
               </Suspense>
+            </div>
+
+            <div className="mt-6 text-center text-sm text-zinc-500">
+              <Link href="/privacidade" className="font-medium text-orange-600 transition hover:text-orange-700">
+                Política de Privacidade
+              </Link>
             </div>
           </div>
         </section>

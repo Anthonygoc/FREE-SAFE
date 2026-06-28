@@ -44,6 +44,7 @@ const recursoLabels: Record<AuditRecurso, string> = {
   CURSO: 'Curso',
   CERTIFICADO: 'Certificado',
   CATEGORIA: 'Categoria',
+  POSTO: 'Posto',
 };
 
 const acaoLabels: Record<AuditAcao, string> = {

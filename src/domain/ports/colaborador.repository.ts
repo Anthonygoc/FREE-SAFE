@@ -16,5 +16,6 @@ export interface ColaboradorRepository {
   buscarPorUserId(userId: string): Promise<Colaborador | null>;
   salvar(colaborador: Colaborador): Promise<void>;
   atualizar(colaborador: Colaborador): Promise<void>;
+  anonimizar(colaboradorId: string): Promise<void>;
   contarAtivos(): Promise<number>;
 }

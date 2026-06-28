@@ -12,6 +12,7 @@ export const AUDIT_RECURSOS = [
   'CURSO',
   'CERTIFICADO',
   'CATEGORIA',
+  'POSTO',
 ] as const;
 
 export type AuditRecurso = (typeof AUDIT_RECURSOS)[number];

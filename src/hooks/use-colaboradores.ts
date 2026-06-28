@@ -128,3 +128,19 @@ export function useUpdateColaborador() {
     },
   });
 }
+
+export function useAnonimizarColaborador() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => apiClient.post<{ id: string; anonimizado: true }>(`/api/colaboradores/${id}/anonimizar`, {}),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['colaboradores'] });
+      queryClient.invalidateQueries({ queryKey: ['colaborador', id] });
+      toast.success('Dados do colaborador anonimizados conforme LGPD');
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Erro ao anonimizar colaborador.');
+    },
+  });
+}
