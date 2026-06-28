@@ -46,7 +46,7 @@ export function Header() {
             <Settings className="h-5 w-5" />
           </button>
           <button
-            onClick={() => signOut()}
+            onClick={() => signOut({ callbackUrl: '/login' })}
             className="flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white transition-all active:scale-95"
           >
             <UserRound className="h-5 w-5" />
