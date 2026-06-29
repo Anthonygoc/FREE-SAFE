@@ -78,7 +78,10 @@ export function getRAQByIdUseCase(): GetRAQByIdUseCase {
 }
 
 export function createAfericaoUseCase(): CreateAfericaoUseCase {
-  return new CreateAfericaoUseCase(new AfericaoPrismaRepository());
+  return new CreateAfericaoUseCase(
+    new AfericaoPrismaRepository(),
+    new PostoPrismaRepository(),
+  );
 }
 
 export function listAfericoesByPostoUseCase(): ListAfericoesByPostoUseCase {

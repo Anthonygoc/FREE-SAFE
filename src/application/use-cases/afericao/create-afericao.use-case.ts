@@ -3,8 +3,10 @@ import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
 import { processarUpload } from '@/application/shared/processar-upload';
 import { Afericao, type SituacaoAfericao } from '@/domain/entities/afericao.entity';
+import { NotFoundError } from '@/domain/errors/domain.errors';
 import type { ProdutoCombustivel } from '@/domain/entities/raq.entity';
 import type { AfericaoRepository } from '@/domain/ports/afericao.repository';
+import type { PostoRepository } from '@/domain/ports/posto.repository';
 
 export interface CreateAfericaoInput {
   usuario: UsuarioAutenticado;
@@ -28,10 +30,16 @@ export interface CreateAfericaoOutput {
 }
 
 export class CreateAfericaoUseCase {
-  constructor(private readonly afericaoRepo: AfericaoRepository) {}
+  private readonly toleranciaPorPosto = new Map<string, number>();
+
+  constructor(
+    private readonly afericaoRepo: AfericaoRepository,
+    private readonly postoRepo: PostoRepository,
+  ) {}
 
   async execute(input: CreateAfericaoInput): Promise<CreateAfericaoOutput> {
     autorizar(input.usuario, 'inmetro', 'criar', input.postoId);
+    const toleranciaMl = await this.obterToleranciaDoPosto(input.postoId);
 
     const fotoUrlProcessada = await processarUpload({
       valor: input.fotoUrl,
@@ -51,6 +59,7 @@ export class CreateAfericaoUseCase {
       observacoes: input.observacoes,
       fotoUrl: fotoUrlProcessada ?? input.fotoUrl,
       medidaPadrao: input.medidaPadrao,
+      toleranciaMl,
     });
 
     await this.afericaoRepo.salvar(afericao);
@@ -78,5 +87,22 @@ export class CreateAfericaoUseCase {
       situacao: afericao.situacao,
       dentro: afericao.situacao === 'DENTRO_DA_LEGISLACAO',
     };
+  }
+
+  private async obterToleranciaDoPosto(postoId: string): Promise<number> {
+    const toleranciaEmCache = this.toleranciaPorPosto.get(postoId);
+    if (toleranciaEmCache !== undefined) {
+      return toleranciaEmCache;
+    }
+
+    const posto = await this.postoRepo.buscarPorId(postoId);
+    if (!posto) {
+      throw new NotFoundError('Posto não encontrado');
+    }
+
+    const tolerancia = posto.toleranciaInmetroMl ?? 100;
+    this.toleranciaPorPosto.set(postoId, tolerancia);
+
+    return tolerancia;
   }
 }

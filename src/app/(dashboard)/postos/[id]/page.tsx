@@ -7,11 +7,11 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus, CardBase, FieldError, FieldLabel, IconBadge, InputBase, LoadingSpinner } from '@/components/ui';
-import { podeAcessar } from '@/domain/permissions/permissions';
 import { usePosto, useUpdatePosto } from '@/hooks/use-postos';
 
 const pageAnimation = {
@@ -27,8 +27,10 @@ const postoFormSchema = z.object({
   endereco: z.string().trim().min(1, 'Informe o endereço').max(300, 'Máximo de 300 caracteres'),
   cidade: z.string().trim().min(1, 'Informe a cidade').max(100, 'Máximo de 100 caracteres'),
   uf: z.string().trim().length(2, 'UF deve ter 2 caracteres').transform((value) => value.toUpperCase()),
+  logoUrl: z.string().optional(),
   maxGerentes: z.coerce.number().int().min(0, 'Informe um valor maior ou igual a zero'),
   maxAdministrativos: z.coerce.number().int().min(0, 'Informe um valor maior ou igual a zero'),
+  toleranciaInmetroMl: z.coerce.number().int().min(1, 'Informe um valor entre 1 e 1000').max(1000, 'Informe um valor entre 1 e 1000'),
 });
 
 type PostoFormValues = z.infer<typeof postoFormSchema>;
@@ -36,6 +38,14 @@ type PostoFormValues = z.infer<typeof postoFormSchema>;
 const readOnlyInputClassName = 'read-only:cursor-default read-only:bg-zinc-50 disabled:bg-zinc-50 disabled:text-zinc-500';
 const primaryButtonClassName =
   'inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-600 hover:shadow-md active:scale-[0.98] disabled:pointer-events-none disabled:opacity-60';
+
+const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+
+  reader.onload = () => resolve(String(reader.result ?? ''));
+  reader.onerror = () => reject(new Error('Falha ao carregar a logo'));
+  reader.readAsDataURL(file);
+});
 
 export default function PostoDetalhePage() {
   const { data: session } = useSession();
@@ -45,16 +55,14 @@ export default function PostoDetalhePage() {
 
   const { data: posto, isLoading, error } = usePosto(postoId);
   const updatePosto = useUpdatePosto();
-  const podeEditar = podeAcessar(
-    (session?.user?.perfil ?? 'COLABORADOR') as Parameters<typeof podeAcessar>[0],
-    'postos',
-    'editar',
-  );
+  const podeEditar = session?.user?.perfil === 'ADMIN';
 
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isDirty },
   } = useForm<z.input<typeof postoFormSchema>, unknown, PostoFormValues>({
     resolver: zodResolver(postoFormSchema),
@@ -65,10 +73,14 @@ export default function PostoDetalhePage() {
       endereco: '',
       cidade: '',
       uf: '',
+      logoUrl: '',
       maxGerentes: 0,
       maxAdministrativos: 0,
+      toleranciaInmetroMl: 100,
     },
   });
+
+  const logoPreview = watch('logoUrl');
 
   useEffect(() => {
     if (!posto) {
@@ -82,10 +94,25 @@ export default function PostoDetalhePage() {
       endereco: posto.endereco,
       cidade: posto.cidade,
       uf: posto.uf,
+      logoUrl: posto.logoUrl ?? '',
       maxGerentes: posto.maxGerentes,
       maxAdministrativos: posto.maxAdministrativos,
+      toleranciaInmetroMl: posto.toleranciaInmetroMl,
     });
   }, [posto, reset]);
+
+  async function handleSelecionarLogo(file?: File) {
+    if (!file || !podeEditar) {
+      return;
+    }
+
+    try {
+      const logo = await toBase64(file);
+      setValue('logoUrl', logo, { shouldDirty: true, shouldValidate: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar a logo.');
+    }
+  }
 
   async function onSubmit(values: PostoFormValues) {
     if (!posto || !podeEditar) {
@@ -100,8 +127,10 @@ export default function PostoDetalhePage() {
       endereco: values.endereco.trim(),
       cidade: values.cidade.trim(),
       uf: values.uf.trim().toUpperCase(),
+      logoUrl: values.logoUrl || undefined,
       maxGerentes: values.maxGerentes,
       maxAdministrativos: values.maxAdministrativos,
+      toleranciaInmetroMl: values.toleranciaInmetroMl,
     });
   }
 
@@ -158,6 +187,7 @@ export default function PostoDetalhePage() {
   }
 
   const bloqueado = !podeEditar || updatePosto.isPending;
+  const previewAtual = logoPreview || posto.logoUrl || '';
 
   return (
     <RouteGuard recurso="postos">
@@ -174,7 +204,17 @@ export default function PostoDetalhePage() {
         <CardBase padding="lg">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex items-start gap-4">
-              <IconBadge icon={Building2} tone="orange" size="lg" />
+              {previewAtual ? (
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+                  <img
+                    src={previewAtual}
+                    alt={`Logo do posto ${posto.nome}`}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              ) : (
+                <IconBadge icon={Building2} tone="orange" size="lg" />
+              )}
               <div>
                 <div className="flex flex-wrap items-center gap-3">
                   <h1 className="text-2xl font-bold tracking-tight text-zinc-950">{posto.nome}</h1>
@@ -252,6 +292,50 @@ export default function PostoDetalhePage() {
           <div className="space-y-6">
             <CardBase padding="lg" className="space-y-5">
               <div className="flex items-center gap-3">
+                <IconBadge icon={Building2} tone="orange" size="md" />
+                <div>
+                  <h2 className="text-base font-semibold text-zinc-900">Logo do posto</h2>
+                  <p className="text-sm text-zinc-500">Usada na identificação visual e em futuras saídas do sistema.</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-4">
+                <div className="flex h-40 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-zinc-300 bg-zinc-50">
+                  {previewAtual ? (
+                    <img
+                      src={previewAtual}
+                      alt={`Logo do posto ${posto.nome}`}
+                      className="h-full w-full object-contain p-4"
+                    />
+                  ) : (
+                    <div className="space-y-1 px-4 text-center">
+                      <p className="text-sm font-medium text-zinc-700">Nenhuma logo cadastrada</p>
+                      <p className="text-xs text-zinc-500">Envie uma imagem para personalizar este posto.</p>
+                    </div>
+                  )}
+                </div>
+
+                {podeEditar ? (
+                  <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-all hover:border-zinc-300 hover:bg-zinc-50">
+                    Trocar logo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(event) => {
+                        void handleSelecionarLogo(event.target.files?.[0]);
+                        event.target.value = '';
+                      }}
+                    />
+                  </label>
+                ) : (
+                  <p className="text-sm text-zinc-500">Apenas ADMIN pode atualizar a logo do posto.</p>
+                )}
+              </div>
+            </CardBase>
+
+            <CardBase padding="lg" className="space-y-5">
+              <div className="flex items-center gap-3">
                 <IconBadge icon={Info} tone="amber" size="md" />
                 <div>
                   <h2 className="text-base font-semibold text-zinc-900">Parâmetros</h2>
@@ -265,6 +349,24 @@ export default function PostoDetalhePage() {
               </div>
 
               <div className="space-y-4">
+                <div>
+                  <FieldLabel htmlFor="toleranciaInmetroMl">Tolerância INMETRO (mL)</FieldLabel>
+                  <InputBase
+                    id="toleranciaInmetroMl"
+                    type="number"
+                    min={1}
+                    max={1000}
+                    step={1}
+                    {...register('toleranciaInmetroMl')}
+                    readOnly={bloqueado}
+                    className={readOnlyInputClassName}
+                  />
+                  <FieldError>{errors.toleranciaInmetroMl?.message}</FieldError>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Limite aceitável para mais ou para menos na aferição (padrão: 100 mL). Afeta apenas novas aferições.
+                  </p>
+                </div>
+
                 <div>
                   <FieldLabel htmlFor="maxGerentes">Máximo de gerentes</FieldLabel>
                   <InputBase

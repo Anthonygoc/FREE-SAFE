@@ -18,8 +18,10 @@ export interface GetPostoByIdOutput {
   cidade: string;
   uf: string;
   gerenteId?: string | null;
+  logoUrl?: string | null;
   maxGerentes: number;
   maxAdministrativos: number;
+  toleranciaInmetroMl: number;
   ativo: boolean;
   criadoEm: Date;
   atualizadoEm: Date;
@@ -46,8 +48,10 @@ export class GetPostoByIdUseCase {
       cidade: posto.cidade,
       uf: posto.uf,
       gerenteId: posto.gerenteId,
+      logoUrl: posto.logoUrl,
       maxGerentes: posto.maxGerentes,
       maxAdministrativos: posto.maxAdministrativos,
+      toleranciaInmetroMl: posto.toleranciaInmetroMl ?? 100,
       ativo: posto.ativo,
       criadoEm: posto.criadoEm,
       atualizadoEm: posto.atualizadoEm,

@@ -12,6 +12,8 @@ export interface ListPostosOutputItem {
   cidade: string;
   uf: string;
   conformidade: number;
+  logoUrl?: string | null;
+  toleranciaInmetroMl: number;
 }
 
 export class ListPostosUseCase {
@@ -31,6 +33,8 @@ export class ListPostosUseCase {
         cidade: posto.cidade,
         uf: posto.uf,
         conformidade: this.calcularConformidade(posto.ativo),
+        logoUrl: posto.logoUrl,
+        toleranciaInmetroMl: posto.toleranciaInmetroMl ?? 100,
       }));
     }
 
@@ -54,6 +58,8 @@ export class ListPostosUseCase {
           cidade: posto.cidade,
           uf: posto.uf,
           conformidade: this.calcularConformidade(posto.ativo),
+          logoUrl: posto.logoUrl,
+          toleranciaInmetroMl: posto.toleranciaInmetroMl ?? 100,
         },
       ];
     }

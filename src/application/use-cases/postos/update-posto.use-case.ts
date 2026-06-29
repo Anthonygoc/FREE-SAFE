@@ -1,7 +1,9 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
 import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
+import { processarUpload } from '@/application/shared/processar-upload';
 import { DomainError, NotFoundError } from '@/domain/errors/domain.errors';
+import { ForbiddenError } from '@/domain/errors/forbidden.error';
 import type { PostoRepository } from '@/domain/ports/posto.repository';
 
 export interface UpdatePostoInput {
@@ -13,8 +15,10 @@ export interface UpdatePostoInput {
   endereco?: string;
   cidade?: string;
   uf?: string;
+  logoUrl?: string;
   maxGerentes?: number;
   maxAdministrativos?: number;
+  toleranciaInmetroMl?: number;
 }
 
 export interface UpdatePostoOutput {
@@ -31,6 +35,9 @@ export class UpdatePostoUseCase {
     }
 
     autorizar(input.usuario, 'postos', 'editar', posto.id);
+    if (input.usuario.perfil !== 'ADMIN') {
+      throw new ForbiddenError('Apenas ADMIN pode editar as configurações do posto');
+    }
 
     if (
       input.nome === undefined
@@ -39,11 +46,28 @@ export class UpdatePostoUseCase {
       && input.endereco === undefined
       && input.cidade === undefined
       && input.uf === undefined
+      && input.logoUrl === undefined
       && input.maxGerentes === undefined
       && input.maxAdministrativos === undefined
+      && input.toleranciaInmetroMl === undefined
     ) {
       throw new DomainError('Nenhum dado informado para atualização');
     }
+
+    if (
+      input.toleranciaInmetroMl !== undefined
+      && (!Number.isInteger(input.toleranciaInmetroMl) || input.toleranciaInmetroMl < 1 || input.toleranciaInmetroMl > 1000)
+    ) {
+      throw new DomainError('Tolerância INMETRO inválida. Informe um inteiro entre 1 e 1000 mL.');
+    }
+
+    const logoUrlProcessada = input.logoUrl === undefined
+      ? undefined
+      : await processarUpload({
+          valor: input.logoUrl,
+          bucket: 'postos',
+          path: `${posto.id}/logo-${Date.now()}`,
+        });
 
     const atualizado = {
       ...posto,
@@ -55,8 +79,12 @@ export class UpdatePostoUseCase {
       endereco: input.endereco ?? posto.endereco,
       cidade: input.cidade ?? posto.cidade,
       uf: input.uf ?? posto.uf,
+      logoUrl: input.logoUrl === undefined
+        ? posto.logoUrl
+        : logoUrlProcessada ?? input.logoUrl,
       maxGerentes: input.maxGerentes ?? posto.maxGerentes,
       maxAdministrativos: input.maxAdministrativos ?? posto.maxAdministrativos,
+      toleranciaInmetroMl: input.toleranciaInmetroMl ?? posto.toleranciaInmetroMl ?? 100,
       atualizadoEm: new Date(),
     };
 
@@ -75,8 +103,10 @@ export class UpdatePostoUseCase {
         endereco: atualizado.endereco,
         cidade: atualizado.cidade,
         uf: atualizado.uf,
+        logoUrl: atualizado.logoUrl,
         maxGerentes: atualizado.maxGerentes,
         maxAdministrativos: atualizado.maxAdministrativos,
+        toleranciaInmetroMl: atualizado.toleranciaInmetroMl,
       },
     });
 

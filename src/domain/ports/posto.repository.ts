@@ -8,8 +8,10 @@ export interface Posto {
   cidade: string;
   uf: string;
   gerenteId?: string | null;
+  logoUrl?: string | null;
   maxGerentes: number;
   maxAdministrativos: number;
+  toleranciaInmetroMl: number;
   ativo: boolean;
   criadoEm: Date;
   atualizadoEm: Date;

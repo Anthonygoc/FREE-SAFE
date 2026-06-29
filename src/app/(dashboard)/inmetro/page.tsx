@@ -102,7 +102,7 @@ function getResultadoNumero(value: string | undefined) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-function getSituacaoResultado(value: string | undefined) {
+function getSituacaoResultado(value: string | undefined, toleranciaMl = 100) {
   const resultado = getResultadoNumero(value);
 
   if (resultado === null) {
@@ -111,7 +111,7 @@ function getSituacaoResultado(value: string | undefined) {
 
   return {
     resultado,
-    dentro: resultado >= -100 && resultado <= 100,
+    dentro: resultado >= -toleranciaMl && resultado <= toleranciaMl,
   };
 }
 
@@ -149,6 +149,9 @@ export default function InmetroPage() {
       setPostoId(postos[0].id);
     }
   }, [postoId, postos]);
+
+  const postoSelecionado = (postos ?? []).find((posto) => posto.id === postoId);
+  const toleranciaAtual = postoSelecionado?.toleranciaInmetroMl ?? 100;
 
   const { data: bombas, isLoading: loadingBombas } = useBombasByPosto(postoId);
   const {
@@ -258,13 +261,13 @@ export default function InmetroPage() {
   const totalBicos = (bombas ?? []).reduce((count, bomba) => count + bomba.bicos.length, 0);
   const totalDentroAtual = (bombas ?? []).reduce((count, bomba) => (
     count + bomba.bicos.filter((bico) => {
-      const situacao = getSituacaoResultado(formState[bico.id]?.resultadoMl);
+      const situacao = getSituacaoResultado(formState[bico.id]?.resultadoMl, toleranciaAtual);
       return situacao?.dentro ?? false;
     }).length
   ), 0);
   const totalForaAtual = (bombas ?? []).reduce((count, bomba) => (
     count + bomba.bicos.filter((bico) => {
-      const situacao = getSituacaoResultado(formState[bico.id]?.resultadoMl);
+      const situacao = getSituacaoResultado(formState[bico.id]?.resultadoMl, toleranciaAtual);
       return situacao ? !situacao.dentro : false;
     }).length
   ), 0);
@@ -508,7 +511,7 @@ export default function InmetroPage() {
                             <div className="divide-y divide-zinc-100">
                               {bomba.bicos.map((bico) => {
                                 const entry = formState[bico.id];
-                                const situacao = getSituacaoResultado(entry?.resultadoMl);
+                                const situacao = getSituacaoResultado(entry?.resultadoMl, toleranciaAtual);
                                 const linhaStatusClass = situacao
                                   ? situacao.dentro
                                     ? 'bg-orange-50/50'
@@ -698,7 +701,7 @@ export default function InmetroPage() {
                 <div className="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-medium text-zinc-600">Tolerância</span>
-                    <span className="text-sm font-semibold text-zinc-950">-100 mL a +100 mL</span>
+                    <span className="text-sm font-semibold text-zinc-950">{`-${toleranciaAtual} mL a +${toleranciaAtual} mL`}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-medium text-zinc-600">Total de bicos</span>

@@ -9,11 +9,11 @@ export class PostoPrismaRepository implements PostoRepository {
   async listar(): Promise<Posto[]> {
     return this.db.posto.findMany({
       orderBy: { nome: 'asc' },
-    });
+    }) as Promise<Posto[]>;
   }
 
   async buscarPorId(id: string): Promise<Posto | null> {
-    return this.db.posto.findUnique({ where: { id } });
+    return this.db.posto.findUnique({ where: { id } }) as Promise<Posto | null>;
   }
 
   async salvar(posto: Posto): Promise<void> {
@@ -29,12 +29,14 @@ export class PostoPrismaRepository implements PostoRepository {
         cidade: posto.cidade,
         uf: posto.uf,
         gerenteId: posto.gerenteId ?? null,
+        logoUrl: posto.logoUrl ?? null,
         maxGerentes: posto.maxGerentes,
         maxAdministrativos: posto.maxAdministrativos,
+        toleranciaInmetroMl: posto.toleranciaInmetroMl,
         ativo: posto.ativo,
         criadoEm: posto.criadoEm,
         atualizadoEm: posto.atualizadoEm,
-      },
+      } as any,
       update: {
         nome: posto.nome,
         razaoSocial: posto.razaoSocial,
@@ -44,10 +46,12 @@ export class PostoPrismaRepository implements PostoRepository {
         cidade: posto.cidade,
         uf: posto.uf,
         gerenteId: posto.gerenteId ?? null,
+        logoUrl: posto.logoUrl ?? null,
         maxGerentes: posto.maxGerentes,
         maxAdministrativos: posto.maxAdministrativos,
+        toleranciaInmetroMl: posto.toleranciaInmetroMl,
         ativo: posto.ativo,
-      },
+      } as any,
     });
   }
 

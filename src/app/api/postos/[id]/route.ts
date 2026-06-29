@@ -14,12 +14,17 @@ const paramsSchema = z.object({
 const updatePostoSchema = z.object({
   nome: z.string().trim().min(1).max(100).optional(),
   razaoSocial: z.string().trim().min(1).max(200).optional(),
-  inscricaoEstadual: z.string().trim().max(30).optional(),
+  inscricaoEstadual: z.string().trim().max(30).nullish(),
   endereco: z.string().trim().min(1).max(300).optional(),
   cidade: z.string().trim().min(1).max(100).optional(),
   uf: z.string().trim().length(2).transform((value) => value.toUpperCase()).optional(),
+  logoUrl: z.preprocess(
+    (value) => (value === "" || value === null ? undefined : value),
+    z.string().trim().min(1).optional(),
+  ),
   maxGerentes: z.coerce.number().int().min(0).optional(),
   maxAdministrativos: z.coerce.number().int().min(0).optional(),
+  toleranciaInmetroMl: z.coerce.number().int().min(1).max(1000).optional(),
 }).refine(
   (data) => Object.values(data).some((value) => value !== undefined),
   { message: 'Informe pelo menos um campo para atualização' },

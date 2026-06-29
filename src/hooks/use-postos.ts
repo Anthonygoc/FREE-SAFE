@@ -14,6 +14,8 @@ export interface Posto {
   cidade: string;
   uf: string;
   conformidade: number;
+  logoUrl?: string | null;
+  toleranciaInmetroMl: number;
 }
 
 export interface PostoDetalhe {
@@ -26,8 +28,10 @@ export interface PostoDetalhe {
   cidade: string;
   uf: string;
   gerenteId?: string | null;
+  logoUrl?: string | null;
   maxGerentes: number;
   maxAdministrativos: number;
+  toleranciaInmetroMl: number;
   ativo: boolean;
   criadoEm: string;
   atualizadoEm: string;
@@ -41,8 +45,10 @@ export interface UpdatePostoInput {
   endereco: string;
   cidade: string;
   uf: string;
+  logoUrl?: string;
   maxGerentes: number;
   maxAdministrativos: number;
+  toleranciaInmetroMl: number;
 }
 
 export function usePostos(enabled = true) {

@@ -16,6 +16,7 @@ export interface CriarAfericaoProps {
   resultadoMl: number;
   observacoes?: string;
   fotoUrl?: string;
+  toleranciaMl?: number;
 }
 
 export interface ReconstituirAfericaoProps extends Omit<CriarAfericaoProps, 'medidaPadrao'> {
@@ -64,7 +65,7 @@ export class Afericao {
     if (!props.postoId) throw new CampoObrigatorioError('postoId');
     if (!props.responsavelId) throw new CampoObrigatorioError('responsavelId');
 
-    const situacao = Afericao.calcularSituacao(props.resultadoMl);
+    const situacao = Afericao.calcularSituacao(props.resultadoMl, props.toleranciaMl);
 
     return new Afericao({
       ...props,
@@ -82,8 +83,8 @@ export class Afericao {
     return new Afericao(props);
   }
 
-  private static calcularSituacao(resultadoMl: number): SituacaoAfericao {
-    return resultadoMl >= -100 && resultadoMl <= 100
+  private static calcularSituacao(resultadoMl: number, toleranciaMl = 100): SituacaoAfericao {
+    return resultadoMl >= -toleranciaMl && resultadoMl <= toleranciaMl
       ? 'DENTRO_DA_LEGISLACAO'
       : 'FORA_DA_TOLERANCIA';
   }
