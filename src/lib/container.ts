@@ -4,6 +4,7 @@ import { DeleteLoteAfericaoUseCase } from '@/application/use-cases/afericao/dele
 import { EmitAfericaoPdfUseCase } from '@/application/use-cases/afericao/emit-afericao-pdf.use-case';
 import { EmitAfericaoXlsxUseCase } from '@/application/use-cases/afericao/emit-afericao-xlsx.use-case';
 import { GetAfericaoByIdUseCase } from '@/application/use-cases/afericao/get-afericao-by-id.use-case';
+import { ListHistoricoAfericoesByPostoUseCase } from '@/application/use-cases/afericao/list-historico-afericoes-by-posto.use-case';
 import { ListAfericoesByPostoUseCase } from '@/application/use-cases/afericao/list-afericoes-by-posto.use-case';
 import { ListAuditoriaUseCase } from '@/application/use-cases/auditoria/list-auditoria.use-case';
 import { ListBicosByBombaUseCase } from '@/application/use-cases/bicos/list-bicos-by-bomba.use-case';
@@ -82,6 +83,10 @@ export function createAfericaoUseCase(): CreateAfericaoUseCase {
 
 export function listAfericoesByPostoUseCase(): ListAfericoesByPostoUseCase {
   return new ListAfericoesByPostoUseCase(new AfericaoPrismaRepository());
+}
+
+export function listHistoricoAfericoesByPostoUseCase(): ListHistoricoAfericoesByPostoUseCase {
+  return new ListHistoricoAfericoesByPostoUseCase(new AfericaoPrismaRepository());
 }
 
 export function getAfericaoByIdUseCase(): GetAfericaoByIdUseCase {

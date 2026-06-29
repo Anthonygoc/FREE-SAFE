@@ -10,14 +10,15 @@ import { toast } from 'sonner';
 
 import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus, CardBase, IconBadge, InputBase, LoadingSpinner, SelectBase } from '@/components/ui';
+import { PaginationControl } from '@/components/ui/pagination-control';
 import { cn } from '@/lib/utils';
 import { useConfirm } from '@/hooks/use-confirm';
 import {
-  useAfericoesByPosto,
   useCreateAfericaoLote,
   useDeleteAfericao,
   useDeleteLoteAfericao,
-  type Afericao,
+  type HistoricoAfericaoLote,
+  useHistoricoAfericoes,
 } from '@/hooks/use-afericao';
 import { useBombasByPosto } from '@/hooks/use-bombas';
 import { usePostos } from '@/hooks/use-postos';
@@ -44,12 +45,7 @@ type BicoFormState = {
 
 type FormState = Record<string, BicoFormState>;
 
-type HistoricoLote = {
-  loteId: string;
-  loteRealId?: string;
-  afericoes: Afericao[];
-  responsavelNome: string;
-  criadoEm: string;
+type HistoricoLote = HistoricoAfericaoLote & {
   totalBicos: number;
   foraTolerancia: number;
 };
@@ -95,21 +91,6 @@ function formatarData(value: string) {
     month: '2-digit',
     year: 'numeric',
   }).format(new Date(value));
-}
-
-function getResponsavelLabel(
-  item: Afericao,
-  sessionUser: { id?: string; name?: string | null } | undefined,
-) {
-  if (item.responsavelNome) {
-    return item.responsavelNome;
-  }
-
-  if (sessionUser?.id === item.responsavelId && sessionUser.name) {
-    return sessionUser.name;
-  }
-
-  return item.responsavelId;
 }
 
 function getResultadoNumero(value: string | undefined) {
@@ -161,6 +142,7 @@ export default function InmetroPage() {
   const [filtroDataAte, setFiltroDataAte] = useState('');
   const [filtroSituacao, setFiltroSituacao] = useState<'TODOS' | 'DENTRO' | 'FORA'>('TODOS');
   const [lotesAbertos, setLotesAbertos] = useState<Set<string>>(new Set());
+  const [paginaHistorico, setPaginaHistorico] = useState(1);
 
   useEffect(() => {
     if (!postoId && postos && postos.length > 0) {
@@ -169,9 +151,23 @@ export default function InmetroPage() {
   }, [postoId, postos]);
 
   const { data: bombas, isLoading: loadingBombas } = useBombasByPosto(postoId);
-  const { data: historico, isLoading: loadingHistorico } = useAfericoesByPosto(postoId);
+  const {
+    data: historico,
+    isLoading: loadingHistorico,
+    isFetching: fetchingHistorico,
+  } = useHistoricoAfericoes(postoId, paginaHistorico);
 
   const podeConfigurar = session?.user?.perfil === 'ADMIN' || session?.user?.perfil === 'GERENTE';
+
+  useEffect(() => {
+    setLotesAbertos(new Set());
+  }, [paginaHistorico]);
+
+  useEffect(() => {
+    if (historico && paginaHistorico > historico.totalPaginas) {
+      setPaginaHistorico(historico.totalPaginas);
+    }
+  }, [historico, paginaHistorico]);
 
   function atualizarCampo(bicoId: string, changes: Partial<BicoFormState>) {
     setFormState((current) => ({
@@ -200,6 +196,7 @@ export default function InmetroPage() {
 
   function handleChangePosto(nextPostoId: string) {
     setPostoId(nextPostoId);
+    setPaginaHistorico(1);
     setFormState({});
     setImagemAmpliada(null);
     setFiltroDataDe('');
@@ -276,41 +273,11 @@ export default function InmetroPage() {
   )).length;
   const todosBicosPreenchidos = totalBicos > 0 && totalPreenchidas === totalBicos;
 
-  const historicoAgrupado = (historico ?? []).reduce<Record<string, HistoricoLote>>((acc, item) => {
-    const grupoId = item.loteId ?? item.id;
-    const grupoAtual = acc[grupoId];
-    const responsavelNome = getResponsavelLabel(item, session?.user);
-
-    if (!grupoAtual) {
-      acc[grupoId] = {
-        loteId: grupoId,
-        loteRealId: item.loteId,
-        afericoes: [item],
-        responsavelNome,
-        criadoEm: item.criadoEm,
-        totalBicos: 1,
-        foraTolerancia: item.situacao === 'FORA_DA_TOLERANCIA' ? 1 : 0,
-      };
-      return acc;
-    }
-
-    grupoAtual.afericoes.push(item);
-    grupoAtual.totalBicos += 1;
-    grupoAtual.foraTolerancia += item.situacao === 'FORA_DA_TOLERANCIA' ? 1 : 0;
-
-    if (new Date(item.criadoEm).getTime() > new Date(grupoAtual.criadoEm).getTime()) {
-      grupoAtual.criadoEm = item.criadoEm;
-    }
-
-    return acc;
-  }, {});
-
-  const lotesFiltrados = Object.values(historicoAgrupado)
+  const lotesFiltrados = (historico?.itens ?? [])
     .map((lote) => ({
       ...lote,
-      afericoes: [...lote.afericoes].sort((a, b) => (
-        new Date(b.criadoEm).getTime() - new Date(a.criadoEm).getTime()
-      )),
+      totalBicos: lote.afericoes.length,
+      foraTolerancia: lote.afericoes.filter((item) => item.situacao === 'FORA_DA_TOLERANCIA').length,
     }))
     .filter((lote) => {
       const afericoesCompativeis = lote.afericoes.filter((item) => {
@@ -390,12 +357,7 @@ export default function InmetroPage() {
       return;
     }
 
-    if (!lote.loteRealId) {
-      deleteAfericao({ afericaoId: lote.afericoes[0].id, postoId });
-      return;
-    }
-
-    deleteLoteAfericao({ loteId: lote.loteRealId, postoId });
+    deleteLoteAfericao({ loteId: lote.loteId, postoId });
   }
 
   function handleAbrirDocumento(loteId: string, formato: 'pdf' | 'xlsx') {
@@ -779,7 +741,7 @@ export default function InmetroPage() {
                   <p className="text-sm text-zinc-500">Acompanhe os registros recentes do posto selecionado.</p>
                 </div>
               </div>
-              {loadingHistorico ? <LoadingSpinner size={20} /> : null}
+              {loadingHistorico || fetchingHistorico ? <LoadingSpinner size={20} /> : null}
             </div>
           </div>
 
@@ -790,7 +752,7 @@ export default function InmetroPage() {
               <div className="flex h-32 items-center justify-center">
                 <LoadingSpinner size={28} />
               </div>
-            ) : (historico ?? []).length === 0 ? (
+            ) : (historico?.itens ?? []).length === 0 ? (
               <p className="text-sm text-zinc-500">Nenhuma aferição registrada para o posto selecionado.</p>
             ) : (
               <div className="space-y-4">
@@ -823,7 +785,7 @@ export default function InmetroPage() {
                     </SelectBase>
                   </div>
                   <div className="text-sm font-medium text-zinc-500">
-                    {`${totalAfericoesFiltradas} aferições em ${lotesFiltrados.length} lotes`}
+                    {`${totalAfericoesFiltradas} aferições em ${lotesFiltrados.length} lotes nesta página`}
                   </div>
                 </div>
 
@@ -832,7 +794,6 @@ export default function InmetroPage() {
                 ) : (
                   lotesFiltrados.map((lote, index) => {
                     const aberto = lotesAbertos.has(lote.loteId);
-                    const loteLegado = !lote.loteRealId;
 
                     return (
                       <motion.div
@@ -857,17 +818,10 @@ export default function InmetroPage() {
                               className={`mt-0.5 h-5 w-5 shrink-0 text-orange-500 transition-transform ${aberto ? 'rotate-180' : ''}`}
                             />
                             <div className="min-w-0 space-y-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-sm font-semibold text-zinc-900">
-                                  {`Aferição de ${formatarDataHora(lote.criadoEm)}`}
-                                </p>
-                                {loteLegado ? (
-                                  <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-600">
-                                    Legado
-                                  </span>
-                                ) : null}
-                              </div>
-                              <p className="text-sm text-zinc-500">{`Responsável: ${lote.responsavelNome}`}</p>
+                              <p className="text-sm font-semibold text-zinc-900">
+                                {`Aferição de ${formatarDataHora(lote.criadoEm)}`}
+                              </p>
+                              <p className="text-sm text-zinc-500">{`Responsável: ${lote.responsavelNome ?? lote.responsavelId}`}</p>
                             </div>
                           </button>
 
@@ -886,13 +840,7 @@ export default function InmetroPage() {
                             <div className="flex flex-wrap items-center gap-2">
                               <button
                                 type="button"
-                                disabled={loteLegado}
-                                onClick={() => {
-                                  if (!lote.loteRealId) {
-                                    return;
-                                  }
-                                  handleAbrirDocumento(lote.loteRealId, 'pdf');
-                                }}
+                                onClick={() => handleAbrirDocumento(lote.loteId, 'pdf')}
                                 className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:border-orange-300 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
                               >
                                 <FileText className="h-4 w-4" />
@@ -901,13 +849,7 @@ export default function InmetroPage() {
                               </button>
                               <button
                                 type="button"
-                                disabled={loteLegado}
-                                onClick={() => {
-                                  if (!lote.loteRealId) {
-                                    return;
-                                  }
-                                  handleAbrirDocumento(lote.loteRealId, 'xlsx');
-                                }}
+                                onClick={() => handleAbrirDocumento(lote.loteId, 'xlsx')}
                                 className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:border-orange-300 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
                               >
                                 <FileSpreadsheet className="h-4 w-4" />
@@ -994,6 +936,13 @@ export default function InmetroPage() {
                     );
                   })
                 )}
+
+                <PaginationControl
+                  pagina={historico?.pagina ?? 1}
+                  totalPaginas={historico?.totalPaginas ?? 1}
+                  total={historico?.total ?? 0}
+                  onMudarPagina={setPaginaHistorico}
+                />
               </div>
             )}
           </div>

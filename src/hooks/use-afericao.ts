@@ -33,6 +33,21 @@ export interface Afericao {
   criadoEm: string;
 }
 
+export interface HistoricoAfericaoLote {
+  loteId: string;
+  criadoEm: string;
+  responsavelId: string;
+  responsavelNome?: string;
+  afericoes: Afericao[];
+}
+
+export interface HistoricoAfericoesResponse {
+  itens: HistoricoAfericaoLote[];
+  total: number;
+  pagina: number;
+  totalPaginas: number;
+}
+
 export interface CreateAfericaoInput {
   postoId: string;
   bicoId?: string;
@@ -82,6 +97,22 @@ export function useAfericoesByPosto(postoId?: string) {
   });
 }
 
+export function useHistoricoAfericoes(postoId?: string, pagina = 1, bomba?: number) {
+  return useQuery({
+    queryKey: ['afericao-historico', postoId, pagina, bomba],
+    queryFn: () => {
+      const params = new URLSearchParams({ postoId: postoId ?? '', pagina: String(pagina) });
+
+      if (bomba !== undefined) {
+        params.set('bomba', String(bomba));
+      }
+
+      return apiClient.get<HistoricoAfericoesResponse>(`/api/afericao/historico?${params.toString()}`);
+    },
+    enabled: !!postoId,
+  });
+}
+
 export function useCreateAfericao() {
   const queryClient = useQueryClient();
 
@@ -89,6 +120,7 @@ export function useCreateAfericao() {
     mutationFn: (input: CreateAfericaoInput) => apiClient.post<CreateAfericaoOutput>('/api/afericao', input),
     onSuccess: (output, input) => {
       queryClient.invalidateQueries({ queryKey: ['afericao', input.postoId] });
+      queryClient.invalidateQueries({ queryKey: ['afericao-historico', input.postoId] });
       toast.success(`Aferição registrada: ${output.situacao}.`);
     },
     onError: (error) => {
@@ -105,6 +137,7 @@ export function useCreateAfericaoLote() {
       apiClient.post<CreateAfericaoLoteOutput>('/api/afericao/lote', input),
     onSuccess: (_, input) => {
       queryClient.invalidateQueries({ queryKey: ['afericao', input.postoId] });
+      queryClient.invalidateQueries({ queryKey: ['afericao-historico', input.postoId] });
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Erro ao registrar aferições.');
@@ -124,6 +157,7 @@ export function useDeleteAfericao() {
     mutationFn: ({ afericaoId }: DeleteAfericaoInput) => apiClient.delete<void>(`/api/afericao/${afericaoId}`),
     onSuccess: (_, input) => {
       queryClient.invalidateQueries({ queryKey: ['afericao', input.postoId] });
+      queryClient.invalidateQueries({ queryKey: ['afericao-historico', input.postoId] });
       toast.success('Aferição excluída com sucesso.');
     },
     onError: (error) => {
@@ -144,6 +178,7 @@ export function useDeleteLoteAfericao() {
     mutationFn: ({ loteId }: DeleteLoteAfericaoInput) => apiClient.delete<void>(`/api/afericao/lote/${loteId}`),
     onSuccess: (_, input) => {
       queryClient.invalidateQueries({ queryKey: ['afericao', input.postoId] });
+      queryClient.invalidateQueries({ queryKey: ['afericao-historico', input.postoId] });
       toast.success('Lote de aferições excluído com sucesso.');
     },
     onError: (error) => {
