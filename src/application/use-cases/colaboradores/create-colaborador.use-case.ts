@@ -3,6 +3,7 @@ import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
 import { processarUpload } from '@/application/shared/processar-upload';
 import { Colaborador, type StatusColaborador } from '@/domain/entities/colaborador.entity';
+import { DomainError } from '@/domain/errors/domain.errors';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
 
 export interface CreateColaboradorInput {
@@ -29,6 +30,11 @@ export class CreateColaboradorUseCase {
     const { usuario } = input;
 
     autorizar(usuario, 'colaboradores', 'criar', input.postoId);
+
+    const colaboradorExistente = await this.colaboradorRepo.buscarPorCpf(input.cpf);
+    if (colaboradorExistente) {
+      throw new DomainError('Este CPF já está cadastrado');
+    }
 
     const fotoUrlProcessada = await processarUpload({
       valor: input.fotoUrl,

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { RouteGuard } from '@/components/auth/route-guard';
+import { FieldError, FieldLabel } from '@/components/ui';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -96,6 +97,12 @@ function valorInicialFormulario() {
   };
 }
 
+type FormErrors = {
+  categoriaId?: string;
+  titulo?: string;
+  novaCategoria?: string;
+};
+
 export default function DocumentosPage() {
   const { data: postos, isLoading: loadingPostos } = usePostos();
   const { data: categorias, isLoading: loadingCategorias } = useCategorias();
@@ -106,6 +113,7 @@ export default function DocumentosPage() {
   const [categoriaAtiva, setCategoriaAtiva] = useState('TODOS');
   const [statusAtivo, setStatusAtivo] = useState<'TODOS' | Documento['status']>('TODOS');
   const [form, setForm] = useState(valorInicialFormulario);
+  const [erros, setErros] = useState<FormErrors>({});
 
   const { data: documentos, isLoading: loadingDocumentos } = useDocumentos(postoId);
   const createCategoria = useCreateCategoria();
@@ -162,7 +170,35 @@ export default function DocumentosPage() {
   function fecharModal() {
     setModalAberto(false);
     setSalvandoArquivo(false);
+    setErros({});
     setForm(valorInicialFormulario());
+  }
+
+  function atualizarCampo<K extends keyof ReturnType<typeof valorInicialFormulario>>(
+    campo: K,
+    valor: ReturnType<typeof valorInicialFormulario>[K],
+  ) {
+    setForm((current) => ({ ...current, [campo]: valor }));
+    setErros((current) => ({ ...current, [campo]: undefined } as FormErrors));
+  }
+
+  function validarFormulario() {
+    const novosErros: FormErrors = {};
+
+    if (!form.titulo.trim()) {
+      novosErros.titulo = 'Informe o título do documento.';
+    }
+
+    if (!form.categoriaId) {
+      novosErros.categoriaId = 'Selecione uma categoria.';
+    }
+
+    if (form.categoriaId === NOVA_CATEGORIA_VALUE && !form.novaCategoria.trim()) {
+      novosErros.novaCategoria = 'Informe o nome da nova categoria.';
+    }
+
+    setErros(novosErros);
+    return Object.keys(novosErros).length === 0;
   }
 
   async function handleArquivoSelecionado(event: ChangeEvent<HTMLInputElement>) {
@@ -197,29 +233,18 @@ export default function DocumentosPage() {
       return;
     }
 
-    if (!form.titulo.trim()) {
-      toast.error('Informe o titulo do documento.');
+    if (!validarFormulario()) {
       return;
     }
 
     let categoriaId = form.categoriaId;
 
     if (categoriaId === NOVA_CATEGORIA_VALUE) {
-      if (!form.novaCategoria.trim()) {
-        toast.error('Informe o nome da nova categoria.');
-        return;
-      }
-
       const categoria = await createCategoria.mutateAsync({
         nome: form.novaCategoria.trim(),
       });
 
       categoriaId = categoria.id;
-    }
-
-    if (!categoriaId) {
-      toast.error('Selecione uma categoria.');
-      return;
     }
 
     await createDocumento.mutateAsync({
@@ -559,10 +584,10 @@ export default function DocumentosPage() {
                 <form onSubmit={handleSalvarDocumento} className="space-y-5 p-6">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-zinc-700">Categoria</label>
+                      <FieldLabel>Categoria</FieldLabel>
                       <select
                         value={form.categoriaId}
-                        onChange={(e) => setForm((current) => ({ ...current, categoriaId: e.target.value }))}
+                        onChange={(e) => atualizarCampo('categoriaId', e.target.value)}
                         className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                       >
                         <option value="">Selecione uma categoria</option>
@@ -573,62 +598,65 @@ export default function DocumentosPage() {
                         ))}
                         <option value={NOVA_CATEGORIA_VALUE}>+ Nova categoria</option>
                       </select>
+                      <FieldError>{erros.categoriaId}</FieldError>
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-zinc-700">Titulo do documento</label>
+                      <FieldLabel>Título do documento</FieldLabel>
                       <input
                         value={form.titulo}
-                        onChange={(e) => setForm((current) => ({ ...current, titulo: e.target.value }))}
+                        onChange={(e) => atualizarCampo('titulo', e.target.value)}
                         placeholder="Ex: Alvara 2026"
                         className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                       />
+                      <FieldError>{erros.titulo}</FieldError>
                     </div>
 
                     {form.categoriaId === NOVA_CATEGORIA_VALUE ? (
                       <div className="md:col-span-2">
-                        <label className="mb-2 block text-sm font-medium text-zinc-700">Nova categoria</label>
+                        <FieldLabel>Nova categoria</FieldLabel>
                         <input
                           value={form.novaCategoria}
-                          onChange={(e) => setForm((current) => ({ ...current, novaCategoria: e.target.value }))}
+                          onChange={(e) => atualizarCampo('novaCategoria', e.target.value)}
                           placeholder="Digite o nome da nova categoria"
                           className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                         />
+                        <FieldError>{erros.novaCategoria}</FieldError>
                       </div>
                     ) : null}
 
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-zinc-700">Numero</label>
+                      <FieldLabel>Número</FieldLabel>
                       <input
                         value={form.numero}
-                        onChange={(e) => setForm((current) => ({ ...current, numero: e.target.value }))}
+                        onChange={(e) => atualizarCampo('numero', e.target.value)}
                         placeholder="Opcional"
                         className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                       />
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-zinc-700">Data de emissao</label>
+                      <FieldLabel>Data de emissão</FieldLabel>
                       <input
                         type="date"
                         value={form.dataEmissao}
-                        onChange={(e) => setForm((current) => ({ ...current, dataEmissao: e.target.value }))}
+                        onChange={(e) => atualizarCampo('dataEmissao', e.target.value)}
                         className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                       />
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-zinc-700">Data de vencimento</label>
+                      <FieldLabel>Data de vencimento</FieldLabel>
                       <input
                         type="date"
                         value={form.dataVencimento}
-                        onChange={(e) => setForm((current) => ({ ...current, dataVencimento: e.target.value }))}
+                        onChange={(e) => atualizarCampo('dataVencimento', e.target.value)}
                         className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                       />
                     </div>
 
                     <div className="md:col-span-2">
-                      <label className="mb-2 block text-sm font-medium text-zinc-700">Arquivo</label>
+                      <FieldLabel>Arquivo</FieldLabel>
                       <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 p-4 transition-colors hover:border-orange-300 hover:bg-orange-50">
                         <div className="flex items-center gap-3">
                           <div className="rounded-xl bg-orange-50 p-2">

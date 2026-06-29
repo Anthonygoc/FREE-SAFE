@@ -6,9 +6,9 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import type { FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
 
 import { RouteGuard } from '@/components/auth/route-guard';
+import { FieldError, FieldLabel } from '@/components/ui';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -59,6 +59,14 @@ type FormState = {
   novaSenha: string;
 };
 
+type FormErrors = {
+  nome?: string;
+  email?: string;
+  senha?: string;
+  postoId?: string;
+  novaSenha?: string;
+};
+
 function valorInicialFormulario(): FormState {
   return {
     nome: '',
@@ -95,6 +103,7 @@ export default function UsuariosPage() {
   const [modalAberto, setModalAberto] = useState(false);
   const [usuarioEditando, setUsuarioEditando] = useState<UsuarioResumo | null>(null);
   const [form, setForm] = useState<FormState>(valorInicialFormulario);
+  const [erros, setErros] = useState<FormErrors>({});
 
   const isAdmin = session?.user?.perfil === 'ADMIN';
   const { data: postos, isLoading: loadingPostos } = usePostos(status === 'authenticated' && isAdmin);
@@ -138,6 +147,7 @@ export default function UsuariosPage() {
 
   function abrirNovoUsuario() {
     setUsuarioEditando(null);
+    setErros({});
     setForm({
       ...valorInicialFormulario(),
       postoId: postos?.[0]?.id ?? '',
@@ -147,6 +157,7 @@ export default function UsuariosPage() {
 
   function abrirEdicao(usuario: UsuarioResumo) {
     setUsuarioEditando(usuario);
+    setErros({});
     setForm({
       nome: usuario.nome,
       email: usuario.email,
@@ -161,19 +172,48 @@ export default function UsuariosPage() {
   function fecharModal() {
     setModalAberto(false);
     setUsuarioEditando(null);
+    setErros({});
     setForm(valorInicialFormulario());
+  }
+
+  function atualizarCampo<K extends keyof FormState>(campo: K, valor: FormState[K]) {
+    setForm((current) => ({ ...current, [campo]: valor }));
+    setErros((current) => ({ ...current, [campo]: undefined } as FormErrors));
+  }
+
+  function validarFormulario() {
+    const novosErros: FormErrors = {};
+
+    if (!form.nome.trim()) {
+      novosErros.nome = 'Informe o nome do usuário.';
+    }
+
+    if (!form.postoId) {
+      novosErros.postoId = 'Selecione um posto.';
+    }
+
+    if (usuarioEditando) {
+      if (form.novaSenha.trim() && form.novaSenha.trim().length < 8) {
+        novosErros.novaSenha = 'A nova senha deve ter pelo menos 8 caracteres.';
+      }
+    } else {
+      if (!emailValido(form.email.trim())) {
+        novosErros.email = 'Informe um e-mail válido.';
+      }
+
+      if (form.senha.trim().length < 8) {
+        novosErros.senha = 'A senha deve ter pelo menos 8 caracteres.';
+      }
+    }
+
+    setErros(novosErros);
+    return Object.keys(novosErros).length === 0;
   }
 
   async function handleSalvar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!form.nome.trim()) {
-      toast.error('Informe o nome do usuário.');
-      return;
-    }
-
-    if (!form.postoId) {
-      toast.error('Selecione um posto.');
+    if (!validarFormulario()) {
       return;
     }
 
@@ -186,26 +226,11 @@ export default function UsuariosPage() {
       };
 
       if (form.novaSenha.trim()) {
-        if (form.novaSenha.trim().length < 8) {
-          toast.error('A nova senha deve ter pelo menos 8 caracteres.');
-          return;
-        }
-
         input.novaSenha = form.novaSenha.trim();
       }
 
       await updateUsuario.mutateAsync(input);
       fecharModal();
-      return;
-    }
-
-    if (!emailValido(form.email.trim())) {
-      toast.error('Informe um e-mail válido.');
-      return;
-    }
-
-    if (form.senha.trim().length < 8) {
-      toast.error('A senha deve ter pelo menos 8 caracteres.');
       return;
     }
 
@@ -466,59 +491,63 @@ export default function UsuariosPage() {
                 <form onSubmit={handleSalvar} className="space-y-5 p-6">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="md:col-span-2">
-                      <label className="mb-2 block text-sm font-medium text-zinc-700">Nome</label>
+                      <FieldLabel>Nome</FieldLabel>
                       <input
                         value={form.nome}
-                        onChange={(e) => setForm((current) => ({ ...current, nome: e.target.value }))}
+                        onChange={(e) => atualizarCampo('nome', e.target.value)}
                         className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                         placeholder="Nome completo do usuário"
                       />
+                      <FieldError>{erros.nome}</FieldError>
                     </div>
 
                     {!usuarioEditando ? (
                       <>
                         <div>
-                          <label className="mb-2 block text-sm font-medium text-zinc-700">E-mail</label>
+                          <FieldLabel>E-mail</FieldLabel>
                           <input
                             type="email"
                             value={form.email}
-                            onChange={(e) => setForm((current) => ({ ...current, email: e.target.value }))}
+                            onChange={(e) => atualizarCampo('email', e.target.value)}
                             className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                             placeholder="usuario@empresa.com.br"
                           />
+                          <FieldError>{erros.email}</FieldError>
                         </div>
 
                         <div>
-                          <label className="mb-2 block text-sm font-medium text-zinc-700">Senha</label>
+                          <FieldLabel>Senha</FieldLabel>
                           <input
                             type="password"
                             value={form.senha}
-                            onChange={(e) => setForm((current) => ({ ...current, senha: e.target.value }))}
+                            onChange={(e) => atualizarCampo('senha', e.target.value)}
                             className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                             placeholder="Mínimo 8 caracteres"
                           />
+                          <FieldError>{erros.senha}</FieldError>
                           <p className="mt-2 text-xs text-zinc-500">A senha inicial precisa ter no mínimo 8 caracteres.</p>
                         </div>
                       </>
                     ) : (
                       <div className="md:col-span-2">
-                        <label className="mb-2 block text-sm font-medium text-zinc-700">Nova senha</label>
+                        <FieldLabel>Nova senha</FieldLabel>
                         <input
                           type="password"
                           value={form.novaSenha}
-                          onChange={(e) => setForm((current) => ({ ...current, novaSenha: e.target.value }))}
+                          onChange={(e) => atualizarCampo('novaSenha', e.target.value)}
                           className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                           placeholder="Deixe em branco para manter a senha atual"
                         />
+                        <FieldError>{erros.novaSenha}</FieldError>
                         <p className="mt-2 text-xs text-zinc-500">Se informado, a nova senha também deve ter no mínimo 8 caracteres.</p>
                       </div>
                     )}
 
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-zinc-700">Perfil</label>
+                      <FieldLabel>Perfil</FieldLabel>
                       <select
                         value={form.perfil}
-                        onChange={(e) => setForm((current) => ({ ...current, perfil: e.target.value as 'GERENTE' | 'ADMINISTRATIVO' }))}
+                        onChange={(e) => atualizarCampo('perfil', e.target.value as 'GERENTE' | 'ADMINISTRATIVO')}
                         className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                       >
                         {perfilOptions.map((option) => (
@@ -530,10 +559,10 @@ export default function UsuariosPage() {
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-zinc-700">Posto</label>
+                      <FieldLabel>Posto</FieldLabel>
                       <select
                         value={form.postoId}
-                        onChange={(e) => setForm((current) => ({ ...current, postoId: e.target.value }))}
+                        onChange={(e) => atualizarCampo('postoId', e.target.value)}
                         className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                       >
                         <option value="">Selecione um posto</option>
@@ -543,6 +572,7 @@ export default function UsuariosPage() {
                           </option>
                         ))}
                       </select>
+                      <FieldError>{erros.postoId}</FieldError>
                     </div>
                   </div>
 

@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { RouteGuard } from '@/components/auth/route-guard';
+import { FieldError } from '@/components/ui';
 import { BadgeStatus } from '@/components/ui/badge-status';
 import { CardBase } from '@/components/ui/card-base';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
@@ -31,8 +32,18 @@ const statusTone = {
   DESLIGADO: 'red',
 } as const;
 
+type FormErrors = {
+  nome?: string;
+  cpf?: string;
+  email?: string;
+};
+
 function formatarData(data?: string) {
   return data ? new Date(data).toLocaleDateString('pt-BR') : '-';
+}
+
+function emailValido(email: string) {
+  return /\S+@\S+\.\S+/.test(email);
 }
 
 export default function ColaboradorPerfilPage() {
@@ -57,10 +68,12 @@ export default function ColaboradorPerfilPage() {
     escala: '',
     status: 'ATIVO' as 'ATIVO' | 'AFASTADO' | 'DESLIGADO',
   });
+  const [erros, setErros] = useState<FormErrors>({});
 
   useEffect(() => {
     if (!colaborador) return;
 
+    setErros({});
     setForm({
       nome: colaborador.nome,
       cpf: colaborador.cpf,
@@ -95,11 +108,40 @@ export default function ColaboradorPerfilPage() {
     'excluir',
   );
 
+  function atualizarCampo<K extends keyof typeof form>(campo: K, valor: (typeof form)[K]) {
+    setForm((current) => ({ ...current, [campo]: valor }));
+    setErros((current) => ({ ...current, [campo]: undefined } as FormErrors));
+  }
+
+  function validarFormulario() {
+    const novosErros: FormErrors = {};
+
+    if (!form.nome.trim()) {
+      novosErros.nome = 'Informe o nome do colaborador.';
+    }
+
+    if (!form.cpf.trim() || form.cpf.trim().length < 11) {
+      novosErros.cpf = 'Informe um CPF válido.';
+    }
+
+    if (form.email.trim() && !emailValido(form.email.trim())) {
+      novosErros.email = 'Informe um e-mail válido.';
+    }
+
+    setErros(novosErros);
+    return Object.keys(novosErros).length === 0;
+  }
+
   async function handleSalvar() {
     if (!colaborador) return;
 
     if (Object.keys(alteracoes).length === 0) {
+      setErros({});
       setEditando(false);
+      return;
+    }
+
+    if (!validarFormulario()) {
       return;
     }
 
@@ -257,38 +299,41 @@ export default function ColaboradorPerfilPage() {
               label="Nome"
               value={form.nome}
               editando={editando}
-              onChange={(value) => setForm((current) => ({ ...current, nome: value }))}
+              onChange={(value) => atualizarCampo('nome', value)}
+              error={erros.nome}
             />
             <Campo
               label="Cargo"
               value={form.cargo}
               editando={editando}
-              onChange={(value) => setForm((current) => ({ ...current, cargo: value }))}
+              onChange={(value) => atualizarCampo('cargo', value)}
             />
             <Campo
               label="CPF"
               value={form.cpf}
               editando={editando}
-              onChange={(value) => setForm((current) => ({ ...current, cpf: value }))}
+              onChange={(value) => atualizarCampo('cpf', value)}
+              error={erros.cpf}
             />
             <Campo label="RG" value={colaborador.rg ?? '-'} />
             <Campo
               label="Telefone"
               value={form.telefone}
               editando={editando}
-              onChange={(value) => setForm((current) => ({ ...current, telefone: value }))}
+              onChange={(value) => atualizarCampo('telefone', value)}
             />
             <Campo
               label="E-mail"
               value={form.email}
               editando={editando}
-              onChange={(value) => setForm((current) => ({ ...current, email: value }))}
+              onChange={(value) => atualizarCampo('email', value)}
+              error={erros.email}
             />
             <Campo
               label="Endereço"
               value={form.endereco}
               editando={editando}
-              onChange={(value) => setForm((current) => ({ ...current, endereco: value }))}
+              onChange={(value) => atualizarCampo('endereco', value)}
               className="md:col-span-2"
             />
             <Campo label="Data de admissão" value={formatarData(colaborador.dataAdmissao)} />
@@ -296,13 +341,13 @@ export default function ColaboradorPerfilPage() {
               label="Turno"
               value={form.turno}
               editando={editando}
-              onChange={(value) => setForm((current) => ({ ...current, turno: value }))}
+              onChange={(value) => atualizarCampo('turno', value)}
             />
             <Campo
               label="Escala"
               value={form.escala}
               editando={editando}
-              onChange={(value) => setForm((current) => ({ ...current, escala: value }))}
+              onChange={(value) => atualizarCampo('escala', value)}
             />
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Status</p>
@@ -362,12 +407,14 @@ function Campo({
   editando = false,
   onChange,
   className = '',
+  error,
 }: {
   label: string;
   value: string;
   editando?: boolean;
   onChange?: (value: string) => void;
   className?: string;
+  error?: string;
 }) {
   return (
     <div className={`space-y-2 ${className}`}>
@@ -383,6 +430,7 @@ function Campo({
           {value || '-'}
         </div>
       )}
+      <FieldError>{error}</FieldError>
     </div>
   );
 }

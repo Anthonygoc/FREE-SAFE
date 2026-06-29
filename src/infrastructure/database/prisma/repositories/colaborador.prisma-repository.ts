@@ -39,6 +39,11 @@ export class ColaboradorPrismaRepository implements ColaboradorRepository {
     return raw ? ColaboradorMapper.toDomain(raw) : null;
   }
 
+  async buscarPorCpf(cpf: string): Promise<Colaborador | null> {
+    const raw = await this.db.colaborador.findUnique({ where: { cpf } });
+    return raw ? ColaboradorMapper.toDomain(raw) : null;
+  }
+
   async buscarPorUserId(userId: string): Promise<Colaborador | null> {
     const raw = await this.db.colaborador.findFirst({ where: { userId } });
     return raw ? ColaboradorMapper.toDomain(raw) : null;

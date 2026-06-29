@@ -13,6 +13,7 @@ export interface ColaboradorRepository {
     filtros?: ListarColaboradoresFiltros,
   ): Promise<{ itens: Colaborador[]; total: number }>;
   buscarPorId(id: string): Promise<Colaborador | null>;
+  buscarPorCpf(cpf: string): Promise<Colaborador | null>;
   buscarPorUserId(userId: string): Promise<Colaborador | null>;
   salvar(colaborador: Colaborador): Promise<void>;
   atualizar(colaborador: Colaborador): Promise<void>;

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 
@@ -16,6 +17,27 @@ type ErrorResponseBody = {
 
 function createErrorResponse(status: number, body: ErrorResponseBody) {
   return NextResponse.json(body, { status });
+}
+
+function getDuplicateMessage(target: Prisma.PrismaClientKnownRequestError['meta']) {
+  const targetValue = target?.target;
+  const normalizedTarget = Array.isArray(targetValue)
+    ? targetValue.join(',').toLocaleLowerCase('pt-BR')
+    : String(targetValue ?? '').toLocaleLowerCase('pt-BR');
+
+  if (normalizedTarget.includes('cpf')) {
+    return 'Este CPF já está cadastrado';
+  }
+
+  if (normalizedTarget.includes('email')) {
+    return 'Este e-mail já está cadastrado';
+  }
+
+  if (normalizedTarget.includes('cnpj')) {
+    return 'Este CNPJ já está cadastrado';
+  }
+
+  return 'Já existe um registro com esses dados';
 }
 
 export function validationErrorResponse(detalhes: unknown) {
@@ -56,6 +78,13 @@ export function handleApiError(error: unknown) {
     return createErrorResponse(400, {
       error: 'erro_de_dominio',
       mensagem: error.message,
+    });
+  }
+
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    return createErrorResponse(409, {
+      error: 'registro_duplicado',
+      mensagem: getDuplicateMessage(error.meta),
     });
   }
 
