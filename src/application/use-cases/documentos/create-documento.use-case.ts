@@ -1,6 +1,7 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
 import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
+import { processarUpload } from '@/application/shared/processar-upload';
 import { NotFoundError } from '@/domain/errors/domain.errors';
 import type { CategoriaDocumentoRepository } from '@/domain/ports/categoria-documento.repository';
 import type { DocumentoRepository, StatusDocumento } from '@/domain/ports/documento.repository';
@@ -49,6 +50,11 @@ export class CreateDocumentoUseCase {
     const id = crypto.randomUUID();
     const agora = new Date();
     const status = calcularStatus(input.dataVencimento);
+    const arquivoUrlProcessado = await processarUpload({
+      valor: input.arquivoUrl,
+      bucket: 'documentos',
+      path: `${input.postoId}/${id}-${Date.now()}`,
+    });
 
     await this.documentoRepo.salvar({
       id,
@@ -58,7 +64,7 @@ export class CreateDocumentoUseCase {
       numero: input.numero,
       dataEmissao: input.dataEmissao,
       dataVencimento: input.dataVencimento,
-      arquivoUrl: input.arquivoUrl,
+      arquivoUrl: arquivoUrlProcessado ?? input.arquivoUrl,
       status,
       criadoEm: agora,
       atualizadoEm: agora,

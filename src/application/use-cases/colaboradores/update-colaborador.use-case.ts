@@ -1,6 +1,7 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
 import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
+import { processarUpload } from '@/application/shared/processar-upload';
 import { Colaborador, type StatusColaborador } from '@/domain/entities/colaborador.entity';
 import { DomainError, NotFoundError } from '@/domain/errors/domain.errors';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
@@ -50,6 +51,14 @@ export class UpdateColaboradorUseCase {
       throw new DomainError('Nenhum dado informado para atualização');
     }
 
+    const fotoUrlProcessada = input.fotoUrl === undefined
+      ? undefined
+      : await processarUpload({
+          valor: input.fotoUrl,
+          bucket: 'colaboradores',
+          path: `${colaborador.postoId}/${colaborador.id}-${Date.now()}`,
+        });
+
     const atualizado = Colaborador.reconstituir({
       ...colaborador.toJSON(),
       nome: input.nome ?? colaborador.nome,
@@ -61,7 +70,9 @@ export class UpdateColaboradorUseCase {
       turno: input.turno ?? colaborador.turno,
       escala: input.escala ?? colaborador.escala,
       status: input.status ?? colaborador.status,
-      fotoUrl: input.fotoUrl ?? colaborador.fotoUrl,
+      fotoUrl: input.fotoUrl === undefined
+        ? colaborador.fotoUrl
+        : fotoUrlProcessada ?? input.fotoUrl,
     });
 
     await this.colaboradorRepo.atualizar(atualizado);

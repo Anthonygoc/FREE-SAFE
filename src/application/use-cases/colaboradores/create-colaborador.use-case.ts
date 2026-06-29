@@ -1,6 +1,7 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
 import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
+import { processarUpload } from '@/application/shared/processar-upload';
 import { Colaborador, type StatusColaborador } from '@/domain/entities/colaborador.entity';
 import type { ColaboradorRepository } from '@/domain/ports/colaborador.repository';
 
@@ -29,12 +30,18 @@ export class CreateColaboradorUseCase {
 
     autorizar(usuario, 'colaboradores', 'criar', input.postoId);
 
+    const fotoUrlProcessada = await processarUpload({
+      valor: input.fotoUrl,
+      bucket: 'colaboradores',
+      path: `${input.postoId}/${crypto.randomUUID()}-${Date.now()}`,
+    });
+
     const colaborador = Colaborador.criar({
       postoId: input.postoId,
       userId: input.userId,
       nome: input.nome,
       cpf: input.cpf,
-      fotoUrl: input.fotoUrl,
+      fotoUrl: fotoUrlProcessada ?? input.fotoUrl,
       cargo: input.cargo,
       dataAdmissao: input.dataAdmissao,
       status: input.status,

@@ -1,6 +1,7 @@
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
 import { registrarAuditoria } from '@/application/shared/audit';
 import { autorizar } from '@/application/shared/authorize';
+import { processarUpload } from '@/application/shared/processar-upload';
 import { Afericao, type SituacaoAfericao } from '@/domain/entities/afericao.entity';
 import type { ProdutoCombustivel } from '@/domain/entities/raq.entity';
 import type { AfericaoRepository } from '@/domain/ports/afericao.repository';
@@ -32,6 +33,12 @@ export class CreateAfericaoUseCase {
   async execute(input: CreateAfericaoInput): Promise<CreateAfericaoOutput> {
     autorizar(input.usuario, 'inmetro', 'criar', input.postoId);
 
+    const fotoUrlProcessada = await processarUpload({
+      valor: input.fotoUrl,
+      bucket: 'afericoes',
+      path: `${input.postoId}/${input.bicoId ?? input.loteId ?? crypto.randomUUID()}-${Date.now()}-${crypto.randomUUID()}`,
+    });
+
     const afericao = Afericao.criar({
       postoId: input.postoId,
       responsavelId: input.usuario.id,
@@ -42,7 +49,7 @@ export class CreateAfericaoUseCase {
       bico: input.bico,
       resultadoMl: input.resultadoMl,
       observacoes: input.observacoes,
-      fotoUrl: input.fotoUrl,
+      fotoUrl: fotoUrlProcessada ?? input.fotoUrl,
       medidaPadrao: input.medidaPadrao,
     });
 
