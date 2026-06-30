@@ -1,6 +1,8 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 
 import { apiClient } from '@/lib/api-client';
@@ -28,6 +30,7 @@ export interface CreateUsuarioInput {
 export interface UpdateUsuarioInput {
   id: string;
   nome?: string;
+  email?: string;
   perfil?: PerfilUsuarioOperacional;
   postoId?: string;
   ativo?: boolean;
@@ -68,12 +71,29 @@ export function useCreateUsuario() {
 
 export function useUpdateUsuario() {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const { data: session, update } = useSession();
 
   return useMutation({
     mutationFn: ({ id, ...input }: UpdateUsuarioInput) =>
       apiClient.patch<{ id: string }>(`/api/usuarios/${id}`, input),
-    onSuccess: () => {
+    onSuccess: async (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['usuarios'] });
+      queryClient.invalidateQueries({ queryKey: ['perfil'] });
+
+      if (variables.id === session?.user?.id && (variables.nome || variables.email)) {
+        try {
+          await update({
+            name: variables.nome ?? session.user.name ?? undefined,
+            email: variables.email ?? session.user.email ?? undefined,
+          });
+        } catch {
+          // The update succeeded even if the session refresh fails.
+        }
+
+        router.refresh();
+      }
+
       toast.success('Usuário atualizado com sucesso.');
     },
     onError: (error) => {

@@ -162,7 +162,7 @@ export default function ColaboradoresPage() {
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Colaboradores</h1>
-          <p className="mt-1 text-zinc-500">Acompanhe situação e progresso dos colaboradores por posto.</p>
+          <p className="mt-1 text-zinc-500">Situação e progresso por posto.</p>
         </div>
         <button
           type="button"

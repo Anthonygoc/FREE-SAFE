@@ -70,8 +70,8 @@ export default function PostosPage() {
     <RouteGuard recurso="postos">
       <motion.div {...animation} className="space-y-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Postos da Rede Free</h1>
-        <p className="mt-1 text-zinc-500">Acompanhe conformidade, risco e status operacional dos postos.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Postos</h1>
+        <p className="mt-1 text-zinc-500">Conformidade e status operacional.</p>
       </div>
 
       <motion.div {...animation} className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 shadow-sm transition-all focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-500/20 md:w-[420px]">

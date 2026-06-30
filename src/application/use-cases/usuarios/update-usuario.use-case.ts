@@ -10,6 +10,7 @@ export interface UpdateUsuarioInput {
   usuario: UsuarioAutenticado;
   usuarioId: string;
   nome?: string;
+  email?: string;
   perfil?: PerfilUsuario;
   postoId?: string;
   ativo?: boolean;
@@ -50,6 +51,19 @@ export class UpdateUsuarioUseCase {
       throw new DomainError('A senha deve ter no mínimo 8 caracteres');
     }
 
+    const emailNormalizado = input.email?.trim();
+
+    if (emailNormalizado !== undefined && !/\S+@\S+\.\S+/.test(emailNormalizado)) {
+      throw new DomainError('Informe um e-mail válido.');
+    }
+
+    if (emailNormalizado !== undefined) {
+      const existente = await this.userRepo.buscarPorEmail(emailNormalizado);
+      if (existente && existente.id !== alvo.id) {
+        throw new DomainError('Este e-mail já está cadastrado');
+      }
+    }
+
     const perfilFinal = input.perfil ?? alvo.perfil;
     const postoIdFinal = input.postoId ?? alvo.postoId;
 
@@ -57,12 +71,15 @@ export class UpdateUsuarioUseCase {
       throw new DomainError('Selecione um posto para este perfil.');
     }
 
+    const emailFinal = emailNormalizado ?? alvo.email;
     const senhaHash = input.novaSenha
       ? await bcrypt.hash(input.novaSenha, 10)
       : alvo.senhaHash;
+    const emailAlterado = emailFinal !== alvo.email;
     const atualizado = {
       ...alvo,
       nome: input.nome ?? alvo.nome,
+      email: emailFinal,
       perfil: perfilFinal,
       postoId: postoIdFinal,
       ativo: input.ativo ?? alvo.ativo,
@@ -82,6 +99,7 @@ export class UpdateUsuarioUseCase {
         perfil: atualizado.perfil,
         postoId: atualizado.postoId,
         ativo: atualizado.ativo,
+        emailAlterado,
         senhaAlterada: input.novaSenha !== undefined,
       },
     });

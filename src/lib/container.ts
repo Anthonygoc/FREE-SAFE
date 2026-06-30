@@ -34,8 +34,10 @@ import { RedefinirSenhaUseCase } from '@/application/use-cases/auth/redefinir-se
 import { SolicitarResetSenhaUseCase } from '@/application/use-cases/auth/solicitar-reset-senha.use-case';
 import { UpdatePostoUseCase } from '@/application/use-cases/postos/update-posto.use-case';
 import { CreateUsuarioUseCase } from '@/application/use-cases/usuarios/create-usuario.use-case';
+import { GetMeuPerfilUseCase } from '@/application/use-cases/usuarios/get-meu-perfil.use-case';
 import { ListUsuariosUseCase } from '@/application/use-cases/usuarios/list-usuarios.use-case';
 import { ToggleUsuarioAtivoUseCase } from '@/application/use-cases/usuarios/toggle-usuario-ativo.use-case';
+import { UpdateMeuPerfilUseCase } from '@/application/use-cases/usuarios/update-meu-perfil.use-case';
 import { UpdateUsuarioUseCase } from '@/application/use-cases/usuarios/update-usuario.use-case';
 import { CreateDocumentoUseCase } from '@/application/use-cases/documentos/create-documento.use-case';
 import { DeleteDocumentoUseCase } from '@/application/use-cases/documentos/delete-documento.use-case';
@@ -345,4 +347,15 @@ export function updateUsuarioUseCase(): UpdateUsuarioUseCase {
 
 export function toggleUsuarioAtivoUseCase(): ToggleUsuarioAtivoUseCase {
   return new ToggleUsuarioAtivoUseCase(new UserPrismaRepository());
+}
+
+export function getMeuPerfilUseCase(): GetMeuPerfilUseCase {
+  return new GetMeuPerfilUseCase(
+    new UserPrismaRepository(),
+    new PostoPrismaRepository(),
+  );
+}
+
+export function updateMeuPerfilUseCase(): UpdateMeuPerfilUseCase {
+  return new UpdateMeuPerfilUseCase(new UserPrismaRepository());
 }

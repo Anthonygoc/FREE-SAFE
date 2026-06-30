@@ -304,9 +304,9 @@ export default function DocumentosPage() {
                 <p className="text-sm font-semibold text-orange-600">FREE SAFE</p>
               </div>
               <div className="space-y-1">
-                <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Documentos do Posto</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Documentos</h1>
                 <p className="max-w-3xl text-sm text-zinc-500">
-                  Centralize licencas, certificados e arquivos obrigatorios do posto em uma visualizacao limpa e operacional.
+                  Licenças, certificados e arquivos do posto.
                 </p>
               </div>
             </div>

@@ -59,31 +59,27 @@ export default function DashboardPage() {
           <div className="flex items-start gap-4">
             <IconBadge icon={BadgeCheck} tone="orange" size="lg" />
             <div className="space-y-1">
-              <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Dashboard Geral</h1>
-              <p className="text-sm text-zinc-500">Visão consolidada dos postos, treinamentos e conformidade.</p>
-              <p className="max-w-3xl text-sm leading-6 text-zinc-600">
-                Acompanhe os indicadores operacionais, o ranking de conformidade e os alertas que exigem ação da equipe.
-              </p>
+              <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Dashboard</h1>
             </div>
           </div>
 
           <div className="grid gap-3 rounded-2xl border border-orange-100 bg-orange-50/45 p-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-700">Base ativa</p>
-              <p className="text-sm font-semibold tabular-nums text-zinc-950">{kpis?.totalPostos ?? 0} unidades monitoradas</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-700">Postos</p>
+              <p className="text-sm font-semibold tabular-nums text-zinc-950">{kpis?.totalPostos ?? 0} unidades</p>
             </div>
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-700">Atualização</p>
-              <p className="text-sm font-semibold text-zinc-950">Leitura diária consolidada</p>
+              <p className="text-sm font-semibold text-zinc-950">Leitura diária</p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-700">Itens em atenção</p>
-              <p className="text-sm font-semibold tabular-nums text-zinc-950">{totalAlertas} ocorrência(s) ativa(s)</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-700">Em atenção</p>
+              <p className="text-sm font-semibold tabular-nums text-zinc-950">{totalAlertas} ocorrências</p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-700">Prioridade atual</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-700">Prioridade</p>
               <p className="text-sm font-semibold text-zinc-950">
-                {alertasCriticos > 0 ? `${alertasCriticos} alerta(s) crítico(s)` : 'Sem críticos no momento'}
+                {alertasCriticos > 0 ? `${alertasCriticos} críticos` : 'Sem críticos'}
               </p>
             </div>
           </div>

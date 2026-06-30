@@ -389,9 +389,6 @@ export default function InmetroPage() {
                 <div className="space-y-1">
                   <h1 className="text-2xl font-bold tracking-tight text-zinc-950">INMETRO</h1>
                   <p className="text-sm text-zinc-500">Aferição de bombas e bicos</p>
-                  <p className="max-w-3xl text-sm leading-6 text-zinc-600">
-                    Registre as medições do lote atual, acompanhe a tolerância por bico e mantenha o histórico técnico pronto para auditoria.
-                  </p>
                 </div>
               </div>
 
@@ -634,9 +631,8 @@ export default function InmetroPage() {
                   className="sticky bottom-4 z-10 rounded-2xl border border-orange-100 bg-white/95 p-4 shadow-lg backdrop-blur"
                 >
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div>
+                  <div>
                       <p className="text-sm font-semibold text-zinc-900">Registrar aferições</p>
-                      <p className="mt-1 text-xs text-zinc-500">O envio só é liberado quando todos os bicos estiverem preenchidos.</p>
                       <p
                         className={cn(
                           'mt-2 inline-flex rounded-full px-3 py-1 text-sm font-semibold',
@@ -741,7 +737,6 @@ export default function InmetroPage() {
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Arquivo técnico</p>
                   <h2 className="text-xl font-bold tracking-tight text-zinc-950">Histórico de aferições</h2>
-                  <p className="text-sm text-zinc-500">Acompanhe os registros recentes do posto selecionado.</p>
                 </div>
               </div>
               {loadingHistorico || fetchingHistorico ? <LoadingSpinner size={20} /> : null}

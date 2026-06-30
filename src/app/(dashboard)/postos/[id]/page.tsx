@@ -344,8 +344,8 @@ export default function PostoDetalhePage() {
               </div>
 
               <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-4 text-sm leading-6 text-orange-950">
-                <p className="font-medium">`maxGerentes` e `maxAdministrativos` são informativos.</p>
-                <p className="mt-1">Use estes valores para registrar quantos perfis o posto deveria ter, mesmo que a validação automática ainda não consuma esses campos.</p>
+                      <p className="font-medium">Quantos perfis o posto deveria ter.</p>
+                      <p className="mt-1">Valores de referência para a gestão. Não bloqueiam a criação de usuários.</p>
               </div>
 
               <div className="space-y-4">

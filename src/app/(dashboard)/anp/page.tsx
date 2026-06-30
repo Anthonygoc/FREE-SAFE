@@ -222,10 +222,7 @@ export default function AnpPage() {
               <IconBadge icon={FlaskConical} tone="orange" size="lg" />
               <div className="space-y-1">
                 <h1 className="text-2xl font-bold tracking-tight text-zinc-950">ANP / RAQ</h1>
-                <p className="text-sm text-zinc-500">Registro oficial de analise de qualidade</p>
-                <p className="max-w-3xl text-sm leading-6 text-zinc-600">
-                  Consolide o recebimento, registre os parametros tecnicos e acompanhe o resultado oficial da analise em um fluxo unico.
-                </p>
+                <p className="text-sm text-zinc-500">Análise de qualidade</p>
               </div>
             </div>
 
@@ -602,13 +599,6 @@ export default function AnpPage() {
                         : 'N/A'}
                   </span>
                 </div>
-              </div>
-
-              <div className="rounded-2xl border border-orange-100 bg-orange-50/60 p-4">
-                <p className="text-sm font-semibold text-zinc-900">Observação operacional</p>
-                <p className="mt-3 text-sm leading-6 text-zinc-600">
-                  O painel reflete em tempo real os parametros preenchidos e respeita a logica oficial de aprovacao da analise.
-                </p>
               </div>
 
               {createOutput ? (

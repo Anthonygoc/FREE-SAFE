@@ -1,1023 +1,304 @@
-# SKILL: Armazenamento de Arquivos (Supabase Storage)
-
-> Contexto para o Codex sobre como o FREE SAFE lida com upload e armazenamento de
-> arquivos (fotos de colaboradores, fotos de aferição, PDFs de documentos).
-> **Padrão novo a partir da 1.1.** Antes disso, arquivos eram salvos como base64
-> dentro do PostgreSQL — isso está sendo substituído por Supabase Storage.
-
+---
+name: free-safe-domain
+description: Use esta skill sempre que for criar entidades, value objects, ports ou erros de domínio do FREE SAFE. Cobre a camada mais interna da arquitetura hexagonal: sem imports externos, sem Prisma, sem framework.
 ---
 
-## 1. Por que existe esta skill
+# FREE SAFE — Camada de Domínio
 
-Hoje o FREE SAFE salva arquivos (fotos, PDFs) como **strings base64** em colunas
-`@db.Text` do banco (`fotoUrl`, `arquivoUrl`, etc). Isso incha o banco, deixa as
-queries lentas e consome o limite de armazenamento do plano. A partir da 1.1, os
-**novos** arquivos vão para o **Supabase Storage**, e a coluna passa a guardar
-apenas a **URL pública** do arquivo, não o conteúdo.
+## Regra absoluta
 
-### Regra de ouro da migração
-**NÃO migrar dados antigos.** Os registros que já têm base64 continuam como estão.
-Só o fluxo de **novos uploads** muda. A leitura precisa lidar com os dois formatos
-(detalhado na seção 6).
-
----
-
-## 2. Decisões arquiteturais (não reabrir)
-
-- **Onde:** Supabase Storage (o projeto já usa Supabase para o banco). Não usar
-  S3/Cloudinary/outros — manter tudo no mesmo provedor.
-- **O que a coluna guarda:** a partir de agora, a **URL pública** do arquivo no
-  Storage (ex: `https://<projeto>.supabase.co/storage/v1/object/public/<bucket>/<path>`),
-  NÃO mais o base64.
-- **Buckets:** organizar por tipo de arquivo, com buckets públicos para leitura
-  (os arquivos não são sensíveis a ponto de exigir URL assinada para cada visualização;
-  são fotos de bombas e documentos operacionais já protegidos pelo login da aplicação):
-    - `colaboradores` — fotos de colaboradores
-    - `afericoes` — fotos de aferição INMETRO
-    - `documentos` — PDFs e imagens de documentos
-    - `postos` — logos dos postos (item da 1.1)
-- **Path dentro do bucket:** sempre prefixado pelo `postoId` para organização e
-  futura limpeza, com nome único para evitar colisão:
-  `<postoId>/<entidadeId ou uuid>-<timestamp>.<ext>`
-- **Nomenclatura:** o campo na entidade continua se chamando como hoje
-  (`fotoUrl`, `arquivoUrl`) — não renomear colunas. Só muda o **conteúdo** (URL em
-  vez de base64). Sem migration de schema necessária.
-- **Não migrar base64 antigo.** Sem script de migração nesta fase.
-
----
-
-## 3. Cliente de Storage (camada de infraestrutura)
-
-Criar um módulo dedicado em `src/infrastructure/storage/`, seguindo o mesmo
-espírito da camada de email (`src/infrastructure/email/`): um cliente isolado,
-que nunca quebra o fluxo principal se o Storage falhar, e que é injetado via
-container.
-
-### Estrutura esperada
-```
-src/infrastructure/storage/
-  supabase-storage.client.ts   # inicializa o client do Supabase com a service key
-  storage.service.ts           # uploadArquivo, removerArquivo, obterUrlPublica
-```
-
-### supabase-storage.client.ts
-- Usa `@supabase/supabase-js` (provavelmente já instalado; se não, `npm install @supabase/supabase-js`)
-- Lê `SUPABASE_URL` e `SUPABASE_SERVICE_KEY` das env vars (JÁ EXISTEM no projeto,
-  tanto local quanto na Vercel — confirmar)
-- Exporta uma instância única do client (singleton), ou `null` se faltar env var
-  (mesmo padrão do `resend-client.ts` que retorna null sem a key)
-- A **service key** é necessária para upload no servidor (não usar a anon key)
-
-### storage.service.ts
-Funções que NUNCA lançam exceção para o caller — retornam resultado ou null/false,
-e logam o erro internamente (mesmo padrão de `email-service.ts`):
-
-```ts
-// Faz upload de um arquivo (recebido como Buffer ou base64 decodificado) e
-// retorna a URL pública, ou null se falhar.
-async function uploadArquivo(params: {
-  bucket: string;
-  path: string;        // ex: `${postoId}/${id}-${Date.now()}.jpg`
-  conteudo: Buffer;    // bytes do arquivo
-  contentType: string; // ex: 'image/jpeg', 'application/pdf'
-}): Promise<string | null>
-
-// Remove um arquivo do Storage (best-effort, não trava se falhar).
-async function removerArquivo(bucket: string, path: string): Promise<boolean>
-
-// Monta a URL pública a partir de bucket + path (sem chamar a API).
-function obterUrlPublica(bucket: string, path: string): string
-```
-
-- No upload, usar `upsert: true` para idempotência.
-- Se o client for null (sem env), `uploadArquivo` retorna null e loga um aviso —
-  o caller decide o fallback (em dev sem Storage, pode cair no base64 antigo, mas
-  o normal é ter as env vars).
-
----
-
-## 4. Fluxo de upload nas rotas/use cases
-
-Os uploads hoje provavelmente chegam como **base64 no corpo JSON** da requisição
-(ex: a tela manda `fotoUrl: "data:image/jpeg;base64,..."`). O novo fluxo:
-
-1. A rota recebe o base64 (manter compatibilidade com o front atual por enquanto —
-   evita reescrever todas as telas de uma vez).
-2. No use case (ou num helper na camada de aplicação), detectar se o valor é um
-   `data:` URI base64. Se for:
-    - decodificar o base64 para Buffer
-    - extrair o contentType do prefixo `data:image/jpeg;base64,`
-    - chamar `uploadArquivo(...)` com bucket/path apropriados
-    - guardar a **URL retornada** no campo da entidade (não o base64)
-3. Se o valor já for uma URL (`http...`), passar adiante sem reprocessar.
-4. Se o upload falhar (retornar null), decidir: ou rejeitar com erro claro, ou
-   (fallback temporário) salvar o base64 como antes. Preferir erro claro em
-   produção, mas combinar com o usuário caso a caso.
-
-> **Importante:** não quebrar o contrato atual do front de uma vez. O front pode
-> continuar mandando base64; quem converte para Storage é o backend. Trocar o
-> front para upload direto (multipart) é uma melhoria futura, não obrigatória agora.
-
-### Helper sugerido
-`src/application/shared/processar-upload.ts` com algo como:
-```ts
-// Recebe o valor do campo (base64 data-uri OU url OU null), e devolve a URL
-// final a salvar. Faz upload se for base64 novo; passa adiante se já for url.
-async function processarUpload(params: {
-  valor: string | null | undefined;
-  bucket: string;
-  path: string;
-}): Promise<string | null>
-```
-Isso centraliza a lógica e evita repetição em cada use case (colaborador, aferição,
-documento, posto).
-
----
-
-## 5. Onde aplicar (campos que hoje guardam base64)
-
-Confirmar no schema, mas os campos candidatos são:
-- `Colaborador.fotoUrl` → bucket `colaboradores`, path `${postoId}/${colaboradorId}-${ts}.<ext>`
-- `Afericao.fotoUrl` → bucket `afericoes`, path `${postoId}/${afericaoId ou loteId}-${ts}.<ext>`
-- `Documento.arquivoUrl` → bucket `documentos`, path `${postoId}/${documentoId}-${ts}.<ext>`
-- `Posto.logoUrl` (campo NOVO da 1.1, se for criado) → bucket `postos`, path `${postoId}/logo-${ts}.<ext>`
-
-Aplicar nos use cases de **criação e atualização** dessas entidades, e nos pontos
-de "trocar foto" (ex: a tela de perfil do colaborador tem `handleTrocarFoto`).
-
----
-
-## 6. Leitura: lidar com os dois formatos (base64 antigo + URL nova)
-
-Como NÃO migramos os dados antigos, um mesmo campo pode conter:
-- um **base64** (`data:image/...;base64,...`) — registros antigos
-- uma **URL** (`https://...supabase.co/storage/...`) — registros novos
-
-O front que renderiza imagem (`<img src={fotoUrl}>`) funciona com os dois sem
-mudança, porque tanto `data:` URI quanto URL `https` são válidos em `src`. Então
-**a leitura geralmente não precisa de ajuste**. Só atenção em lugares que façam
-algum processamento do valor (ex: validação de tamanho, ou geração de PDF que
-embute a imagem) — aí pode ser preciso detectar o formato.
-
----
-
-## 7. Configuração no Supabase (manual, fora do código)
-
-Antes de usar, os buckets precisam existir no painel do Supabase (ou criados via
-código na primeira execução):
-- Criar os buckets `colaboradores`, `afericoes`, `documentos`, `postos`
-- Marcar como **públicos** (leitura pública), já que a proteção real é o login da app
-- O Codex pode incluir um script ou instrução para criar os buckets via API na
-  inicialização, mas o mais simples é criar manualmente no painel uma vez. **Avisar
-  o usuário** que precisa criar os buckets antes de testar.
-
----
-
-## 8. Variáveis de ambiente
-
-JÁ EXISTEM no projeto (não recriar):
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_KEY`
-
-Confirmar que estão tanto no `.env` local quanto na Vercel (production). Se o
-Storage usar as mesmas, não precisa adicionar nada novo.
-
----
-
-## 9. Checklist do que NÃO fazer
-
-- ❌ Não migrar/converter os base64 antigos (decisão: só daqui pra frente)
-- ❌ Não renomear as colunas (`fotoUrl`/`arquivoUrl` continuam)
-- ❌ Não usar a anon key para upload no servidor (usar service key)
-- ❌ Não quebrar o contrato atual do front de uma vez (backend converte base64→Storage)
-- ❌ Não deixar o upload travar o fluxo principal (service nunca lança; loga e segue)
-- ❌ Não criar dependência de S3/Cloudinary/outros — só Supabase Storage
-
----
-
-## 10. Ordem de implementação sugerida
-
-1. Criar `supabase-storage.client.ts` + `storage.service.ts`
-2. Criar o helper `processar-upload.ts`
-3. Aplicar no use case de **colaborador** (criar/atualizar/trocar foto) — testar
-   primeiro só esse, ponta a ponta (upload real, ver URL no banco, imagem renderiza)
-4. Depois aplicar em **aferição** e **documento**
-5. `Posto.logoUrl` entra junto com o item "logo do posto" da 1.1
-6. Validar: novo upload vira URL no banco; registros antigos (base64) continuam
-   renderizando normalmente
-
-> Testar o item 3 isolado ANTES de propagar para as outras entidades — se o padrão
-> estiver certo no colaborador, replicar é mecânico.
-> 
-> ---
-name: free-safe-database
-description: Use esta skill ao criar ou modificar o schema Prisma, repositórios, mappers ou seeds do FREE SAFE. Cobre todas as tabelas, relações, convenções de nomenclatura e o padrão de mapper entre modelo Prisma e entidade de domínio.
----
-
-# FREE SAFE — Banco de dados (Prisma + PostgreSQL)
-
-## Schema Prisma completo
-
-```prisma
-// prisma/schema.prisma
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-// ─── Enums ────────────────────────────────────────────
-
-enum PerfilUsuario {
-  ADMIN
-  GERENTE
-  RH
-  COLABORADOR
-  MANUTENCAO
-}
-
-enum StatusColaborador {
-  ATIVO
-  AFASTADO
-  DESLIGADO
-}
-
-enum ProdutoCombustivel {
-  GASOLINA_COMUM
-  GASOLINA_ADITIVADA
-  GASOLINA_PREMIUM
-  ETANOL_HIDRATADO
-  DIESEL_S10
-  DIESEL_S500
-}
-
-enum ResultadoAnalise {
-  APROVADO
-  REPROVADO
-}
-
-enum AspectoCombustivel {
-  LIQUIDO_E_ISENTO
-  TURVO
-  COM_IMPUREZAS
-}
-
-enum SituacaoAfericao {
-  DENTRO_DA_LEGISLACAO
-  FORA_DA_TOLERANCIA
-}
-
-enum TipoEntrevista {
-  ADMISSAO
-  INTEGRACAO
-  TRINTA_DIAS
-  EXPERIENCIA
-  PERIODICA
-  OCORRENCIA
-  RETORNO
-  DESLIGAMENTO
-}
-
-enum TipoDocumento {
-  AUTORIZACAO_ANP
-  CONTRATO_DISTRIBUIDORA
-  ALVARA_FUNCIONAMENTO
-  ALVARA_SANITARIO
-  LICENCA_AMBIENTAL
-  AVCB_BOMBEIROS
-  INMETRO_IPEM
-  CNPJ
-  INSCRICAO_ESTADUAL
-  FISPQ
-  PARECER_TECNICO
-  OUTORGA
-  PLANTA_BAIXA
-  FOTO_FACHADA
-}
-
-enum StatusDocumento {
-  VALIDO
-  VENCENDO
-  VENCIDO
-}
-
-enum TipoManutencao {
-  PREVENTIVA
-  CORRETIVA
-  EMERGENCIAL
-}
-
-enum StatusManutencao {
-  ABERTA
-  EM_ANDAMENTO
-  CONCLUIDA
-  CANCELADA
-}
-
-// ─── Modelos ──────────────────────────────────────────
-
-model User {
-  id         String        @id @default(uuid())
-  nome       String        @db.VarChar(150)
-  email      String        @unique @db.VarChar(200)
-  senhaHash  String        @map("senha_hash")
-  perfil     PerfilUsuario @default(COLABORADOR)
-  postoId    String?       @map("posto_id")
-  ativo      Boolean       @default(true)
-  criadoEm  DateTime      @default(now()) @map("criado_em")
-  atualizadoEm DateTime   @updatedAt @map("atualizado_em")
-
-  posto        Posto?        @relation(fields: [postoId], references: [id])
-  raqsCriadas  RAQ[]
-  entrevistas  Entrevista[]
-  colaborador  Colaborador?
-
-  @@map("users")
-}
-
-model Posto {
-  id           String  @id @default(uuid())
-  nome         String  @db.VarChar(100)
-  razaoSocial  String  @map("razao_social") @db.VarChar(200)
-  cnpj         String  @unique @db.VarChar(18)
-  inscricaoEstadual String? @map("inscricao_estadual") @db.VarChar(30)
-  endereco     String  @db.VarChar(300)
-  cidade       String  @db.VarChar(100)
-  uf           String  @db.Char(2)
-  gerenteId    String? @map("gerente_id")
-  ativo        Boolean @default(true)
-  criadoEm    DateTime @default(now()) @map("criado_em")
-  atualizadoEm DateTime @updatedAt @map("atualizado_em")
-
-  gerente       User?          @relation(fields: [gerenteId], references: [id])
-  colaboradores Colaborador[]
-  raqs          RAQ[]
-  afericoes     Afericao[]
-  documentos    Documento[]
-  manutencoes   Manutencao[]
-  drenagens     Drenagem[]
-  users         User[]
-
-  @@map("postos")
-}
-
-model Colaborador {
-  id            String            @id @default(uuid())
-  postoId       String            @map("posto_id")
-  userId        String?           @unique @map("user_id")
-  nome          String            @db.VarChar(150)
-  cpf           String            @unique @db.VarChar(14)
-  rg            String?           @db.VarChar(20)
-  telefone      String?           @db.VarChar(20)
-  email         String?           @db.VarChar(200)
-  endereco      String?           @db.VarChar(300)
-  cargo         String            @db.VarChar(80)
-  dataAdmissao  DateTime          @map("data_admissao") @db.Date
-  turno         String?           @db.VarChar(30)
-  escala        String?           @db.VarChar(30)
-  status        StatusColaborador @default(ATIVO)
-  criadoEm     DateTime           @default(now()) @map("criado_em")
-  atualizadoEm DateTime           @updatedAt @map("atualizado_em")
-
-  posto        Posto         @relation(fields: [postoId], references: [id])
-  user         User?         @relation(fields: [userId], references: [id])
-  treinamentos TreinamentoColaborador[]
-  entrevistas  Entrevista[]
-
-  @@map("colaboradores")
-}
-
-model Curso {
-  id               String   @id @default(uuid())
-  nome             String   @db.VarChar(150)
-  descricao        String?  @db.Text
-  cargaHoraria     Int?     @map("carga_horaria")
-  validadeDias     Int?     @map("validade_dias")
-  cargosObrigatorios String[] @map("cargos_obrigatorios")
-  ativo            Boolean  @default(true)
-  criadoEm        DateTime  @default(now()) @map("criado_em")
-
-  treinamentos TreinamentoColaborador[]
-
-  @@map("cursos")
-}
-
-model TreinamentoColaborador {
-  id              String   @id @default(uuid())
-  colaboradorId   String   @map("colaborador_id")
-  cursoId         String   @map("curso_id")
-  status          String   @db.VarChar(30) // PENDENTE | EM_ANDAMENTO | CONCLUIDO
-  nota            Float?
-  dataConclusao   DateTime? @map("data_conclusao") @db.Date
-  certificadoUrl  String?  @map("certificado_url") @db.VarChar(500)
-  criadoEm       DateTime  @default(now()) @map("criado_em")
-
-  colaborador Colaborador @relation(fields: [colaboradorId], references: [id])
-  curso       Curso       @relation(fields: [cursoId], references: [id])
-
-  @@unique([colaboradorId, cursoId])
-  @@map("treinamentos_colaborador")
-}
-
-model Entrevista {
-  id                    String         @id @default(uuid())
-  colaboradorId         String         @map("colaborador_id")
-  postoId               String         @map("posto_id")
-  responsavelId         String         @map("responsavel_id")
-  tipo                  TipoEntrevista
-  data                  DateTime       @db.Date
-  respostas             Json?
-  observacoes           String?        @db.Text
-  compromissoColaborador String?       @map("compromisso_colaborador") @db.Text
-  assinaturaColaboradorUrl String?     @map("assinatura_colaborador_url") @db.VarChar(500)
-  assinaturaResponsavelUrl String?     @map("assinatura_responsavel_url") @db.VarChar(500)
-  criadoEm             DateTime        @default(now()) @map("criado_em")
-
-  colaborador  Colaborador @relation(fields: [colaboradorId], references: [id])
-  responsavel  User        @relation(fields: [responsavelId], references: [id])
-
-  @@map("entrevistas")
-}
-
-model RAQ {
-  id                   String             @id @default(uuid())
-  postoId              String             @map("posto_id")
-  responsavelId        String             @map("responsavel_id")
-  produto              ProdutoCombustivel
-  data                 DateTime           @default(now()) @db.Timestamptz
-  temperaturaObservada Float              @map("temperatura_observada")
-  densidadeObservada   Float              @map("densidade_observada")
-  massa20c             Float?             @map("massa_20c")
-  aspecto              AspectoCombustivel
-  cor                  String             @db.VarChar(30)
-  faseAquosa           Float?             @map("fase_aquosa")
-  teorEtanol           Float?             @map("teor_etanol")
-  teorAlcoolico        Float?             @map("teor_alcoolico")
-  resultado            ResultadoAnalise
-  boletimUrl           String?            @map("boletim_url") @db.VarChar(500)
-  fotoProvetaUrl       String?            @map("foto_proveta_url") @db.VarChar(500)
-  fotoAmostraUrl       String?            @map("foto_amostra_url") @db.VarChar(500)
-  distribuidora        String?            @db.VarChar(100)
-  notaFiscal           String?            @map("nota_fiscal") @db.VarChar(50)
-  placaCaminhao        String?            @map("placa_caminhao") @db.VarChar(10)
-  tanqueDestino        String?            @map("tanque_destino") @db.VarChar(50)
-  pdfUrl               String?            @map("pdf_url") @db.VarChar(500)
-  criadoEm            DateTime            @default(now()) @map("criado_em")
-
-  posto       Posto @relation(fields: [postoId], references: [id])
-  responsavel User  @relation(fields: [responsavelId], references: [id])
-
-  @@map("raqs")
-}
-
-model Afericao {
-  id             String           @id @default(uuid())
-  postoId        String           @map("posto_id")
-  responsavelId  String           @map("responsavel_id")
-  produto        ProdutoCombustivel
-  bomba          Int
-  bico           Int
-  medidaPadrao   Float            @map("medida_padrao") @default(20)
-  resultadoMl    Float            @map("resultado_ml")
-  situacao       SituacaoAfericao
-  observacoes    String?          @db.Text
-  fotosUrls      String[]         @map("fotos_urls")
-  relatorioUrl   String?          @map("relatorio_url") @db.VarChar(500)
-  data           DateTime         @default(now()) @db.Timestamptz
-  criadoEm      DateTime          @default(now()) @map("criado_em")
-
-  posto       Posto @relation(fields: [postoId], references: [id])
-
-  @@map("afericoes")
-}
-
-model Documento {
-  id             String          @id @default(uuid())
-  postoId        String          @map("posto_id")
-  tipo           TipoDocumento
-  numero         String?         @db.VarChar(100)
-  dataEmissao    DateTime?       @map("data_emissao") @db.Date
-  dataVencimento DateTime?       @map("data_vencimento") @db.Date
-  arquivoUrl     String?         @map("arquivo_url") @db.VarChar(500)
-  status         StatusDocumento @default(VALIDO)
-  criadoEm      DateTime         @default(now()) @map("criado_em")
-  atualizadoEm  DateTime         @updatedAt @map("atualizado_em")
-
-  posto Posto @relation(fields: [postoId], references: [id])
-
-  @@map("documentos")
-}
-
-model Manutencao {
-  id             String           @id @default(uuid())
-  postoId        String           @map("posto_id")
-  equipamento    String           @db.VarChar(100)
-  tipo           TipoManutencao
-  descricao      String           @db.Text
-  status         StatusManutencao @default(ABERTA)
-  responsavel    String           @db.VarChar(150)
-  dataAbertura   DateTime         @map("data_abertura") @default(now()) @db.Date
-  dataFechamento DateTime?        @map("data_fechamento") @db.Date
-  fotosUrls      String[]         @map("fotos_urls")
-  criadoEm      DateTime          @default(now()) @map("criado_em")
-  atualizadoEm  DateTime          @updatedAt @map("atualizado_em")
-
-  posto Posto @relation(fields: [postoId], references: [id])
-
-  @@map("manutencoes")
-}
-
-model Drenagem {
-  id            String   @id @default(uuid())
-  postoId       String   @map("posto_id")
-  tanque        String   @db.VarChar(50)
-  produto       ProdutoCombustivel
-  data          DateTime @db.Date
-  responsavel   String   @db.VarChar(150)
-  resultado     String?  @db.VarChar(200)
-  observacoes   String?  @db.Text
-  fotosUrls     String[] @map("fotos_urls")
-  criadoEm     DateTime  @default(now()) @map("criado_em")
-
-  posto Posto @relation(fields: [postoId], references: [id])
-
-  @@map("drenagens")
-}
-```
-
-## Padrão de repositório Prisma
-
-```typescript
-// src/infrastructure/database/prisma/repositories/raq.prisma-repository.ts
-
-import type { PrismaClient } from '@prisma/client';
-import type { RAQRepository, FiltrosRAQ } from '@/domain/ports/raq.repository';
-import { RAQ } from '@/domain/entities/raq.entity';
-import { RAQMapper } from '@/infrastructure/database/mappers/raq.mapper';
-import { NotFoundError } from '@/domain/errors/domain.errors';
-
-export class RAQPrismaRepository implements RAQRepository {
-  constructor(private readonly db: PrismaClient) {}
-
-  async salvar(raq: RAQ): Promise<void> {
-    await this.db.rAQ.upsert({
-      where: { id: raq.id },
-      create: RAQMapper.toPrisma(raq),
-      update: RAQMapper.toPrisma(raq),
-    });
-  }
-
-  async buscarPorId(id: string): Promise<RAQ | null> {
-    const raw = await this.db.rAQ.findUnique({ where: { id } });
-    if (!raw) return null;
-    return RAQMapper.toDomain(raw);
-  }
-
-  async listar(filtros: FiltrosRAQ): Promise<RAQ[]> {
-    const registros = await this.db.rAQ.findMany({
-      where: {
-        ...(filtros.postoId && { postoId: filtros.postoId }),
-        ...(filtros.produto && { produto: filtros.produto as any }),
-        ...(filtros.resultado && { resultado: filtros.resultado as any }),
-        ...(filtros.dataInicio || filtros.dataFim
-          ? {
-              data: {
-                ...(filtros.dataInicio && { gte: filtros.dataInicio }),
-                ...(filtros.dataFim && { lte: filtros.dataFim }),
-              },
-            }
-          : {}),
-      },
-      orderBy: { data: 'desc' },
-    });
-    return registros.map(RAQMapper.toDomain);
-  }
-
-  async contarPorPosto(postoId: string): Promise<number> {
-    return this.db.rAQ.count({ where: { postoId } });
-  }
-
-  async contarSemBoletim(): Promise<number> {
-    return this.db.rAQ.count({ where: { boletimUrl: null } });
-  }
-}
-```
-
-## Padrão de mapper
-
-```typescript
-// src/infrastructure/database/mappers/raq.mapper.ts
-
-import type { RAQ as PrismaRAQ } from '@prisma/client';
-import type { Prisma } from '@prisma/client';
-import { RAQ } from '@/domain/entities/raq.entity';
-
-export class RAQMapper {
-  static toDomain(raw: PrismaRAQ): RAQ {
-    return RAQ.reconstituir({
-      id:                  raw.id,
-      postoId:             raw.postoId,
-      responsavelId:       raw.responsavelId,
-      produto:             raw.produto as any,
-      temperaturaObservada: raw.temperaturaObservada,
-      densidadeObservada:  raw.densidadeObservada,
-      aspecto:             raw.aspecto as any,
-      cor:                 raw.cor as any,
-      faseAquosa:          raw.faseAquosa ?? undefined,
-      teorAlcoolico:       raw.teorAlcoolico ?? undefined,
-      distribuidora:       raw.distribuidora ?? undefined,
-      notaFiscal:          raw.notaFiscal ?? undefined,
-      placaCaminhao:       raw.placaCaminhao ?? undefined,
-      tanqueDestino:       raw.tanqueDestino ?? undefined,
-      resultado:           raw.resultado as any,
-      boletimUrl:          raw.boletimUrl ?? undefined,
-      fotoProvetaUrl:      raw.fotoProvetaUrl ?? undefined,
-      criadoEm:            raw.criadoEm,
-    });
-  }
-
-  static toPrisma(raq: RAQ): Prisma.RAQCreateInput {
-    return {
-      id:                  raq.id,
-      posto:               { connect: { id: raq.postoId } },
-      responsavel:         { connect: { id: raq.responsavelId } },
-      produto:             raq.produto,
-      temperaturaObservada: raq.temperaturaObservada,
-      densidadeObservada:  raq.densidadeObservada,
-      aspecto:             raq.aspecto,
-      cor:                 raq.cor,
-      faseAquosa:          raq.faseAquosa ?? null,
-      teorAlcoolico:       raq.teorAlcoolico ?? null,
-      distribuidora:       raq.distribuidora ?? null,
-      notaFiscal:          raq.notaFiscal ?? null,
-      placaCaminhao:       raq.placaCaminhao ?? null,
-      tanqueDestino:       raq.tanqueDestino ?? null,
-      resultado:           raq.resultado,
-      boletimUrl:          raq.boletimUrl ?? null,
-      fotoProvetaUrl:      raq.fotoProvetaUrl ?? null,
-      criadoEm:            raq.criadoEm,
-    };
-  }
-}
-```
-
-## Seed dos 19 postos
-
-```typescript
-// prisma/seeds/postos.seed.ts
-
-import type { PrismaClient } from '@prisma/client';
-
-export const postosSeed = [
-  { nome: 'Free Rosendo',          razaoSocial: 'Free Rosendo Combustíveis LTDA',      cnpj: '00.000.001/0001-01', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free M.A.',             razaoSocial: 'Free M.A. Combustíveis LTDA',         cnpj: '00.000.002/0001-02', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Atacadão',         razaoSocial: 'Free Atacadão Combustíveis LTDA',     cnpj: '00.000.003/0001-03', cidade: 'Várzea Grande',       uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Vitória',          razaoSocial: 'Free Vitória Combustíveis LTDA',      cnpj: '00.000.004/0001-04', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Inovar',           razaoSocial: 'Free Inovar Combustíveis LTDA',       cnpj: '00.000.005/0001-05', cidade: 'Várzea Grande',       uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Realeza',          razaoSocial: 'Free Realeza Combustíveis LTDA',      cnpj: '00.000.006/0001-06', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free XV',               razaoSocial: 'Free XV Combustíveis LTDA',           cnpj: '00.000.007/0001-07', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free VEM',              razaoSocial: 'Free VEM Combustíveis LTDA',          cnpj: '00.000.008/0001-08', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Brauna',           razaoSocial: 'Free Brauna Combustíveis LTDA',       cnpj: '00.000.009/0001-09', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Foz',              razaoSocial: 'Free Foz Combustíveis LTDA',          cnpj: '00.000.010/0001-10', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Palmeiras',        razaoSocial: 'Free Palmeiras Combustíveis LTDA',    cnpj: '00.000.011/0001-11', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Torres',           razaoSocial: 'Free Torres Combustíveis LTDA',       cnpj: '00.000.012/0001-12', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Dakar',            razaoSocial: 'Free Dakar Combustíveis LTDA',        cnpj: '00.000.013/0001-13', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Viena',            razaoSocial: 'Free Viena Combustíveis LTDA',        cnpj: '00.000.014/0001-14', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Riviera',          razaoSocial: 'Free Riviera Combustíveis LTDA',      cnpj: '00.000.015/0001-15', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Alphaville',       razaoSocial: 'Free Alphaville Combustíveis LTDA',   cnpj: '00.000.016/0001-16', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Petro Chapadão',   razaoSocial: 'Free Petro Chapadão Combustíveis LTDA', cnpj: '00.000.017/0001-17', cidade: 'Chapadão do Sul', uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Point',            razaoSocial: 'Free Point Combustíveis LTDA',        cnpj: '00.000.018/0001-18', cidade: 'Cuiabá',              uf: 'MT', endereco: 'A definir' },
-  { nome: 'Free Lucas do Rio Verde', razaoSocial: 'Free Lucas Combustíveis LTDA',     cnpj: '00.000.019/0001-19', cidade: 'Lucas do Rio Verde',  uf: 'MT', endereco: 'A definir' },
-];
-
-export async function seedPostos(db: PrismaClient) {
-  for (const posto of postosSeed) {
-    await db.posto.upsert({
-      where:  { cnpj: posto.cnpj },
-      create: posto,
-      update: { nome: posto.nome, cidade: posto.cidade },
-    });
-  }
-  console.log(`✅ ${postosSeed.length} postos inseridos/atualizados`);
-}
-```
-
-## Regras que o Codex deve seguir nesta camada
-
-1. Campos em `snake_case` no banco, `camelCase` no TypeScript — sempre usar `@map()`
-2. Relações sempre com `@relation` explícito — sem relações implícitas
-3. `upsert` em vez de `create` nos repositórios — idempotência
-4. Mapper nunca acessa banco — só converte tipos
-5. Nunca usar `prisma.xyz` direto nos casos de uso — sempre via repositório
-6. `null` do banco vira `undefined` no domínio — mapper faz a conversão com `?? undefined`
-7. `undefined` do domínio vira `null` no banco — mapper faz a conversão com `?? null`
-8. Queries de listagem sempre com `orderBy` explícito
-9. Seed usa `upsert` — pode rodar múltiplas vezes sem erro
-
----
-name: free-safe-use-cases
-description: Use esta skill ao criar casos de uso (application layer) do FREE SAFE. Cobre injeção de dependência, orquestração do domínio, autorização e tratamento de erros. Nunca chame Prisma diretamente aqui — use os ports.
----
-
-# FREE SAFE — Camada de Casos de Uso (Application)
-
-## Responsabilidade desta camada
-
-Os casos de uso orquestram o domínio. Eles:
-- Recebem um input tipado
-- Verificam autorização
-- Chamam entidades e repositórios
-- Devolvem um output tipado
-
-Eles **não** contêm regras de negócio (isso fica na entidade) e **não** chamam Prisma diretamente (isso fica na infra).
+O domínio não importa nada externo. Zero imports de Prisma, Next.js, Zod, Supabase ou qualquer biblioteca.
+Se você se pegar importando algo que não seja outro arquivo de `src/domain/`, pare e mova a lógica.
 
 ## Estrutura de pastas
 
 ```
-src/application/
-├── use-cases/
-│   ├── raq/
-│   │   ├── create-raq.use-case.ts
-│   │   ├── create-raq.use-case.spec.ts
-│   │   ├── emit-raq-pdf.use-case.ts
-│   │   └── list-raq-by-posto.use-case.ts
-│   ├── colaboradores/
-│   │   ├── create-colaborador.use-case.ts
-│   │   ├── update-colaborador.use-case.ts
-│   │   └── list-colaboradores-by-posto.use-case.ts
-│   ├── afericao/
-│   │   ├── create-afericao.use-case.ts
-│   │   └── list-afericoes-by-bomba.use-case.ts
-│   ├── treinamentos/
-│   │   ├── concluir-treinamento.use-case.ts
-│   │   └── get-trilha-by-cargo.use-case.ts
-│   ├── documentos/
-│   │   ├── upload-documento.use-case.ts
-│   │   └── list-documentos-vencendo.use-case.ts
-│   └── dashboard/
-│       └── get-dashboard-kpis.use-case.ts
-├── authorization/
-│   └── permission.guard.ts
-└── dtos/
-    ├── raq.dto.ts
-    ├── colaborador.dto.ts
-    └── afericao.dto.ts
+src/domain/
+├── entities/
+│   ├── raq.entity.ts
+│   ├── colaborador.entity.ts
+│   ├── posto.entity.ts
+│   ├── afericao.entity.ts
+│   ├── treinamento.entity.ts
+│   └── documento.entity.ts
+├── value-objects/
+│   ├── cpf.vo.ts
+│   ├── produto-combustivel.vo.ts
+│   ├── resultado-analise.vo.ts
+│   └── perfil-usuario.vo.ts
+├── errors/
+│   └── domain.errors.ts
+└── ports/
+    ├── raq.repository.ts
+    ├── colaborador.repository.ts
+    ├── posto.repository.ts
+    ├── afericao.repository.ts
+    ├── treinamento.repository.ts
+    ├── documento.repository.ts
+    ├── storage.port.ts
+    ├── pdf.port.ts
+    └── email.port.ts
 ```
 
-## Padrão de caso de uso
+## Padrão de entidade
+
+Toda entidade segue este padrão exato:
 
 ```typescript
-// src/application/use-cases/raq/create-raq.use-case.ts
+// src/domain/entities/raq.entity.ts
 
-import { RAQ } from '@/domain/entities/raq.entity';
-import type { RAQRepository } from '@/domain/ports/raq.repository';
-import type { StoragePort } from '@/domain/ports/storage.port';
-import type { EmailPort } from '@/domain/ports/email.port';
-import { PermissionGuard } from '@/application/authorization/permission.guard';
-import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+export type ProdutoCombustivel =
+  | 'GASOLINA_COMUM'
+  | 'GASOLINA_ADITIVADA'
+  | 'GASOLINA_PREMIUM'
+  | 'ETANOL_HIDRATADO'
+  | 'DIESEL_S10'
+  | 'DIESEL_S500';
 
-export interface CreateRAQInput {
-  usuario: UsuarioAutenticado;
+export type ResultadoAnalise = 'APROVADO' | 'REPROVADO';
+
+export type AspectoCombustivel = 'LIQUIDO_E_ISENTO' | 'TURVO' | 'COM_IMPUREZAS';
+
+export interface CriarRAQProps {
   postoId: string;
-  produto: string;
+  responsavelId: string;
+  produto: ProdutoCombustivel;
   temperaturaObservada: number;
   densidadeObservada: number;
-  aspecto: string;
-  cor: string;
-  faseAquosa?: number;
-  teorAlcoolico?: number;
+  aspecto: AspectoCombustivel;
+  cor: 'CARACTERISTICA' | 'ALTERADA';
+  faseAquosa?: number;        // gasolina
+  teorAlcoolico?: number;     // etanol
   distribuidora?: string;
   notaFiscal?: string;
   placaCaminhao?: string;
   tanqueDestino?: string;
-  boletimArquivo?: { buffer: Buffer; tipo: string };
-  fotoProvetaArquivo?: { buffer: Buffer; tipo: string };
 }
 
-export interface CreateRAQOutput {
-  raqId: string;
-  aprovado: boolean;
-  resultado: 'APROVADO' | 'REPROVADO';
-}
-
-export class CreateRAQUseCase {
-  constructor(
-    private readonly raqRepo: RAQRepository,
-    private readonly storagePort: StoragePort,
-    private readonly emailPort: EmailPort,
-  ) {}
-
-  async execute(input: CreateRAQInput): Promise<CreateRAQOutput> {
-    // 1. Autorização
-    PermissionGuard.verificar(input.usuario, 'escrever', 'raq');
-
-    // Gerente só registra RAQ do próprio posto
-    if (
-      input.usuario.perfil === 'GERENTE' &&
-      input.usuario.postoId !== input.postoId
-    ) {
-      PermissionGuard.negar();
-    }
-
-    // 2. Criar entidade (regras de negócio ficam na entidade)
-    const raq = RAQ.criar({
-      postoId: input.postoId,
-      responsavelId: input.usuario.id,
-      produto: input.produto as any,
-      temperaturaObservada: input.temperaturaObservada,
-      densidadeObservada: input.densidadeObservada,
-      aspecto: input.aspecto as any,
-      cor: input.cor as any,
-      faseAquosa: input.faseAquosa,
-      teorAlcoolico: input.teorAlcoolico,
-      distribuidora: input.distribuidora,
-      notaFiscal: input.notaFiscal,
-      placaCaminhao: input.placaCaminhao,
-      tanqueDestino: input.tanqueDestino,
-    });
-
-    // 3. Persistir
-    await this.raqRepo.salvar(raq);
-
-    // 4. Uploads opcionais (não bloqueia o resultado)
-    if (input.boletimArquivo) {
-      await this.storagePort.upload(
-        `raq/${raq.id}/boletim`,
-        input.boletimArquivo.buffer,
-        input.boletimArquivo.tipo,
-      );
-    }
-
-    if (input.fotoProvetaArquivo) {
-      await this.storagePort.upload(
-        `raq/${raq.id}/foto-proveta`,
-        input.fotoProvetaArquivo.buffer,
-        input.fotoProvetaArquivo.tipo,
-      );
-    }
-
-    // 5. Notificação (falha silenciosa — não propaga erro de e-mail)
-    if (!raq.estaAprovado) {
-      await this.emailPort
-        .enviarAlerta({
-          para: input.usuario.email,
-          assunto: `RAQ reprovada — ${input.produto}`,
-          corpo: `A análise do produto ${input.produto} foi reprovada no posto ${input.postoId}.`,
-        })
-        .catch(() => {}); // falha silenciosa intencional
-    }
-
-    return {
-      raqId: raq.id,
-      aprovado: raq.estaAprovado,
-      resultado: raq.resultado,
-    };
-  }
-}
-```
-
-## Padrão de autorização
-
-```typescript
-// src/application/authorization/permission.guard.ts
-
-import { UnauthorizedError } from '@/domain/errors/domain.errors';
-import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-
-type Acao = 'ler' | 'escrever';
-type Recurso =
-  | 'raq' | 'afericao' | 'colaboradores' | 'treinamentos'
-  | 'entrevistas' | 'documentos' | 'manutencao' | 'drenagem'
-  | 'auditorias' | 'relatorios' | 'postos' | 'usuarios';
-
-type MatrizPermissoes = Record<string, Record<Acao, Recurso[] | ['*']>>;
-
-const PERMISSOES: MatrizPermissoes = {
-  ADMIN: {
-    ler:      ['*'],
-    escrever: ['*'],
-  },
-  GERENTE: {
-    ler:      ['colaboradores', 'raq', 'afericao', 'documentos', 'manutencao', 'drenagem', 'treinamentos'],
-    escrever: ['raq', 'afericao', 'manutencao', 'drenagem', 'entrevistas'],
-  },
-  RH: {
-    ler:      ['colaboradores', 'entrevistas', 'treinamentos', 'relatorios'],
-    escrever: ['entrevistas', 'colaboradores'],
-  },
-  COLABORADOR: {
-    ler:      ['treinamentos'],
-    escrever: [],
-  },
-  MANUTENCAO: {
-    ler:      ['manutencao', 'drenagem'],
-    escrever: ['manutencao', 'drenagem'],
-  },
-};
-
-export class PermissionGuard {
-  static verificar(usuario: UsuarioAutenticado, acao: Acao, recurso: Recurso): void {
-    const permissoes = PERMISSOES[usuario.perfil];
-    if (!permissoes) throw new UnauthorizedError();
-
-    const lista = permissoes[acao];
-    if (!lista) throw new UnauthorizedError();
-
-    const permitido = lista.includes('*') || lista.includes(recurso);
-    if (!permitido) throw new UnauthorizedError();
-  }
-
-  static negar(): never {
-    throw new UnauthorizedError();
-  }
-}
-```
-
-## DTOs compartilhados
-
-```typescript
-// src/application/dtos/auth.dto.ts
-
-export type PerfilUsuario = 'ADMIN' | 'GERENTE' | 'RH' | 'COLABORADOR' | 'MANUTENCAO';
-
-export interface UsuarioAutenticado {
+export interface ReconstituirRAQProps extends CriarRAQProps {
   id: string;
-  nome: string;
-  email: string;
-  perfil: PerfilUsuario;
-  postoId: string | null; // null = admin geral (acesso a todos)
+  resultado: ResultadoAnalise;
+  boletimUrl?: string;
+  fotoProvetaUrl?: string;
+  criadoEm: Date;
+}
+
+export class RAQ {
+  readonly id: string;
+  readonly postoId: string;
+  readonly responsavelId: string;
+  readonly produto: ProdutoCombustivel;
+  readonly temperaturaObservada: number;
+  readonly densidadeObservada: number;
+  readonly aspecto: AspectoCombustivel;
+  readonly cor: 'CARACTERISTICA' | 'ALTERADA';
+  readonly faseAquosa?: number;
+  readonly teorAlcoolico?: number;
+  readonly distribuidora?: string;
+  readonly notaFiscal?: string;
+  readonly placaCaminhao?: string;
+  readonly tanqueDestino?: string;
+  readonly resultado: ResultadoAnalise;
+  readonly boletimUrl?: string;
+  readonly fotoProvetaUrl?: string;
+  readonly criadoEm: Date;
+
+  private constructor(props: ReconstituirRAQProps) {
+    Object.assign(this, props);
+  }
+
+  // Factory para criação nova — calcula resultado
+  static criar(props: CriarRAQProps): RAQ {
+    if (!props.postoId) throw new CampoObrigatorioError('postoId');
+    if (!props.responsavelId) throw new CampoObrigatorioError('responsavelId');
+
+    const resultado = RAQ.calcularResultado(props);
+
+    return new RAQ({
+      ...props,
+      id: crypto.randomUUID(),
+      resultado,
+      criadoEm: new Date(),
+    });
+  }
+
+  // Factory para reconstituir do banco — não recalcula
+  static reconstituir(props: ReconstituirRAQProps): RAQ {
+    return new RAQ(props);
+  }
+
+  get estaAprovado(): boolean {
+    return this.resultado === 'APROVADO';
+  }
+
+  // Regras ANP — únicas responsáveis pelo resultado
+  private static calcularResultado(props: CriarRAQProps): ResultadoAnalise {
+    // Pré-requisito: aspecto e cor
+    if (props.aspecto !== 'LIQUIDO_E_ISENTO' || props.cor !== 'CARACTERISTICA') {
+      return 'REPROVADO';
+    }
+
+    switch (props.produto) {
+      case 'GASOLINA_COMUM':
+      case 'GASOLINA_ADITIVADA':
+        return RAQ.avaliarGasolina(props.faseAquosa, 29, 31);
+      case 'GASOLINA_PREMIUM':
+        return RAQ.avaliarGasolina(props.faseAquosa, 24, 26);
+      case 'ETANOL_HIDRATADO':
+        return RAQ.avaliarEtanol(props.teorAlcoolico);
+      case 'DIESEL_S10':
+        return RAQ.avaliarDiesel(props.densidadeObservada, 0.815, 0.853);
+      case 'DIESEL_S500':
+        return RAQ.avaliarDiesel(props.densidadeObservada, 0.815, 0.865);
+      default:
+        return 'REPROVADO';
+    }
+  }
+
+  // Fórmula ANP: teor (%) = ((faseAquosa - 50) × 2) + 1
+  private static avaliarGasolina(
+    faseAquosa: number | undefined,
+    min: number,
+    max: number,
+  ): ResultadoAnalise {
+    if (faseAquosa === undefined || isNaN(faseAquosa)) return 'REPROVADO';
+    const teor = ((faseAquosa - 50) * 2) + 1;
+    return teor >= min && teor <= max ? 'APROVADO' : 'REPROVADO';
+  }
+
+  // Faixa ANP: 92,5 a 95,4 INPM
+  private static avaliarEtanol(teorAlcoolico: number | undefined): ResultadoAnalise {
+    if (teorAlcoolico === undefined || isNaN(teorAlcoolico)) return 'REPROVADO';
+    return teorAlcoolico >= 92.5 && teorAlcoolico <= 95.4 ? 'APROVADO' : 'REPROVADO';
+  }
+
+  // Faixa ANP por densidade a 20°C
+  private static avaliarDiesel(
+    densidade: number,
+    min: number,
+    max: number,
+  ): ResultadoAnalise {
+    if (isNaN(densidade)) return 'REPROVADO';
+    return densidade >= min && densidade <= max ? 'APROVADO' : 'REPROVADO';
+  }
 }
 ```
 
-## Padrão de caso de uso com query (leitura)
+## Padrão de value object
 
 ```typescript
-// src/application/use-cases/dashboard/get-dashboard-kpis.use-case.ts
+// src/domain/value-objects/cpf.vo.ts
 
-export interface GetDashboardKPIsOutput {
-  totalPostos: number;
-  totalColaboradores: number;
-  mediaConformidade: number;
-  totalPendencias: number;
-  alertas: AlertaItem[];
+export class CPF {
+  private readonly value: string;
+
+  private constructor(value: string) {
+    this.value = value;
+  }
+
+  static criar(raw: string): CPF {
+    const digits = raw.replace(/\D/g, '');
+    if (!CPF.validar(digits)) throw new ValorInvalidoError('CPF inválido');
+    return new CPF(digits);
+  }
+
+  private static validar(digits: string): boolean {
+    if (digits.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(digits)) return false;
+    // validação dos dígitos verificadores
+    for (let t = 9; t < 11; t++) {
+      let sum = 0;
+      for (let i = 0; i < t; i++) sum += parseInt(digits[i]) * (t + 1 - i);
+      const check = ((sum * 10) % 11) % 10;
+      if (check !== parseInt(digits[t])) return false;
+    }
+    return true;
+  }
+
+  get formatado(): string {
+    return this.value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  }
+
+  get raw(): string {
+    return this.value;
+  }
+}
+```
+
+## Padrão de erros de domínio
+
+```typescript
+// src/domain/errors/domain.errors.ts
+
+export class DomainError extends Error {
+  constructor(
+    public readonly code: string,
+    message?: string,
+  ) {
+    super(message ?? code);
+    this.name = 'DomainError';
+  }
 }
 
-export class GetDashboardKPIsUseCase {
-  constructor(
-    private readonly postoRepo: PostoRepository,
-    private readonly colaboradorRepo: ColaboradorRepository,
-    private readonly raqRepo: RAQRepository,
-    private readonly documentoRepo: DocumentoRepository,
-  ) {}
-
-  async execute(usuario: UsuarioAutenticado): Promise<GetDashboardKPIsOutput> {
-    PermissionGuard.verificar(usuario, 'ler', 'relatorios');
-
-    // Queries paralelas — nunca sequenciais
-    const [postos, totalColaboradores, raqsSemBoletim, documentosVencendo] =
-      await Promise.all([
-        this.postoRepo.listar(),
-        this.colaboradorRepo.contarAtivos(),
-        this.raqRepo.contarSemBoletim(),
-        this.documentoRepo.listarVencendoEm(30),
-      ]);
-
-    const mediaConformidade =
-      postos.reduce((sum, p) => sum + p.conformidade, 0) / postos.length;
-
-    const alertas: AlertaItem[] = [
-      ...(raqsSemBoletim > 0
-        ? [{ tipo: 'RAQ sem boletim', quantidade: raqsSemBoletim, nivel: 'critico' as const }]
-        : []),
-      ...(documentosVencendo.length > 0
-        ? [{ tipo: 'Documentos vencendo', quantidade: documentosVencendo.length, nivel: 'atencao' as const }]
-        : []),
-    ];
-
-    return {
-      totalPostos: postos.length,
-      totalColaboradores,
-      mediaConformidade: Math.round(mediaConformidade),
-      totalPendencias: alertas.reduce((sum, a) => sum + a.quantidade, 0),
-      alertas,
-    };
+export class CampoObrigatorioError extends DomainError {
+  constructor(campo: string) {
+    super('campo_obrigatorio', `Campo obrigatório ausente: ${campo}`);
   }
+}
+
+export class ValorInvalidoError extends DomainError {
+  constructor(detalhe: string) {
+    super('valor_invalido', detalhe);
+  }
+}
+
+export class NotFoundError extends DomainError {
+  constructor(entidade: string, id: string) {
+    super('nao_encontrado', `${entidade} não encontrado: ${id}`);
+    this.name = 'NotFoundError';
+  }
+}
+
+export class UnauthorizedError extends DomainError {
+  constructor() {
+    super('acesso_negado', 'Você não tem permissão para esta ação');
+    this.name = 'UnauthorizedError';
+  }
+}
+```
+
+## Padrão de port (repositório)
+
+```typescript
+// src/domain/ports/raq.repository.ts
+
+import type { RAQ } from '@/domain/entities/raq.entity';
+
+export interface FiltrosRAQ {
+  postoId?: string;
+  produto?: string;
+  resultado?: 'APROVADO' | 'REPROVADO';
+  dataInicio?: Date;
+  dataFim?: Date;
+}
+
+export interface RAQRepository {
+  salvar(raq: RAQ): Promise<void>;
+  buscarPorId(id: string): Promise<RAQ | null>;
+  listar(filtros: FiltrosRAQ): Promise<RAQ[]>;
+  contarPorPosto(postoId: string): Promise<number>;
 }
 ```
 
 ## Regras que o Codex deve seguir nesta camada
 
-1. Sempre verificar autorização **antes** de qualquer operação
-2. Queries paralelas com `Promise.all` — nunca `await` sequencial para múltiplas queries independentes
-3. Uploads e e-mails com falha silenciosa (`.catch(() => {})`) — nunca deixar falha de I/O cancelar a operação principal
-4. Sem lógica de negócio aqui — mova para a entidade se precisar calcular algo
-5. Um arquivo por caso de uso — nunca agrupe múltiplos em um arquivo
-6. Todo caso de uso tem `Input` e `Output` tipados e exportados
-7. Sem chamada direta ao Prisma — use `this.xyzRepo`
+1. Nenhum `import` externo — só outros arquivos de `src/domain/`
+2. Propriedades de entidade sempre `readonly`
+3. Construtores sempre `private` — use factories estáticas (`criar`, `reconstituir`)
+4. Toda regra de negócio fica em métodos privados da entidade
+5. Erros são instâncias de `DomainError` — nunca `throw new Error('string')`
+6. Sem `any`, sem `as` inseguro, sem `!` non-null assertion
+7. Enums são union types literais (`'APROVADO' | 'REPROVADO'`), não `enum`
 
 ---
 name: free-safe-api-routes
@@ -1773,196 +1054,586 @@ export function Sidebar() {
 10. Cores: laranja `#f97316` (orange-500), fundo zinc-100, cards brancos com borda zinc-200
 
 ---
-name: free-safe-design-system
-description: Use esta skill ao refinar a interface, aplicar polimento visual, ajustar componentes de UI, ícones, tipografia, animações e microinterações no FREE SAFE. Define os tokens de design, escala de ícones, padrões de animação e os componentes base reutilizáveis do tom "clean corporativo laranja".
+name: free-safe-components
+description: Use esta skill ao criar componentes reutilizáveis do FREE SAFE: cards, tabelas, formulários, badges, progress bars e modais. Todos os componentes seguem o visual do protótipo original com Tailwind + shadcn/ui.
 ---
 
-# FREE SAFE — Design System (Clean Corporativo Laranja)
+# FREE SAFE — Componentes Reutilizáveis
 
-## Identidade visual
+## Tokens de design
 
-Tom: clean, corporativo, confiável. O laranja é a cor de marca (energia,
-combustível, ação) usada com parcimônia sobre uma base neutra (zinc/branco).
-Não é um app colorido — é uma ferramenta profissional onde o laranja guia o olho
-para o que importa: ações primárias, itens ativos, destaques.
-
-## Paleta de cores
-
-Cor de marca (laranja):
-- orange-500 (#f97316) — ações primárias, item ativo, ícones de destaque
-- orange-600 (#ea580c) — hover de botões primários
-- orange-50 (#fff7ed) — fundos sutis de seleção/destaque
-- orange-100 (#ffedd5) — badges, chips
-
-Base neutra:
-- zinc-950 (#09090b) — sidebar, texto forte, botões escuros
-- zinc-900 — títulos
-- zinc-700 — texto de corpo
-- zinc-500 — texto secundário, labels
-- zinc-200 — bordas
-- zinc-100 — fundos sutis, divisores
-- zinc-50 — fundo de página, cabeçalhos de tabela
-- white — cards
-
-Status (semânticas):
-- emerald-500/600 + emerald-50/100 — sucesso, DENTRO, aprovado, válido
-- amber-500/600 + amber-50/100 — atenção, vencendo, em andamento
-- red-500/600 + red-50/100 — erro, FORA, reprovado, vencido
-
-## Escala tipográfica
-
-A fonte é Geist (já configurada). Use esta escala consistente:
-- Título de página (h1): text-2xl font-bold tracking-tight text-zinc-950 (NÃO text-3xl)
-- Subtítulo de página: text-sm text-zinc-500
-- Título de card/seção (h2): text-base font-semibold text-zinc-900
-- Label de campo: text-sm font-medium text-zinc-700
-- Corpo: text-sm text-zinc-700
-- Texto secundário: text-xs text-zinc-500
-- Número/destaque (KPI): text-3xl font-bold tabular-nums
-
-Regra: títulos com tracking-tight, números com tabular-nums para alinhamento.
-
-## Ícones — ESCALA CORRIGIDA
-
-O problema atual é que tudo usa h-4 w-4 (16px), pequeno demais.
-Nova escala:
-- Ícones de navegação (sidebar): h-5 w-5 (20px)
-- Ícones em botões: h-4 w-4 (16px) é ok dentro de botões pequenos, h-5 w-5 em botões maiores
-- Ícones de cabeçalho de seção/card: h-5 w-5 (20px)
-- Ícones de destaque/feature (empty state, KPI): h-6 w-6 ou h-7 w-7
-- Ícones de ação isolados (header): h-5 w-5 (20px), nunca 16px
-
-Sempre usar strokeWidth padrão do lucide (2). Para ícones grandes de destaque,
-considerar strokeWidth={1.5} para um visual mais elegante.
-
-Ícones SEMPRE dentro de um container com cor de fundo quando são de destaque:
-ex: <div className="rounded-xl bg-orange-50 p-2"><Icon className="h-5 w-5 text-orange-600" /></div>
-
-## Raio de borda (consistência)
-
-- Cards: rounded-2xl
-- Inputs, selects, botões: rounded-xl
-- Badges, chips: rounded-full
-- Containers de ícone: rounded-xl ou rounded-lg
-- Modais: rounded-2xl
-
-## Sombras
-
-- Cards: shadow-sm (sutil)
-- Cards em hover (clicáveis): hover:shadow-md transition-shadow
-- Botões primários: shadow-sm
-- Dropdowns/popovers: shadow-lg
-- Modais: shadow-xl
-
-## Espaçamento
-
-- Padding de card: p-5 (p-6 para cards maiores/destaque)
-- Gap entre cards: gap-4 ou gap-6
-- Gap entre seções verticais: space-y-6
-- Padding de input: px-3 py-2 (py-2.5 para inputs maiores)
-
-## Componentes base — padrões
-
-### Botão primário
 ```
-className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-600 hover:shadow-md active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none"
+Cor primária:     orange-500 (#f97316)
+Cor primária dark: orange-600 (#ea580c)
+Fundo da app:     zinc-100
+Cards:            bg-white border border-zinc-200 rounded-2xl shadow-sm
+Sidebar:          bg-zinc-950
+Texto principal:  zinc-950
+Texto secundário: zinc-500
+Sucesso:          emerald-500
+Erro:             red-500
+Atenção:          amber-500
 ```
 
-### Botão secundário (outline)
-```
-className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition-all hover:bg-zinc-50 hover:border-zinc-300 active:scale-[0.98]"
+## Badge
+
+```typescript
+// src/components/ui/badge-status.tsx
+type Tone = 'green' | 'yellow' | 'red' | 'orange' | 'dark' | 'default';
+
+const toneClasses: Record<Tone, string> = {
+  default: 'bg-zinc-100 text-zinc-700',
+  green:   'bg-emerald-100 text-emerald-700',
+  yellow:  'bg-amber-100 text-amber-800',
+  red:     'bg-red-100 text-red-700',
+  orange:  'bg-orange-100 text-orange-700',
+  dark:    'bg-zinc-800 text-white',
+};
+
+export function BadgeStatus({ children, tone = 'default' }: { children: React.ReactNode; tone?: Tone }) {
+  return (
+    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${toneClasses[tone]}`}>
+      {children}
+    </span>
+  );
+}
 ```
 
-### Botão destrutivo (texto)
-```
-className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+## Card
+
+```typescript
+// src/components/ui/card-base.tsx
+export function CardBase({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm ${className}`}>
+      {children}
+    </div>
+  );
+}
 ```
 
-### Input/Select
-```
-className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-```
-Nota: adicionar o focus:ring-2 com cor laranja translúcida é a microinteração-chave.
+## StatCard
 
-### Card
-```
-className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
-```
+```typescript
+// src/components/dashboard/stat-card.tsx
+import type { LucideIcon } from 'lucide-react';
+import { CardBase } from '@/components/ui/card-base';
 
-### Card clicável (hover)
-```
-className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-zinc-300 cursor-pointer"
-```
+type Tone = 'orange' | 'green' | 'yellow' | 'red';
 
-## Animações e microinterações (framer-motion)
+const toneClasses: Record<Tone, string> = {
+  orange: 'bg-orange-50 text-orange-600',
+  green:  'bg-emerald-50 text-emerald-600',
+  yellow: 'bg-amber-50 text-amber-600',
+  red:    'bg-red-50 text-red-600',
+};
 
-### Entrada de página (padrão)
-```
-initial={{ opacity: 0, y: 16 }}
-animate={{ opacity: 1, y: 0 }}
-transition={{ duration: 0.35, ease: 'easeOut' }}
-```
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  subtitle: string;
+  icon: LucideIcon;
+  tone?: Tone;
+}
 
-### Entrada de lista com stagger (cards/itens)
-```
-// container
-transition={{ staggerChildren: 0.05 }}
-// item
-initial={{ opacity: 0, y: 12 }}
-animate={{ opacity: 1, y: 0 }}
-```
-
-### Hover de card interativo
-```
-whileHover={{ y: -2 }}
-transition={{ type: 'spring', stiffness: 300 }}
-```
-
-### Tap/click feedback
-```
-whileTap={{ scale: 0.98 }}
+export function StatCard({ title, value, subtitle, icon: Icon, tone = 'orange' }: StatCardProps) {
+  return (
+    <CardBase>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-zinc-500">{title}</p>
+          <h3 className="mt-2 text-3xl font-bold text-zinc-950">{value}</h3>
+          <p className="mt-1 text-sm text-zinc-500">{subtitle}</p>
+        </div>
+        <div className={`rounded-2xl p-3 ${toneClasses[tone]}`}>
+          <Icon className="h-6 w-6" />
+        </div>
+      </div>
+    </CardBase>
+  );
+}
 ```
 
-### Expand/collapse (accordion)
+## ProgressBar
+
+```typescript
+// src/components/ui/progress-bar.tsx
+export function ProgressBar({ value }: { value: number }) {
+  return (
+    <div className="h-2 rounded-full bg-zinc-100">
+      <div
+        className="h-2 rounded-full bg-orange-500 transition-all"
+        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+      />
+    </div>
+  );
+}
 ```
-initial={{ height: 0, opacity: 0 }}
-animate={{ height: 'auto', opacity: 1 }}
-exit={{ height: 0, opacity: 0 }}
-transition={{ duration: 0.25, ease: 'easeInOut' }}
-// envolver com AnimatePresence e overflow-hidden
+
+## PageHeader
+
+```typescript
+// src/components/layout/page-header.tsx
+import { ShieldCheck, Download, Plus } from 'lucide-react';
+
+interface PageHeaderProps {
+  title: string;
+  subtitle: string;
+  onNew?: () => void;
+  onExport?: () => void;
+  newLabel?: string;
+}
+
+export function PageHeader({ title, subtitle, onNew, onExport, newLabel = 'Novo registro' }: PageHeaderProps) {
+  return (
+    <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-orange-600">
+          <ShieldCheck className="h-4 w-4" /> FREE SAFE
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight text-zinc-950">{title}</h1>
+        <p className="mt-1 text-zinc-500">{subtitle}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {onExport && (
+          <button
+            onClick={onExport}
+            className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50"
+          >
+            <Download className="h-4 w-4" /> Exportar
+          </button>
+        )}
+        {onNew && (
+          <button
+            onClick={onNew}
+            className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-orange-600"
+          >
+            <Plus className="h-4 w-4" /> {newLabel}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 ```
 
-### Microinterações obrigatórias
-- Todo botão: active:scale-[0.98] ou whileTap
-- Todo input: focus:ring-2 focus:ring-orange-500/20
-- Todo card clicável: hover:shadow-md transition-all
-- Toda navegação ativa: transição suave de cor
-- Loading: spinner laranja, nunca travar a tela sem feedback
+## LoadingSpinner
 
-## Estados vazios (empty states)
+```typescript
+// src/components/ui/loading-spinner.tsx
+export function LoadingSpinner({ label = 'Carregando...' }: { label?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
+      <p className="text-sm text-zinc-500">{label}</p>
+    </div>
+  );
+}
+```
 
-Sempre com ícone grande (h-10 w-10) em container circular zinc-50,
-título em zinc-700 e descrição em zinc-500, opcionalmente um botão de ação.
+## ErrorState
 
-## Sidebar — refinamento
+```typescript
+// src/components/ui/error-state.tsx
+import { AlertTriangle } from 'lucide-react';
 
-- Ícones h-5 w-5 (não h-4 w-4)
-- Item ativo: bg-orange-500 com leve glow (shadow-lg shadow-orange-500/20)
-- Hover de item inativo: bg-white/10 com transição suave
-- Espaçamento entre itens: space-y-1
-- Agrupar itens por categoria com labels pequenos (opcional)
+export function ErrorState({ message = 'Erro ao carregar dados.' }: { message?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-red-600">
+      <AlertTriangle className="h-10 w-10" />
+      <p className="text-sm font-medium">{message}</p>
+    </div>
+  );
+}
+```
 
-## Regras gerais que o Codex deve seguir
+## EmptyState
 
-1. NUNCA usar ícones menores que h-4 w-4; padrão de navegação e seção é h-5 w-5
-2. Títulos de página são text-2xl (não text-3xl), com tracking-tight
-3. Todo input recebe focus:ring-2 focus:ring-orange-500/20
-4. Todo botão recebe feedback de clique (active:scale ou whileTap)
-5. Cards clicáveis recebem hover:shadow-md transition-all
-6. Usar tabular-nums em números e KPIs
-7. Manter a base neutra zinc + laranja de marca; não introduzir cores novas
-8. Ícones de destaque vão em container com fundo (bg-orange-50, p-2, rounded-xl)
-9. Preservar toda a lógica e funcionalidade — mexer apenas em classes visuais e animação
-10. Consistência de raio: cards rounded-2xl, controles rounded-xl, badges rounded-full
+```typescript
+// src/components/ui/empty-state.tsx
+import type { LucideIcon } from 'lucide-react';
 
-> 
+interface EmptyStateProps {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}
+
+export function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps) {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-zinc-400">
+      <Icon className="h-12 w-12" />
+      <p className="text-lg font-semibold text-zinc-600">{title}</p>
+      <p className="text-sm text-center max-w-xs">{description}</p>
+      {action}
+    </div>
+  );
+}
+```
+
+## ResultadoRAQ — componente de resultado da análise
+
+```typescript
+// src/components/raq/resultado-raq.tsx
+import { CheckCircle2, AlertTriangle } from 'lucide-react';
+
+interface ResultadoRAQProps {
+  aprovado: boolean;
+  produto: string;
+  isEtanol: boolean;
+  isGasolina: boolean;
+}
+
+export function ResultadoRAQ({ aprovado, produto, isEtanol, isGasolina }: ResultadoRAQProps) {
+  return (
+    <div className={`rounded-2xl p-4 ${aprovado ? 'bg-emerald-500/15 text-emerald-200' : 'bg-red-500/15 text-red-200'}`}>
+      <div className="flex items-center gap-2 font-bold">
+        {aprovado
+          ? <CheckCircle2 className="h-5 w-5" />
+          : <AlertTriangle className="h-5 w-5" />
+        }
+        {aprovado ? 'Aprovado' : 'Reprovado'}
+      </div>
+      <p className="mt-1 text-sm">
+        {isEtanol
+          ? aprovado
+            ? 'Teor alcoólico dentro da faixa configurada de 92,5 a 95,4 INPM.'
+            : 'Teor alcoólico fora da faixa configurada.'
+          : isGasolina
+          ? aprovado
+            ? 'Teor de etanol e aspecto/cor dentro dos parâmetros.'
+            : 'Verificar teor de etanol, aspecto ou cor.'
+          : aprovado
+          ? 'Densidade dentro dos parâmetros ANP.'
+          : 'Densidade fora dos parâmetros ANP.'}
+      </p>
+    </div>
+  );
+}
+```
+
+## Regras que o Codex deve seguir nos componentes
+
+1. Todo componente exporta como named export (`export function X`) — nunca default em componentes reutilizáveis
+2. Props tipadas com interface explícita
+3. Classes Tailwind sem interpolação de string dinâmica — use objetos de mapeamento (como `toneClasses`)
+4. Loading state sempre com o spinner laranja (`border-orange-500`)
+5. Sem `console.log` em componentes de produção
+6. Componentes de UI puros (sem fetch) ficam em `src/components/ui/`
+7. Componentes com dados de domínio ficam em `src/components/{modulo}/`
+8. Nunca usar `style={{ color: 'orange' }}` — sempre classes Tailwind
+
+
+
+# SKILL: Auditoria e Log de Ações — FREE SAFE
+
+Skill de contexto para o Codex implementar e manter o sistema de auditoria do FREE SAFE de forma **consistente** em todos os módulos. Auditoria é requisito de compliance: todo sistema vendido para controle de postos precisa responder "quem fez o quê, quando e em qual posto".
+
+> **Princípio central:** a auditoria NUNCA bloqueia a operação. Se o registro de log falhar, a ação principal já aconteceu e não deve ser revertida. Log é efeito colateral, não pré-condição.
+
+---
+
+## 1. Arquitetura (segue a hexagonal do projeto)
+
+```
+domain/
+  entities/audit-log.entity.ts          → entidade + tipos de ação/recurso
+  ports/audit-log.repository.ts          → porta (interface) do repositório
+application/
+  shared/audit.ts                        → serviço central registrarAuditoria()
+infrastructure/
+  database/prisma/repositories/audit-log.prisma-repository.ts
+interface (rotas):
+  app/api/auditoria/route.ts             → GET lista filtrável (só ADMIN)
+  app/api/auditoria/export/route.ts      → PDF/Excel (opcional, fase posterior)
+```
+
+Registro via `container.ts` (factory functions), igual aos outros repositórios.
+
+---
+
+## 2. Schema Prisma
+
+Adicionar ao `prisma/schema.prisma`:
+
+```prisma
+enum AuditAcao {
+  CRIAR
+  EDITAR
+  EXCLUIR
+  LOGIN
+  LOGOUT
+  EXPORTAR
+}
+
+enum AuditRecurso {
+  AFERICAO
+  BOMBA
+  RAQ
+  DOCUMENTO
+  COLABORADOR
+  USUARIO
+  CURSO
+  CERTIFICADO
+  CATEGORIA
+}
+
+model AuditLog {
+  id          String       @id @default(uuid())
+  usuarioId   String?      @map("usuario_id")        // quem fez (null se sistema)
+  usuarioNome String       @map("usuario_nome") @db.VarChar(150) // snapshot do nome
+  usuarioEmail String      @map("usuario_email") @db.VarChar(200) // snapshot
+  perfil      String       @db.VarChar(30)           // snapshot do perfil
+  acao        AuditAcao
+  recurso     AuditRecurso
+  entidadeId  String?      @map("entidade_id")       // id do registro afetado
+  postoId     String?      @map("posto_id")          // posto afetado
+  descricao   String       @db.VarChar(300)          // texto legível: "Excluiu aferição do bico 3"
+  detalhes    String?      @db.Text                  // JSON serializado opcional (antes/depois)
+  ip          String?      @db.VarChar(60)
+  criadoEm    DateTime     @default(now()) @map("criado_em")
+
+  @@index([postoId, criadoEm])
+  @@index([usuarioId, criadoEm])
+  @@index([recurso, acao])
+  @@map("audit_logs")
+}
+```
+
+**Notas importantes:**
+- `usuarioNome/Email/perfil` são **snapshots** (texto), não relações. Assim o log sobrevive mesmo se o usuário for editado/desativado depois. Auditoria é histórico imutável.
+- `entidadeId` e `postoId` são `String?` porque algumas ações não têm posto (ex: login).
+- `detalhes` em `@db.Text` (não VarChar) — pode guardar JSON grande sem erro P2000.
+- Índices cobrem as três consultas mais comuns: por posto+data, por usuário+data, por tipo.
+
+Após adicionar: rodar `npx prisma migrate dev --name add_audit_log` + `npx prisma generate` + reiniciar servidor (o Anthony roda manualmente; o Codex NÃO roda node/npm).
+
+---
+
+## 3. Entidade e porta
+
+`src/domain/entities/audit-log.entity.ts`:
+```ts
+export type AuditAcao = 'CRIAR' | 'EDITAR' | 'EXCLUIR' | 'LOGIN' | 'LOGOUT' | 'EXPORTAR';
+export type AuditRecurso =
+  | 'AFERICAO' | 'BOMBA' | 'RAQ' | 'DOCUMENTO' | 'COLABORADOR'
+  | 'USUARIO' | 'CURSO' | 'CERTIFICADO' | 'CATEGORIA';
+
+export interface AuditLog {
+  id: string;
+  usuarioId?: string | null;
+  usuarioNome: string;
+  usuarioEmail: string;
+  perfil: string;
+  acao: AuditAcao;
+  recurso: AuditRecurso;
+  entidadeId?: string | null;
+  postoId?: string | null;
+  descricao: string;
+  detalhes?: string | null;
+  ip?: string | null;
+  criadoEm: Date;
+}
+```
+
+`src/domain/ports/audit-log.repository.ts`:
+```ts
+import type { AuditLog } from '../entities/audit-log.entity';
+
+export interface RegistrarAuditoriaInput {
+  usuarioId?: string | null;
+  usuarioNome: string;
+  usuarioEmail: string;
+  perfil: string;
+  acao: AuditLog['acao'];
+  recurso: AuditLog['recurso'];
+  entidadeId?: string | null;
+  postoId?: string | null;
+  descricao: string;
+  detalhes?: string | null;
+  ip?: string | null;
+}
+
+export interface ListarAuditoriaFiltro {
+  postoId?: string;
+  usuarioId?: string;
+  recurso?: AuditLog['recurso'];
+  acao?: AuditLog['acao'];
+  dataInicio?: Date;
+  dataFim?: Date;
+  limite?: number;
+  offset?: number;
+}
+
+export interface AuditLogRepository {
+  registrar(input: RegistrarAuditoriaInput): Promise<void>;
+  listar(filtro: ListarAuditoriaFiltro): Promise<{ itens: AuditLog[]; total: number }>;
+}
+```
+
+---
+
+## 4. Serviço central (o coração da skill)
+
+`src/application/shared/audit.ts`:
+```ts
+import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
+import type { RegistrarAuditoriaInput } from '@/domain/ports/audit-log.repository';
+import { auditLogRepository } from '@/lib/container';
+
+type RegistrarParams = {
+  usuario: UsuarioAutenticado;
+  acao: RegistrarAuditoriaInput['acao'];
+  recurso: RegistrarAuditoriaInput['recurso'];
+  descricao: string;
+  entidadeId?: string | null;
+  postoId?: string | null;
+  detalhes?: unknown;          // objeto será serializado
+  ip?: string | null;
+};
+
+/**
+ * Registra uma ação no log de auditoria.
+ * NUNCA lança erro para o chamador: se o log falhar, apenas loga no console.
+ * A ação principal do usuário não pode ser revertida por falha de auditoria.
+ */
+export async function registrarAuditoria(params: RegistrarParams): Promise<void> {
+  try {
+    await auditLogRepository().registrar({
+      usuarioId: params.usuario.id,
+      usuarioNome: params.usuario.nome,
+      usuarioEmail: params.usuario.email,
+      perfil: params.usuario.perfil,
+      acao: params.acao,
+      recurso: params.recurso,
+      entidadeId: params.entidadeId ?? null,
+      postoId: params.postoId ?? null,
+      descricao: params.descricao,
+      detalhes: params.detalhes ? JSON.stringify(params.detalhes) : null,
+      ip: params.ip ?? null,
+    });
+  } catch (error) {
+    console.error('[auditoria] falha ao registrar log:', error);
+    // silencioso de propósito — não relança
+  }
+}
+```
+
+---
+
+## 5. Como integrar nos use cases (PADRÃO OBRIGATÓRIO)
+
+Chamar `registrarAuditoria` **DEPOIS** da operação ter sucesso, **antes** de retornar. Usar `await` mas lembrar que o serviço nunca lança.
+
+Exemplo em `delete-afericao.use-case.ts`:
+```ts
+async execute(input: DeleteAfericaoInput): Promise<void> {
+  const afericao = await this.afericaoRepo.buscarPorId(input.afericaoId);
+  if (!afericao) throw new NotFoundError('Aferição não encontrada');
+
+  autorizar(input.usuario, 'inmetro', 'excluir', afericao.postoId);
+
+  await this.afericaoRepo.excluir(input.afericaoId);
+
+  // AUDITORIA — sempre depois do sucesso
+  await registrarAuditoria({
+    usuario: input.usuario,
+    acao: 'EXCLUIR',
+    recurso: 'AFERICAO',
+    entidadeId: input.afericaoId,
+    postoId: afericao.postoId,
+    descricao: `Excluiu aferição do bico ${afericao.bico} (bomba ${afericao.bomba})`,
+    detalhes: { resultadoMl: afericao.resultadoMl, situacao: afericao.situacao },
+  });
+}
+```
+
+**Descrições devem ser legíveis por humano não-técnico** (é o cliente que vai ler):
+- ✅ "Criou documento 'Alvará 2026' na categoria Licenças"
+- ✅ "Desativou o usuário João Silva (gerente)"
+- ❌ "POST /api/documentos id=abc-123"
+
+### Ações que DEVEM ser auditadas (mínimo para 1.0):
+| Recurso | Ações |
+|---|---|
+| AFERICAO | CRIAR (lote), EXCLUIR (individual e lote) |
+| RAQ | CRIAR, EXCLUIR |
+| DOCUMENTO | CRIAR, EXCLUIR |
+| COLABORADOR | CRIAR, EDITAR, EXCLUIR |
+| USUARIO | CRIAR, EDITAR (perfil/posto/senha), EXCLUIR (desativar) |
+| BOMBA | CRIAR, EXCLUIR, CONFIGURAR |
+| CERTIFICADO | EXPORTAR (emissão) |
+
+Leituras (GET/listagens) **não** são auditadas no 1.0 — geraria ruído. Só ações que mudam estado.
+
+---
+
+## 6. Repositório Prisma
+
+`src/infrastructure/database/prisma/repositories/audit-log.prisma-repository.ts`:
+- `registrar`: simples `db.auditLog.create({ data })`.
+- `listar`: monta `where` dinâmico a partir do filtro (postoId, usuarioId, recurso, acao, criadoEm com gte/lte), ordena por `criadoEm desc`, aplica `take`/`skip` (paginação), retorna `{ itens, total }` com `db.auditLog.count` para o total.
+- Default de `limite`: 50. Nunca retornar tudo sem paginação.
+
+---
+
+## 7. Rota de consulta (só ADMIN)
+
+`src/app/api/auditoria/route.ts`:
+- `GET` com query params: `postoId`, `usuarioId`, `recurso`, `acao`, `dataInicio`, `dataFim`, `pagina`.
+- Autoriza com `autorizar(usuario, 'auditorias', 'ver')` — só ADMIN tem na matriz.
+- Use case `ListAuditoriaUseCase` aplica o filtro e retorna `{ data: { itens, total, pagina } }`.
+- Validação Zod dos params.
+
+---
+
+## 8. Tela de auditoria
+
+`src/app/(dashboard)/auditoria/page.tsx` (ou reusar a aba "Auditorias" da sidebar):
+- Protegida com `<RouteGuard recurso="auditorias">` (só ADMIN).
+- Visual clean do design system (cabeçalho card branco, faixa de filtros orange-50/50).
+- Filtros: posto, usuário, tipo de recurso, tipo de ação, intervalo de datas.
+- Lista/tabela: data-hora, usuário (nome+perfil em badge), ação (badge colorido por tipo), recurso, descrição legível, posto.
+- Cores por ação: CRIAR (emerald), EDITAR (amber), EXCLUIR (red), LOGIN/LOGOUT (zinc), EXPORTAR (blue).
+- Paginação no rodapé.
+- Hook `use-auditoria.ts` com React Query, queryKey `['auditoria', filtros]`.
+
+---
+
+## 9. Captura de IP (opcional, melhora a auditoria)
+
+Nas rotas, extrair o IP do header e passar para o use case:
+```ts
+const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  ?? request.headers.get('x-real-ip') ?? null;
+```
+Passar `ip` no input do use case e repassar a `registrarAuditoria`. Se não quiser no 1.0, deixar `null` — o campo já é opcional.
+
+---
+
+## 10. Checklist de implementação
+
+1. [ ] Schema: enums + model AuditLog + índices
+2. [ ] Migration `add_audit_log` (Anthony roda)
+3. [ ] Entidade + porta
+4. [ ] Repositório Prisma + registrar no container
+5. [ ] Serviço `registrarAuditoria` (nunca lança)
+6. [ ] Integrar nas ações da tabela do item 5 (criar/excluir/editar)
+7. [ ] Rota GET /api/auditoria (só ADMIN) + use case de listagem
+8. [ ] Tela de auditoria com filtros + paginação
+9. [ ] (Opcional) captura de IP
+10. [ ] (Fase posterior) export PDF/Excel do log
+
+---
+
+## 11. Erros recorrentes a evitar
+
+- **NÃO** fazer `registrarAuditoria` lançar erro — quebra a operação principal.
+- **NÃO** usar VarChar em `detalhes` — JSON estoura; usar `@db.Text`.
+- **NÃO** auditar leituras (GET) — só mudanças de estado.
+- **NÃO** usar relação Prisma para o usuário do log — usar snapshots de texto (histórico imutável).
+- **SEMPRE** registrar DEPOIS do sucesso da operação, nunca antes.
+- Após migration: `npx prisma generate` + reiniciar servidor, senão "Unknown argument" / enum não reconhecido.
+
+

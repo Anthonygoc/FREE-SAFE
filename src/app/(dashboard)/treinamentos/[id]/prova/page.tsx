@@ -251,7 +251,7 @@ export default function ProvaCursoPage() {
             <p className="mt-1 text-zinc-500">Responda todas as questões para enviar a tentativa.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {resultadoAnterior ? (
+            {resultadoAnterior?.tentativas != null ? (
               <BadgeStatus
                 label={`${resultadoAnterior.tentativas} tentativa(s) · melhor nota ${resultadoAnterior.melhorNota}%`}
                 tone={resultadoAnterior.aprovado ? 'green' : 'yellow'}

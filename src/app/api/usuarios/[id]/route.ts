@@ -13,6 +13,7 @@ const paramsSchema = z.object({
 
 const updateUsuarioSchema = z.object({
   nome: z.string().trim().min(1).max(150).optional(),
+  email: z.string().trim().email().max(200).optional(),
   perfil: z.enum(['ADMIN', 'GERENTE', 'ADMINISTRATIVO']).optional(),
   postoId: z.string().uuid().optional(),
   ativo: z.boolean().optional(),
@@ -40,6 +41,7 @@ function hasOnlyAtivoField(data: z.infer<typeof updateUsuarioSchema>) {
   return (
     data.ativo !== undefined
     && data.nome === undefined
+    && data.email === undefined
     && data.perfil === undefined
     && data.postoId === undefined
     && data.novaSenha === undefined

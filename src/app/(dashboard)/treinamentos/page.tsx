@@ -57,8 +57,8 @@ export default function TreinamentosPage() {
       <RouteGuard recurso="cursos">
         <div className="space-y-6">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Cursos e Treinamentos</h1>
-            <p className="mt-1 text-zinc-500">Acompanhe os cursos obrigatórios e o progresso da equipe.</p>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Treinamentos</h1>
+            <p className="mt-1 text-zinc-500">Cursos e progresso da equipe.</p>
           </div>
           <CardBase>
             <EmptyState
@@ -76,8 +76,8 @@ export default function TreinamentosPage() {
     <RouteGuard recurso="cursos">
       <div className="space-y-6">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Cursos e Treinamentos</h1>
-        <p className="mt-1 text-zinc-500">Acesse os conteúdos, acompanhe o progresso e realize as provas.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Treinamentos</h1>
+        <p className="mt-1 text-zinc-500">Cursos e progresso da equipe.</p>
       </motion.div>
 
       <motion.div

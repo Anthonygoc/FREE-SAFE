@@ -129,12 +129,14 @@ export class UserPrismaRepository implements UserRepository {
       where: { id: user.id },
       data: {
         nome: user.nome,
+        email: user.email,
         senhaHash: user.senhaHash,
         resetToken: user.resetToken,
         resetTokenExpiraEm: user.resetTokenExpiraEm,
         perfil: user.perfil,
         postoId: user.postoId,
         ativo: user.ativo,
+        atualizadoEm: user.atualizadoEm,
       },
     });
   }

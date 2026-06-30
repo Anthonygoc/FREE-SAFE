@@ -188,6 +188,10 @@ export default function UsuariosPage() {
       novosErros.nome = 'Informe o nome do usuário.';
     }
 
+    if (!emailValido(form.email.trim())) {
+      novosErros.email = 'Informe um e-mail válido.';
+    }
+
     if (!form.postoId) {
       novosErros.postoId = 'Selecione um posto.';
     }
@@ -197,10 +201,6 @@ export default function UsuariosPage() {
         novosErros.novaSenha = 'A nova senha deve ter pelo menos 8 caracteres.';
       }
     } else {
-      if (!emailValido(form.email.trim())) {
-        novosErros.email = 'Informe um e-mail válido.';
-      }
-
       if (form.senha.trim().length < 8) {
         novosErros.senha = 'A senha deve ter pelo menos 8 caracteres.';
       }
@@ -221,6 +221,7 @@ export default function UsuariosPage() {
       const input: UpdateUsuarioInput = {
         id: usuarioEditando.id,
         nome: form.nome.trim(),
+        email: form.email.trim(),
         perfil: form.perfil,
         postoId: form.postoId,
       };
@@ -301,9 +302,9 @@ export default function UsuariosPage() {
                 <p className="text-sm font-semibold text-orange-600">FREE SAFE</p>
               </div>
               <div className="space-y-1">
-                <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Gestão de Usuários</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-zinc-950">Usuários</h1>
                 <p className="max-w-3xl text-sm text-zinc-500">
-                  Controle os acessos operacionais da rede, distribua perfis e mantenha cada usuário vinculado ao posto correto.
+                  Acessos, perfis e vínculo com posto.
                 </p>
               </div>
             </div>
@@ -501,20 +502,20 @@ export default function UsuariosPage() {
                       <FieldError>{erros.nome}</FieldError>
                     </div>
 
+                    <div>
+                      <FieldLabel>E-mail</FieldLabel>
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={(e) => atualizarCampo('email', e.target.value)}
+                        className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                        placeholder="usuario@empresa.com.br"
+                      />
+                      <FieldError>{erros.email}</FieldError>
+                    </div>
+
                     {!usuarioEditando ? (
                       <>
-                        <div>
-                          <FieldLabel>E-mail</FieldLabel>
-                          <input
-                            type="email"
-                            value={form.email}
-                            onChange={(e) => atualizarCampo('email', e.target.value)}
-                            className="h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-                            placeholder="usuario@empresa.com.br"
-                          />
-                          <FieldError>{erros.email}</FieldError>
-                        </div>
-
                         <div>
                           <FieldLabel>Senha</FieldLabel>
                           <input
@@ -584,7 +585,7 @@ export default function UsuariosPage() {
                       <div>
                         <p className="text-sm font-semibold text-zinc-900">Controle administrativo</p>
                         <p className="mt-1 text-sm text-zinc-600">
-                          Apenas administradores podem criar, editar ou desativar usuários operacionais.
+                          Apenas administradores gerenciam usuários.
                         </p>
                       </div>
                     </div>
