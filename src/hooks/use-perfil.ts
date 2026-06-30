@@ -21,6 +21,11 @@ export interface UpdateMeuPerfilInput {
   email?: string;
 }
 
+export interface AlterarMinhaSenhaInput {
+  senhaAtual: string;
+  novaSenha: string;
+}
+
 export function useMeuPerfil() {
   return useQuery({
     queryKey: ['perfil'],
@@ -54,6 +59,19 @@ export function useUpdateMeuPerfil() {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : 'Erro ao atualizar perfil.');
+    },
+  });
+}
+
+export function useAlterarMinhaSenha() {
+  return useMutation({
+    mutationFn: (input: AlterarMinhaSenhaInput) =>
+      apiClient.patch<{ sucesso: boolean }>('/api/perfil/senha', input),
+    onSuccess: () => {
+      toast.success('Senha alterada com sucesso.');
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Erro ao alterar senha.');
     },
   });
 }

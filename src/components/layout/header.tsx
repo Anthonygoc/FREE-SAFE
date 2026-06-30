@@ -60,9 +60,13 @@ export function Header() {
 
         <div className="flex items-center gap-2">
           <NotificationBell />
-          <button className="rounded-xl border border-zinc-200 bg-white p-2.5 text-zinc-600 transition-all hover:bg-zinc-100 active:scale-95">
+          <Link
+            href="/perfil"
+            aria-label="Configurações"
+            className="inline-flex items-center justify-center rounded-xl border border-zinc-200 bg-white p-2.5 text-zinc-600 transition-all hover:bg-zinc-100 active:scale-95"
+          >
             <Settings className="h-5 w-5" />
-          </button>
+          </Link>
           <div ref={menuRef} className="relative">
             <button
               type="button"
