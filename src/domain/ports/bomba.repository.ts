@@ -20,7 +20,9 @@ export interface Bomba {
 }
 
 export interface BombaComBicos extends Bomba {
-  bicos: Bico[];
+  bicos: Array<Bico & {
+    numeroSequencial: number;
+  }>;
 }
 
 export interface AtualizarBombaData {

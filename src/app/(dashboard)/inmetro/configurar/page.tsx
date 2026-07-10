@@ -128,6 +128,19 @@ function buildNovoBicoDraftState(bombas: BombaComBicos[] | undefined): NovoBicoD
   return nextState;
 }
 
+function getProximoNumeroSequencialPosto(bombas: BombaComBicos[] | undefined) {
+  const ultimoNumeroSequencial = (bombas ?? []).reduce((max, bomba) => {
+    const maxDaBomba = bomba.bicos.reduce(
+      (bombaMax, bico) => Math.max(bombaMax, bico.numeroSequencial),
+      0,
+    );
+
+    return Math.max(max, maxDaBomba);
+  }, 0);
+
+  return ultimoNumeroSequencial + 1;
+}
+
 export default function ConfigurarBombasPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -174,6 +187,10 @@ export default function ConfigurarBombasPage() {
   const postoSelecionado = useMemo(
     () => (postos ?? []).find((posto) => posto.id === postoId),
     [postoId, postos],
+  );
+  const proximoNumeroSequencialPosto = useMemo(
+    () => getProximoNumeroSequencialPosto(bombas),
+    [bombas],
   );
 
   if (status === "loading" || loadingPostos) {
@@ -504,7 +521,7 @@ export default function ConfigurarBombasPage() {
 
                         return (
                           <tr key={bico.id}>
-                            <td className="px-4 py-3 font-medium text-zinc-900">{`Bico ${formatarNumero(bico.numero)}`}</td>
+                            <td className="px-4 py-3 font-medium text-zinc-900">{`Bico ${formatarNumero(bico.numeroSequencial)}`}</td>
                             <td className="px-4 py-3">
                               <select
                                 value={draft.produto}
@@ -560,7 +577,7 @@ export default function ConfigurarBombasPage() {
                       })}
 
                       <tr className="bg-orange-50/40">
-                        <td className="px-4 py-3 font-medium text-zinc-900">{`Bico ${formatarNumero(nextNumero)}`}</td>
+                        <td className="px-4 py-3 font-medium text-zinc-900">{`Bico ${formatarNumero(proximoNumeroSequencialPosto)}`}</td>
                         <td className="px-4 py-3">
                           <select
                             value={novoBico.produto}

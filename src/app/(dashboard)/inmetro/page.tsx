@@ -229,7 +229,7 @@ export default function InmetroPage() {
         bicoId: bico.id,
         produto: bico.produto,
         bomba: bomba.numero,
-        bico: bico.numero,
+        bico: bico.numeroSequencial,
         resultadoMl,
         observacoes: entry?.observacoes?.trim() || undefined,
         fotoUrl: entry?.fotoUrl,
@@ -528,7 +528,7 @@ export default function InmetroPage() {
                                         <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 md:hidden">Bico</span>
                                         <div className="flex items-center">
                                           <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-xs font-bold text-zinc-700">
-                                            {formatarNumero(bico.numero)}
+                                            {formatarNumero(bico.numeroSequencial)}
                                           </span>
                                         </div>
                                       </div>
@@ -583,7 +583,7 @@ export default function InmetroPage() {
                                             >
                                               <Image
                                                 src={entry.fotoUrl}
-                                                alt={`Foto da aferição do bico ${bico.numero}`}
+                                                alt={`Foto da aferição do bico ${bico.numeroSequencial}`}
                                                 width={40}
                                                 height={40}
                                                 unoptimized

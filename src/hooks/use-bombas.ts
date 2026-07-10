@@ -20,6 +20,7 @@ export interface BombaComBicos {
   bicos: Array<{
     id: string;
     numero: number;
+    numeroSequencial: number;
     produto: ProdutoCombustivel;
     capacidade?: number;
   }>;

@@ -61,10 +61,14 @@ export class BombaPrismaRepository implements BombaRepository {
       },
       orderBy: { numero: 'asc' },
     });
+    let numeroSequencial = 1;
 
     return rows.map((row) => ({
       ...mapBomba(row),
-      bicos: row.bicos.map(mapBico),
+      bicos: row.bicos.map((bico) => ({
+        ...mapBico(bico),
+        numeroSequencial: numeroSequencial++,
+      })),
     }));
   }
 
