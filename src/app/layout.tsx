@@ -20,6 +20,19 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "FREE SAFE — Plataforma de Qualidade e Conformidade",
   description: "Treinamento, qualidade e conformidade para postos da Rede Free",
+  metadataBase: new URL("https://postos-free-safe.com.br"),
+  applicationName: "FREE SAFE",
+  icons: {
+    icon: "/icon.svg",
+  },
+  openGraph: {
+    title: "FREE SAFE — Plataforma de Qualidade e Conformidade",
+    description: "Treinamento, qualidade e conformidade para postos da Rede Free",
+    url: "https://postos-free-safe.com.br",
+    siteName: "FREE SAFE",
+    locale: "pt_BR",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
