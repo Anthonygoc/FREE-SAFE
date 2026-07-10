@@ -5,6 +5,7 @@ import { autorizar } from '@/application/shared/authorize';
 import { DomainError } from '@/domain/errors/domain.errors';
 import type { PostoRepository } from '@/domain/ports/posto.repository';
 import type { RAQRepository } from '@/domain/ports/raq.repository';
+import { formatAspecto, formatCor } from '@/lib/especificacoes-raq';
 
 export interface EmitRAQXlsxInput {
   usuario: UsuarioAutenticado;
@@ -92,8 +93,8 @@ export class EmitRAQXlsxUseCase {
       ['NOME DO ANALISTA:', raq.nomeAnalista ?? ''],
       ['', ''],
       ['RESULTADO DA ANÁLISE', ''],
-      ['ASPECTO:', formatAspecto(raq.aspecto)],
-      ['COR:', formatCor(raq.cor)],
+      ['ASPECTO:', formatAspecto(raq.aspecto, raq.produto)],
+      ['COR:', formatCor(raq.cor, raq.produto)],
       ['DENSIDADE RELATIVA:', formatDecimal(raq.densidadeObservada)],
       ['TEMPERATURA:', formatDecimal(raq.temperaturaObservada)],
       ['MASSA ESPECÍFICA A 20°C:', formatDecimal(raq.massa20c)],
@@ -223,20 +224,6 @@ function formatProduto(produto: string): string {
   };
 
   return labels[produto] ?? produto;
-}
-
-function formatAspecto(aspecto: string): string {
-  const labels: Record<string, string> = {
-    LIQUIDO_E_ISENTO: 'Líquido e Isento',
-    TURVO: 'Turvo',
-    COM_IMPUREZAS: 'Com Impurezas',
-  };
-
-  return labels[aspecto] ?? aspecto;
-}
-
-function formatCor(cor: string): string {
-  return cor === 'CARACTERISTICA' ? 'Característica' : 'Alterada';
 }
 
 function formatDate(date: Date): string {

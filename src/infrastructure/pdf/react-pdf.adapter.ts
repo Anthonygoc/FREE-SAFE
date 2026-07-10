@@ -14,6 +14,7 @@ import {
 import type { RAQ } from '@/domain/entities/raq.entity';
 import type { PDFPort } from '@/domain/ports/pdf.port';
 import type { Posto } from '@/domain/ports/posto.repository';
+import { formatAspecto, formatCor } from '@/lib/especificacoes-raq';
 
 const styles = StyleSheet.create({
   page: {
@@ -187,11 +188,11 @@ export class ReactPDFAdapter implements PDFPort {
           { title: 'RESULTADO DA ANÁLISE' },
           React.createElement(FieldRow, {
             label: 'ASPECTO',
-            value: formatAspecto(raq.aspecto),
+            value: formatAspecto(raq.aspecto, raq.produto),
           }),
           React.createElement(FieldRow, {
             label: 'COR',
-            value: formatCor(raq.cor),
+            value: formatCor(raq.cor, raq.produto),
           }),
           React.createElement(FieldRow, {
             label: 'DENSIDADE RELATIVA',
@@ -279,20 +280,6 @@ function formatProduto(produto: string): string {
   };
 
   return labels[produto] ?? produto;
-}
-
-function formatAspecto(aspecto: string): string {
-  const labels: Record<string, string> = {
-    LIQUIDO_E_ISENTO: 'Líquido e Isento',
-    TURVO: 'Turvo',
-    COM_IMPUREZAS: 'Com Impurezas',
-  };
-
-  return labels[aspecto] ?? aspecto;
-}
-
-function formatCor(cor: string): string {
-  return cor === 'CARACTERISTICA' ? 'Característica' : 'Alterada';
 }
 
 function formatDate(date: Date): string {

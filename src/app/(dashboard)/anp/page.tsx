@@ -11,6 +11,7 @@ import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus, CardBase, IconBadge, InputBase, LoadingSpinner, SelectBase } from '@/components/ui';
 import { usePostos } from '@/hooks/use-postos';
 import { useCreateRAQ, useRAQsByPosto, type RAQFiltros } from '@/hooks/use-raq';
+import { formatAspecto, formatCor } from '@/lib/especificacoes-raq';
 
 const readOnlyInputClassName =
   'bg-zinc-100 text-zinc-500';
@@ -436,16 +437,16 @@ export default function AnpPage() {
                 <div>
                   <label className="mb-1 block text-sm font-medium text-zinc-700">Aspecto</label>
                   <SelectBase {...register('aspecto')} className="h-10 border-zinc-300">
-                    <option value="LIQUIDO_E_ISENTO">Líquido e isento</option>
-                    <option value="TURVO">Turvo</option>
-                    <option value="COM_IMPUREZAS">Com impurezas</option>
+                    <option value="LIQUIDO_E_ISENTO">{formatAspecto('LIQUIDO_E_ISENTO', produto)}</option>
+                    <option value="TURVO">{formatAspecto('TURVO', produto)}</option>
+                    <option value="COM_IMPUREZAS">{formatAspecto('COM_IMPUREZAS', produto)}</option>
                   </SelectBase>
                 </div>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-zinc-700">Cor</label>
                   <SelectBase {...register('cor')} className="h-10 border-zinc-300">
-                    <option value="CARACTERISTICA">Característica</option>
-                    <option value="ALTERADA">Alterada</option>
+                    <option value="CARACTERISTICA">{formatCor('CARACTERISTICA', produto)}</option>
+                    <option value="ALTERADA">{formatCor('ALTERADA', produto)}</option>
                   </SelectBase>
                 </div>
                 <div>
