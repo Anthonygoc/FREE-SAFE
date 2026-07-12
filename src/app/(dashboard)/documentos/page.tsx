@@ -58,9 +58,26 @@ const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-function abrirArquivo(dataUrl: string) {
+function abrirArquivo(arquivoUrl: string) {
   try {
-    const [header, base64] = dataUrl.split(',');
+    if (/^https?:\/\//i.test(arquivoUrl)) {
+      window.open(arquivoUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    if (!arquivoUrl.startsWith('data:')) {
+      console.warn('Formato de arquivoUrl inesperado ao abrir documento:', arquivoUrl);
+
+      try {
+        window.open(arquivoUrl, '_blank', 'noopener,noreferrer');
+        return;
+      } catch {
+        toast.error('Não foi possível abrir o arquivo.');
+        return;
+      }
+    }
+
+    const [header, base64] = arquivoUrl.split(',');
     const mimeMatch = header.match(/data:(.*?);/);
     const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
 
@@ -76,7 +93,8 @@ function abrirArquivo(dataUrl: string) {
 
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   } catch (error) {
-    console.error('Erro ao abrir arquivo:', error);
+    console.error('Erro ao abrir documento:', error);
+    toast.error('Não foi possível abrir o documento.');
   }
 }
 
