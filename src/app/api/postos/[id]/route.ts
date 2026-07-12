@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
 import { AuthenticationError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
+import { isCnpjLengthValid, normalizeCnpj } from '@/lib/cnpj';
 import { getPostoByIdUseCase, updatePostoUseCase } from '@/lib/container';
 import { handleApiError, validationErrorResponse } from '@/lib/handle-api-error';
 
@@ -13,6 +14,20 @@ const paramsSchema = z.object({
 
 const updatePostoSchema = z.object({
   nome: z.string().trim().min(1).max(100).optional(),
+  cnpj: z.preprocess(
+    (value) => {
+      if (value === '' || value === null || value === undefined) {
+        return undefined;
+      }
+
+      if (typeof value !== 'string') {
+        return value;
+      }
+
+      return normalizeCnpj(value);
+    },
+    z.string().refine(isCnpjLengthValid, 'Informe um CNPJ válido com 14 dígitos.').optional(),
+  ),
   razaoSocial: z.string().trim().min(1).max(200).optional(),
   inscricaoEstadual: z.string().trim().max(30).nullish(),
   endereco: z.string().trim().min(1).max(300).optional(),

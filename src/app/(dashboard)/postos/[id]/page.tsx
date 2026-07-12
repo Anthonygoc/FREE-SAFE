@@ -12,7 +12,9 @@ import { z } from 'zod';
 
 import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus, CardBase, FieldError, FieldLabel, IconBadge, InputBase, LoadingSpinner } from '@/components/ui';
+import { useConfirm } from '@/hooks/use-confirm';
 import { usePosto, useUpdatePosto } from '@/hooks/use-postos';
+import { formatCnpj, normalizeCnpj } from '@/lib/cnpj';
 
 const pageAnimation = {
   initial: { opacity: 0, y: 16 },
@@ -22,6 +24,7 @@ const pageAnimation = {
 
 const postoFormSchema = z.object({
   nome: z.string().trim().min(1, 'Informe o nome do posto').max(100, 'Máximo de 100 caracteres'),
+  cnpj: z.string().trim().refine((value) => normalizeCnpj(value).length === 14, 'Informe um CNPJ válido'),
   razaoSocial: z.string().trim().min(1, 'Informe a razão social').max(200, 'Máximo de 200 caracteres'),
   inscricaoEstadual: z.string().trim().max(30, 'Máximo de 30 caracteres'),
   endereco: z.string().trim().min(1, 'Informe o endereço').max(300, 'Máximo de 300 caracteres'),
@@ -56,6 +59,7 @@ export default function PostoDetalhePage() {
   const { data: posto, isLoading, error } = usePosto(postoId);
   const updatePosto = useUpdatePosto();
   const podeEditar = session?.user?.perfil === 'ADMIN';
+  const { confirmar, ConfirmDialogElement } = useConfirm();
 
   const {
     register,
@@ -68,6 +72,7 @@ export default function PostoDetalhePage() {
     resolver: zodResolver(postoFormSchema),
     defaultValues: {
       nome: '',
+      cnpj: '',
       razaoSocial: '',
       inscricaoEstadual: '',
       endereco: '',
@@ -89,6 +94,7 @@ export default function PostoDetalhePage() {
 
     reset({
       nome: posto.nome,
+      cnpj: formatCnpj(posto.cnpj),
       razaoSocial: posto.razaoSocial,
       inscricaoEstadual: posto.inscricaoEstadual ?? '',
       endereco: posto.endereco,
@@ -119,9 +125,26 @@ export default function PostoDetalhePage() {
       return;
     }
 
+    const cnpjOriginal = normalizeCnpj(posto.cnpj);
+    const cnpjAtualizado = normalizeCnpj(values.cnpj);
+
+    if (cnpjAtualizado !== cnpjOriginal) {
+      const ok = await confirmar({
+        titulo: 'Alterar o CNPJ deste posto?',
+        descricao: 'O CNPJ é o identificador fiscal do posto e está vinculado a todo o histórico de aferições, documentos e análises. Altere apenas para corrigir um cadastro incorreto. Esta ação será registrada na auditoria.',
+        severidade: 'destrutivo',
+        textoConfirmar: 'Alterar CNPJ',
+      });
+
+      if (!ok) {
+        return;
+      }
+    }
+
     await updatePosto.mutateAsync({
       id: posto.id,
       nome: values.nome.trim(),
+      cnpj: cnpjAtualizado,
       razaoSocial: values.razaoSocial.trim(),
       inscricaoEstadual: values.inscricaoEstadual.trim() || null,
       endereco: values.endereco.trim(),
@@ -188,6 +211,14 @@ export default function PostoDetalhePage() {
 
   const bloqueado = !podeEditar || updatePosto.isPending;
   const previewAtual = logoPreview || posto.logoUrl || '';
+  const cnpjRegister = register('cnpj', {
+    onChange: (event) => {
+      setValue('cnpj', formatCnpj(event.target.value), {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    },
+  });
 
   return (
     <RouteGuard recurso="postos">
@@ -259,8 +290,19 @@ export default function PostoDetalhePage() {
 
               <div>
                 <FieldLabel htmlFor="cnpj">CNPJ</FieldLabel>
-                <InputBase id="cnpj" value={posto.cnpj} readOnly disabled className={readOnlyInputClassName} />
-                <p className="mt-1 text-xs text-zinc-500">Campo imutável por ser o identificador fiscal único do posto.</p>
+                <InputBase
+                  id="cnpj"
+                  maxLength={18}
+                  {...cnpjRegister}
+                  readOnly={bloqueado}
+                  className={readOnlyInputClassName}
+                />
+                <FieldError>{errors.cnpj?.message}</FieldError>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {podeEditar
+                    ? 'Alterações de CNPJ exigem confirmação e ficam registradas na auditoria.'
+                    : 'Apenas ADMIN pode alterar o CNPJ do posto.'}
+                </p>
               </div>
 
               <div>
@@ -416,6 +458,7 @@ export default function PostoDetalhePage() {
             </CardBase>
           </div>
         </form>
+        {ConfirmDialogElement}
       </motion.div>
     </RouteGuard>
   );

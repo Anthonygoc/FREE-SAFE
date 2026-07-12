@@ -40,6 +40,7 @@ export interface PostoDetalhe {
 export interface UpdatePostoInput {
   id: string;
   nome: string;
+  cnpj: string;
   razaoSocial: string;
   inscricaoEstadual?: string | null;
   endereco: string;
