@@ -4,6 +4,7 @@ export type Recurso =
   | 'inmetro'
   | 'anp'
   | 'bombas'
+  | 'calendario'
   | 'documentos'
   | 'colaboradores'
   | 'cursos'
@@ -24,6 +25,7 @@ const TODOS_OS_RECURSOS: Recurso[] = [
   'inmetro',
   'anp',
   'bombas',
+  'calendario',
   'documentos',
   'colaboradores',
   'cursos',
@@ -48,6 +50,7 @@ export const PERMISSOES: Record<PerfilUsuario, Partial<Record<Recurso, Acao[]>>>
     inmetro: ['ver', 'criar', 'editar', 'excluir', 'configurar'],
     anp: ['ver', 'criar', 'editar', 'excluir'],
     bombas: ['ver', 'criar', 'editar', 'excluir', 'configurar'],
+    calendario: ['ver'],
     documentos: ['ver', 'criar', 'editar', 'excluir'],
     colaboradores: ['ver', 'criar', 'editar', 'excluir'],
     cursos: ['ver', 'criar', 'editar'],

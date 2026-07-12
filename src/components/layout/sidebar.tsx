@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 import {
   Building2,
+  Calendar,
   ClipboardList,
   FlaskConical,
   FolderCheck,
@@ -38,6 +39,7 @@ const navGroups = [
     items: [
       { href: '/anp', label: 'ANP / RAQ', icon: FlaskConical, recurso: 'anp' as Recurso },
       { href: '/inmetro', label: 'INMETRO', icon: Gauge, recurso: 'inmetro' as Recurso },
+      { href: '/calendario', label: 'Calendário', icon: Calendar, recurso: 'calendario' as Recurso },
       { href: '/documentos', label: 'Documentos', icon: FolderCheck, recurso: 'documentos' as Recurso },
     ],
   },
@@ -119,7 +121,9 @@ function SidebarContent({
 
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.href;
+                const isActive = item.href === '/'
+                  ? pathname === item.href
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
                 return (
                   <Link

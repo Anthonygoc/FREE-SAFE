@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import type { AuditLog } from '@/domain/entities/audit-log.entity';
 import type {
   AuditLogRepository,
+  ListarAuditLogPorIntervaloInput,
   ListarAuditoriaFiltro,
   RegistrarAuditoriaInput,
 } from '@/domain/ports/audit-log.repository';
@@ -96,5 +97,20 @@ export class AuditLogPrismaRepository implements AuditLogRepository {
       itens: rows.map(mapAuditLog),
       total,
     };
+  }
+
+  async listarPorIntervalo(input: ListarAuditLogPorIntervaloInput): Promise<AuditLog[]> {
+    const rows = await this.db.auditLog.findMany({
+      where: {
+        ...(input.postoId ? { postoId: input.postoId } : { postoId: { not: null } }),
+        criadoEm: {
+          gte: input.inicio,
+          lte: input.fim,
+        },
+      },
+      orderBy: { criadoEm: 'asc' },
+    });
+
+    return rows.map(mapAuditLog);
   }
 }

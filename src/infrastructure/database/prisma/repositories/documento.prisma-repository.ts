@@ -1,10 +1,15 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 
-import type { Documento, DocumentoComCategoria, DocumentoRepository } from '@/domain/ports/documento.repository';
+import type {
+  Documento,
+  DocumentoComCategoria,
+  DocumentoRepository,
+  ListarDocumentosPorIntervaloVencimentoInput,
+} from '@/domain/ports/documento.repository';
 import { prisma } from '@/lib/prisma';
 
 type DocumentoWithCategoria = Prisma.DocumentoGetPayload<{
-  include: { categoria: true };
+  include: { categoria: true; posto: true };
 }>;
 
 type DocumentoRow = {
@@ -43,6 +48,7 @@ function mapDocumentoComCategoria(raw: DocumentoWithCategoria): DocumentoComCate
     postoId: raw.postoId,
     categoriaId: raw.categoriaId,
     categoriaNome: raw.categoria.nome,
+    postoNome: raw.posto.nome,
     titulo: raw.titulo,
     status: raw.status,
     criadoEm: raw.criadoEm,
@@ -60,7 +66,7 @@ export class DocumentoPrismaRepository implements DocumentoRepository {
   async listarPorPosto(postoId: string): Promise<DocumentoComCategoria[]> {
     const rows = await this.db.documento.findMany({
       where: { postoId },
-      include: { categoria: true },
+      include: { categoria: true, posto: true },
       orderBy: { dataVencimento: 'asc' },
     });
 
@@ -76,7 +82,26 @@ export class DocumentoPrismaRepository implements DocumentoRepository {
       where: {
         dataVencimento: { not: null, lte: limite },
       },
-      include: { categoria: true },
+      include: { categoria: true, posto: true },
+      orderBy: { dataVencimento: 'asc' },
+    });
+
+    return rows.map(mapDocumentoComCategoria);
+  }
+
+  async listarPorIntervaloVencimento(
+    input: ListarDocumentosPorIntervaloVencimentoInput,
+  ): Promise<DocumentoComCategoria[]> {
+    const rows = await this.db.documento.findMany({
+      where: {
+        ...(input.postoId ? { postoId: input.postoId } : {}),
+        dataVencimento: {
+          not: null,
+          gte: input.inicio,
+          lte: input.fim,
+        },
+      },
+      include: { categoria: true, posto: true },
       orderBy: { dataVencimento: 'asc' },
     });
 

@@ -25,7 +25,14 @@ export interface ListarAuditoriaFiltro {
   offset?: number;
 }
 
+export interface ListarAuditLogPorIntervaloInput {
+  postoId?: string;
+  inicio: Date;
+  fim: Date;
+}
+
 export interface AuditLogRepository {
   registrar(input: RegistrarAuditoriaInput): Promise<void>;
   listar(filtro: ListarAuditoriaFiltro): Promise<{ itens: AuditLog[]; total: number }>;
+  listarPorIntervalo(input: ListarAuditLogPorIntervaloInput): Promise<AuditLog[]>;
 }

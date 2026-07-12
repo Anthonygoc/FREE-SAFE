@@ -17,6 +17,9 @@ import { UpdateBombaUseCase } from '@/application/use-cases/bombas/update-bomba.
 import { UpdateBicoUseCase } from '@/application/use-cases/bombas/update-bico.use-case';
 import { CreateCategoriaUseCase } from '@/application/use-cases/categorias/create-categoria.use-case';
 import { ListCategoriasUseCase } from '@/application/use-cases/categorias/list-categorias.use-case';
+import { ListarCalendarioMesUseCase } from '@/application/use-cases/calendario/listar-calendario-mes.use-case';
+import { ListarResumoDiaUseCase } from '@/application/use-cases/calendario/listar-resumo-dia.use-case';
+import { ListarUsuariosCalendarioUseCase } from '@/application/use-cases/calendario/listar-usuarios-calendario.use-case';
 import { GetColaboradorByIdUseCase } from '@/application/use-cases/colaboradores/get-colaborador-by-id.use-case';
 import { AnonimizarColaboradorUseCase } from '@/application/use-cases/colaboradores/anonimizar-colaborador.use-case';
 import { UpdateColaboradorUseCase } from '@/application/use-cases/colaboradores/update-colaborador.use-case';
@@ -219,6 +222,24 @@ export function auditLogRepository(): AuditLogPrismaRepository {
 
 export function listAuditoriaUseCase(): ListAuditoriaUseCase {
   return new ListAuditoriaUseCase(new AuditLogPrismaRepository());
+}
+
+export function listarCalendarioMesUseCase(): ListarCalendarioMesUseCase {
+  return new ListarCalendarioMesUseCase(
+    new AuditLogPrismaRepository(),
+    new DocumentoPrismaRepository(),
+  );
+}
+
+export function listarResumoDiaUseCase(): ListarResumoDiaUseCase {
+  return new ListarResumoDiaUseCase(
+    new AuditLogPrismaRepository(),
+    new DocumentoPrismaRepository(),
+  );
+}
+
+export function listarUsuariosCalendarioUseCase(): ListarUsuariosCalendarioUseCase {
+  return new ListarUsuariosCalendarioUseCase(new UserPrismaRepository());
 }
 
 export function listDocumentosByPostoUseCase(): ListDocumentosByPostoUseCase {
