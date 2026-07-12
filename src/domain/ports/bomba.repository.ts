@@ -20,9 +20,7 @@ export interface Bomba {
 }
 
 export interface BombaComBicos extends Bomba {
-  bicos: Array<Bico & {
-    numeroSequencial: number;
-  }>;
+  bicos: Bico[];
 }
 
 export interface AtualizarBombaData {
@@ -34,7 +32,11 @@ export interface AtualizarBombaData {
 export interface BombaRepository {
   listarPorPosto(postoId: string): Promise<BombaComBicos[]>;
   buscarPorId(id: string): Promise<Bomba | null>;
+  buscarInativaPorNumero(postoId: string, numero: number): Promise<Bomba | null>;
+  contarAfericoes(bombaId: string): Promise<number>;
   salvar(bomba: Bomba): Promise<void>;
   deletar(id: string): Promise<void>;
+  excluirDefinitivo(bombaId: string): Promise<void>;
+  reativar(bombaId: string): Promise<void>;
   atualizar(id: string, dados: AtualizarBombaData): Promise<void>;
 }

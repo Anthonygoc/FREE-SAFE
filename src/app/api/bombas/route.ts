@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { AuthenticationError, DomainError } from '@/domain/errors/domain.errors';
+import { AuthenticationError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
 import { handleApiError, validationErrorResponse } from '@/lib/handle-api-error';
 import { createBombaUseCase, listBombasByPostoUseCase } from '@/lib/container';
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       modelo: parsed.data.modelo,
     });
 
-    return NextResponse.json({ data }, { status: 201 });
+    return NextResponse.json({ data }, { status: data.acao === 'reativada' ? 200 : 201 });
   } catch (error) {
     return handleApiError(error);
   }

@@ -145,10 +145,7 @@ export function deleteBicoUseCase(): DeleteBicoUseCase {
 }
 
 export function deleteBombaUseCase(): DeleteBombaUseCase {
-  return new DeleteBombaUseCase(
-    new BombaPrismaRepository(),
-    new BicoPrismaRepository(),
-  );
+  return new DeleteBombaUseCase(new BombaPrismaRepository());
 }
 
 export function listBicosByBombaUseCase(): ListBicosByBombaUseCase {

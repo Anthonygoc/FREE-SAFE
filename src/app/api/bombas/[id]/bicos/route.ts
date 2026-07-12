@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { AuthenticationError, DomainError } from '@/domain/errors/domain.errors';
+import { AuthenticationError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
 import { handleApiError } from '@/lib/handle-api-error';
 import { createBicoUseCase, listBicosByBombaUseCase } from '@/lib/container';
@@ -97,7 +97,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       capacidade: parsedBody.data.capacidade,
     });
 
-    return NextResponse.json({ data }, { status: 201 });
+    return NextResponse.json({ data }, { status: data.acao === 'reativado' ? 200 : 201 });
   } catch (error) {
     return handleApiError(error);
   }

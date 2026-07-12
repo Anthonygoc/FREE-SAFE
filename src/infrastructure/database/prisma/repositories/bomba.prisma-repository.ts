@@ -61,14 +61,10 @@ export class BombaPrismaRepository implements BombaRepository {
       },
       orderBy: { numero: 'asc' },
     });
-    let numeroSequencial = 1;
 
     return rows.map((row) => ({
       ...mapBomba(row),
-      bicos: row.bicos.map((bico) => ({
-        ...mapBico(bico),
-        numeroSequencial: numeroSequencial++,
-      })),
+      bicos: row.bicos.map(mapBico),
     }));
   }
 
@@ -82,6 +78,31 @@ export class BombaPrismaRepository implements BombaRepository {
     }
 
     return mapBomba(raw);
+  }
+
+  async buscarInativaPorNumero(postoId: string, numero: number): Promise<Bomba | null> {
+    const raw = await this.db.bomba.findFirst({
+      where: { postoId, numero, ativo: false },
+    });
+
+    if (!raw) {
+      return null;
+    }
+
+    return mapBomba(raw);
+  }
+
+  async contarAfericoes(bombaId: string): Promise<number> {
+    const bicos = await this.db.bico.findMany({
+      where: { bombaId },
+      select: { id: true },
+    });
+
+    return this.db.afericao.count({
+      where: {
+        bicoId: { in: bicos.map((bico) => bico.id) },
+      },
+    });
   }
 
   async salvar(bomba: Bomba): Promise<void> {
@@ -107,6 +128,24 @@ export class BombaPrismaRepository implements BombaRepository {
   async deletar(id: string): Promise<void> {
     await this.db.bomba.delete({
       where: { id },
+    });
+  }
+
+  async excluirDefinitivo(bombaId: string): Promise<void> {
+    await this.db.$transaction([
+      this.db.bico.deleteMany({
+        where: { bombaId },
+      }),
+      this.db.bomba.delete({
+        where: { id: bombaId },
+      }),
+    ]);
+  }
+
+  async reativar(bombaId: string): Promise<void> {
+    await this.db.bomba.update({
+      where: { id: bombaId },
+      data: { ativo: true },
     });
   }
 

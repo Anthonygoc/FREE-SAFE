@@ -48,6 +48,30 @@ export class BicoPrismaRepository implements BicoRepository {
     return mapBico(raw);
   }
 
+  async buscarPorNumeroDaBomba(bombaId: string, numero: number): Promise<Bico | null> {
+    const raw = await this.db.bico.findFirst({
+      where: { bombaId, numero },
+    });
+
+    if (!raw) {
+      return null;
+    }
+
+    return mapBico(raw);
+  }
+
+  async buscarInativoPorNumero(bombaId: string, numero: number): Promise<Bico | null> {
+    const raw = await this.db.bico.findFirst({
+      where: { bombaId, numero, ativo: false },
+    });
+
+    if (!raw) {
+      return null;
+    }
+
+    return mapBico(raw);
+  }
+
   async salvar(bico: Bico): Promise<void> {
     await this.db.bico.upsert({
       where: { id: bico.id },
@@ -76,10 +100,23 @@ export class BicoPrismaRepository implements BicoRepository {
     });
   }
 
+  async excluirDefinitivo(id: string): Promise<void> {
+    await this.db.bico.delete({
+      where: { id },
+    });
+  }
+
   async desativar(id: string): Promise<void> {
     await this.db.bico.update({
       where: { id },
       data: { ativo: false },
+    });
+  }
+
+  async reativar(id: string): Promise<void> {
+    await this.db.bico.update({
+      where: { id },
+      data: { ativo: true },
     });
   }
 

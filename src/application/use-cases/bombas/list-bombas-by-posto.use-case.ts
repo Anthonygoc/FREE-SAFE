@@ -14,7 +14,6 @@ export interface ListBombasByPostoOutputItem {
   bicos: Array<{
     id: string;
     numero: number;
-    numeroSequencial: number;
     produto: string;
     capacidade?: number;
   }>;
@@ -35,7 +34,6 @@ export class ListBombasByPostoUseCase {
       bicos: bomba.bicos.map((bico) => ({
         id: bico.id,
         numero: bico.numero,
-        numeroSequencial: bico.numeroSequencial,
         produto: bico.produto,
         capacidade: bico.capacidade,
       })),

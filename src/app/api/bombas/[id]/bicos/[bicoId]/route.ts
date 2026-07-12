@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { AuthenticationError, DomainError } from '@/domain/errors/domain.errors';
+import { AuthenticationError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
 import { deleteBicoUseCase, updateBicoUseCase } from '@/lib/container';
 import { handleApiError } from '@/lib/handle-api-error';
@@ -23,6 +23,7 @@ const paramsSchema = z.object({
 });
 
 const updateBicoSchema = z.object({
+  numero: z.number().int().positive(),
   produto: produtoSchema,
   capacidade: z.number().positive().optional(),
 });
@@ -70,6 +71,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const data = await useCase.execute({
       usuario,
       bicoId: parsedParams.data.bicoId,
+      numero: parsedBody.data.numero,
       produto: parsedBody.data.produto,
       capacidade: parsedBody.data.capacidade,
     });

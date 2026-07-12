@@ -1244,312 +1244,193 @@ título em zinc-700 e descrição em zinc-500, opcionalmente um botão de ação
 9. Preservar toda a lógica e funcionalidade — mexer apenas em classes visuais e animação
 10. Consistência de raio: cards rounded-2xl, controles rounded-xl, badges rounded-full
 
-# SKILL: Auditoria e Log de Ações — FREE SAFE
-
-Skill de contexto para o Codex implementar e manter o sistema de auditoria do FREE SAFE de forma **consistente** em todos os módulos. Auditoria é requisito de compliance: todo sistema vendido para controle de postos precisa responder "quem fez o quê, quando e em qual posto".
-
-> **Princípio central:** a auditoria NUNCA bloqueia a operação. Se o registro de log falhar, a ação principal já aconteceu e não deve ser revertida. Log é efeito colateral, não pré-condição.
-
+---
+name: free-safe-inmetro
+description: Use esta skill ao criar ou modificar o módulo INMETRO do FREE SAFE. Cobre cadastro de bombas e bicos por posto, upload de fotos de aferição, auditoria com responsável e horário, e a tela de aferição com seleção de bomba/bico.
 ---
 
-## 1. Arquitetura (segue a hexagonal do projeto)
+# FREE SAFE — Módulo INMETRO (Bombas e Bicos)
 
-```
-domain/
-  entities/audit-log.entity.ts          → entidade + tipos de ação/recurso
-  ports/audit-log.repository.ts          → porta (interface) do repositório
-application/
-  shared/audit.ts                        → serviço central registrarAuditoria()
-infrastructure/
-  database/prisma/repositories/audit-log.prisma-repository.ts
-interface (rotas):
-  app/api/auditoria/route.ts             → GET lista filtrável (só ADMIN)
-  app/api/auditoria/export/route.ts      → PDF/Excel (opcional, fase posterior)
-```
+## Contexto do negócio
 
-Registro via `container.ts` (factory functions), igual aos outros repositórios.
+Cada posto tem bombas. Cada bomba tem bicos. Cada bico dispensa um produto específico.
+A aferição INMETRO é feita bico a bico — o técnico mede 20 litros e registra a diferença em mL.
 
----
+Exemplo real (Posto Cáceres):
+- Bomba 01 → bicos 01 a 06 (Etanol, Gasolina, Diesel S10 alternados)
+- Bomba 02 → bicos 07 a 14
+- Bomba 03 → bicos 15 a 20
+- Tanques: 1=Diesel S10 (20.000L), 2=Diesel S10 (10.000L), 3=Etanol (30.000L), etc.
 
-## 2. Schema Prisma
-
-Adicionar ao `prisma/schema.prisma`:
+## Schema Prisma — novas tabelas
 
 ```prisma
-enum AuditAcao {
-  CRIAR
-  EDITAR
-  EXCLUIR
-  LOGIN
-  LOGOUT
-  EXPORTAR
+model Bomba {
+  id        String   @id @default(uuid())
+  postoId   String   @map("posto_id")
+  numero    Int
+  modelo    String?  @db.VarChar(100)
+  ativo     Boolean  @default(true)
+  criadoEm DateTime @default(now()) @map("criado_em")
+
+  posto   Posto   @relation(fields: [postoId], references: [id])
+  bicos   Bico[]
+
+  @@unique([postoId, numero])
+  @@map("bombas")
 }
 
-enum AuditRecurso {
-  AFERICAO
-  BOMBA
-  RAQ
-  DOCUMENTO
-  COLABORADOR
-  USUARIO
-  CURSO
-  CERTIFICADO
-  CATEGORIA
-}
+model Bico {
+  id        String             @id @default(uuid())
+  bombaId   String             @map("bomba_id")
+  numero    Int
+  produto   ProdutoCombustivel
+  capacidade Float?
+  ativo     Boolean            @default(true)
+  criadoEm DateTime            @default(now()) @map("criado_em")
 
-model AuditLog {
-  id          String       @id @default(uuid())
-  usuarioId   String?      @map("usuario_id")        // quem fez (null se sistema)
-  usuarioNome String       @map("usuario_nome") @db.VarChar(150) // snapshot do nome
-  usuarioEmail String      @map("usuario_email") @db.VarChar(200) // snapshot
-  perfil      String       @db.VarChar(30)           // snapshot do perfil
-  acao        AuditAcao
-  recurso     AuditRecurso
-  entidadeId  String?      @map("entidade_id")       // id do registro afetado
-  postoId     String?      @map("posto_id")          // posto afetado
-  descricao   String       @db.VarChar(300)          // texto legível: "Excluiu aferição do bico 3"
-  detalhes    String?      @db.Text                  // JSON serializado opcional (antes/depois)
-  ip          String?      @db.VarChar(60)
-  criadoEm    DateTime     @default(now()) @map("criado_em")
+  bomba     Bomba      @relation(fields: [bombaId], references: [id])
+  afericoes Afericao[]
 
-  @@index([postoId, criadoEm])
-  @@index([usuarioId, criadoEm])
-  @@index([recurso, acao])
-  @@map("audit_logs")
+  @@unique([bombaId, numero])
+  @@map("bicos")
 }
 ```
 
-**Notas importantes:**
-- `usuarioNome/Email/perfil` são **snapshots** (texto), não relações. Assim o log sobrevive mesmo se o usuário for editado/desativado depois. Auditoria é histórico imutável.
-- `entidadeId` e `postoId` são `String?` porque algumas ações não têm posto (ex: login).
-- `detalhes` em `@db.Text` (não VarChar) — pode guardar JSON grande sem erro P2000.
-- Índices cobrem as três consultas mais comuns: por posto+data, por usuário+data, por tipo.
+Alteração na tabela Afericao — adicionar campo bicoId e fotoUrl:
+```prisma
+model Afericao {
+  // campos existentes mantidos
+  bicoId    String?  @map("bico_id")
+  fotoUrl   String?  @map("foto_url") @db.VarChar(500)
 
-Após adicionar: rodar `npx prisma migrate dev --name add_audit_log` + `npx prisma generate` + reiniciar servidor (o Anthony roda manualmente; o Codex NÃO roda node/npm).
-
----
-
-## 3. Entidade e porta
-
-`src/domain/entities/audit-log.entity.ts`:
-```ts
-export type AuditAcao = 'CRIAR' | 'EDITAR' | 'EXCLUIR' | 'LOGIN' | 'LOGOUT' | 'EXPORTAR';
-export type AuditRecurso =
-  | 'AFERICAO' | 'BOMBA' | 'RAQ' | 'DOCUMENTO' | 'COLABORADOR'
-  | 'USUARIO' | 'CURSO' | 'CERTIFICADO' | 'CATEGORIA';
-
-export interface AuditLog {
-  id: string;
-  usuarioId?: string | null;
-  usuarioNome: string;
-  usuarioEmail: string;
-  perfil: string;
-  acao: AuditAcao;
-  recurso: AuditRecurso;
-  entidadeId?: string | null;
-  postoId?: string | null;
-  descricao: string;
-  detalhes?: string | null;
-  ip?: string | null;
-  criadoEm: Date;
+  bico Bico? @relation(fields: [bicoId], references: [id])
 }
 ```
 
-`src/domain/ports/audit-log.repository.ts`:
-```ts
-import type { AuditLog } from '../entities/audit-log.entity';
+Adicionar relações reversas no model Posto:
+```prisma
+bombas Bomba[]
+```
 
-export interface RegistrarAuditoriaInput {
-  usuarioId?: string | null;
-  usuarioNome: string;
-  usuarioEmail: string;
-  perfil: string;
-  acao: AuditLog['acao'];
-  recurso: AuditLog['recurso'];
-  entidadeId?: string | null;
-  postoId?: string | null;
-  descricao: string;
-  detalhes?: string | null;
-  ip?: string | null;
+## Ports do domínio
+
+```typescript
+// src/domain/ports/bomba.repository.ts
+export interface BombaRepository {
+  listarPorPosto(postoId: string): Promise<Bomba[]>;
+  buscarPorId(id: string): Promise<Bomba | null>;
+  salvar(bomba: Bomba): Promise<void>;
 }
 
-export interface ListarAuditoriaFiltro {
-  postoId?: string;
-  usuarioId?: string;
-  recurso?: AuditLog['recurso'];
-  acao?: AuditLog['acao'];
-  dataInicio?: Date;
-  dataFim?: Date;
-  limite?: number;
-  offset?: number;
-}
-
-export interface AuditLogRepository {
-  registrar(input: RegistrarAuditoriaInput): Promise<void>;
-  listar(filtro: ListarAuditoriaFiltro): Promise<{ itens: AuditLog[]; total: number }>;
+// src/domain/ports/bico.repository.ts
+export interface BicoRepository {
+  listarPorBomba(bombaId: string): Promise<Bico[]>;
+  buscarPorId(id: string): Promise<Bico | null>;
+  salvar(bico: Bico): Promise<void>;
 }
 ```
 
----
+## Rotas de API
 
-## 4. Serviço central (o coração da skill)
-
-`src/application/shared/audit.ts`:
-```ts
-import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import type { RegistrarAuditoriaInput } from '@/domain/ports/audit-log.repository';
-import { auditLogRepository } from '@/lib/container';
-
-type RegistrarParams = {
-  usuario: UsuarioAutenticado;
-  acao: RegistrarAuditoriaInput['acao'];
-  recurso: RegistrarAuditoriaInput['recurso'];
-  descricao: string;
-  entidadeId?: string | null;
-  postoId?: string | null;
-  detalhes?: unknown;          // objeto será serializado
-  ip?: string | null;
-};
-
-/**
- * Registra uma ação no log de auditoria.
- * NUNCA lança erro para o chamador: se o log falhar, apenas loga no console.
- * A ação principal do usuário não pode ser revertida por falha de auditoria.
- */
-export async function registrarAuditoria(params: RegistrarParams): Promise<void> {
-  try {
-    await auditLogRepository().registrar({
-      usuarioId: params.usuario.id,
-      usuarioNome: params.usuario.nome,
-      usuarioEmail: params.usuario.email,
-      perfil: params.usuario.perfil,
-      acao: params.acao,
-      recurso: params.recurso,
-      entidadeId: params.entidadeId ?? null,
-      postoId: params.postoId ?? null,
-      descricao: params.descricao,
-      detalhes: params.detalhes ? JSON.stringify(params.detalhes) : null,
-      ip: params.ip ?? null,
-    });
-  } catch (error) {
-    console.error('[auditoria] falha ao registrar log:', error);
-    // silencioso de propósito — não relança
-  }
-}
+```
+GET  /api/bombas?postoId=xxx          → lista bombas do posto com bicos
+POST /api/bombas                      → cadastra bomba
+GET  /api/bombas/[id]/bicos           → lista bicos da bomba
+POST /api/bombas/[id]/bicos           → cadastra bico
+POST /api/afericao/[id]/foto          → upload de foto da aferição
 ```
 
----
+## Tela INMETRO — fluxo de seleção
 
-## 5. Como integrar nos use cases (PADRÃO OBRIGATÓRIO)
+1. Usuário seleciona o posto
+2. Sistema carrega as bombas do posto (GET /api/bombas?postoId=)
+3. Usuário seleciona a bomba (select populado)
+4. Sistema carrega os bicos da bomba selecionada
+5. Usuário seleciona o bico (select populado com número + produto)
+6. Produto é preenchido automaticamente pelo bico selecionado
+7. Usuário digita o resultado em mL
+8. Usuário faz upload de foto (opcional)
+9. Sistema salva e exibe resultado (dentro/fora)
 
-Chamar `registrarAuditoria` **DEPOIS** da operação ter sucesso, **antes** de retornar. Usar `await` mas lembrar que o serviço nunca lança.
+## Auditoria
 
-Exemplo em `delete-afericao.use-case.ts`:
-```ts
-async execute(input: DeleteAfericaoInput): Promise<void> {
-  const afericao = await this.afericaoRepo.buscarPorId(input.afericaoId);
-  if (!afericao) throw new NotFoundError('Aferição não encontrada');
+Cada aferição já salva `responsavelId` e `criadoEm`.
+No histórico, exibir:
+- Nome do responsável (join com tabela users)
+- Data e hora formatada: DD/MM/AAAA às HH:MM
+- Foto se houver (thumbnail clicável)
 
-  autorizar(input.usuario, 'inmetro', 'excluir', afericao.postoId);
+## Hook de bombas e bicos
 
-  await this.afericaoRepo.excluir(input.afericaoId);
+```typescript
+// src/hooks/use-bombas.ts
+export function useBombasByPosto(postoId: string) {
+  return useQuery({
+    queryKey: ['bombas', postoId],
+    queryFn: () => apiClient.get(`/api/bombas?postoId=${postoId}`),
+    enabled: !!postoId,
+  });
+}
 
-  // AUDITORIA — sempre depois do sucesso
-  await registrarAuditoria({
-    usuario: input.usuario,
-    acao: 'EXCLUIR',
-    recurso: 'AFERICAO',
-    entidadeId: input.afericaoId,
-    postoId: afericao.postoId,
-    descricao: `Excluiu aferição do bico ${afericao.bico} (bomba ${afericao.bomba})`,
-    detalhes: { resultadoMl: afericao.resultadoMl, situacao: afericao.situacao },
+export function useBicosByBomba(bombaId: string) {
+  return useQuery({
+    queryKey: ['bicos', bombaId],
+    queryFn: () => apiClient.get(`/api/bombas/${bombaId}/bicos`),
+    enabled: !!bombaId,
   });
 }
 ```
 
-**Descrições devem ser legíveis por humano não-técnico** (é o cliente que vai ler):
-- ✅ "Criou documento 'Alvará 2026' na categoria Licenças"
-- ✅ "Desativou o usuário João Silva (gerente)"
-- ❌ "POST /api/documentos id=abc-123"
+## Seed de exemplo (Posto Cáceres)
 
-### Ações que DEVEM ser auditadas (mínimo para 1.0):
-| Recurso | Ações |
-|---|---|
-| AFERICAO | CRIAR (lote), EXCLUIR (individual e lote) |
-| RAQ | CRIAR, EXCLUIR |
-| DOCUMENTO | CRIAR, EXCLUIR |
-| COLABORADOR | CRIAR, EDITAR, EXCLUIR |
-| USUARIO | CRIAR, EDITAR (perfil/posto/senha), EXCLUIR (desativar) |
-| BOMBA | CRIAR, EXCLUIR, CONFIGURAR |
-| CERTIFICADO | EXPORTAR (emissão) |
-
-Leituras (GET/listagens) **não** são auditadas no 1.0 — geraria ruído. Só ações que mudam estado.
-
----
-
-## 6. Repositório Prisma
-
-`src/infrastructure/database/prisma/repositories/audit-log.prisma-repository.ts`:
-- `registrar`: simples `db.auditLog.create({ data })`.
-- `listar`: monta `where` dinâmico a partir do filtro (postoId, usuarioId, recurso, acao, criadoEm com gte/lte), ordena por `criadoEm desc`, aplica `take`/`skip` (paginação), retorna `{ itens, total }` com `db.auditLog.count` para o total.
-- Default de `limite`: 50. Nunca retornar tudo sem paginação.
-
----
-
-## 7. Rota de consulta (só ADMIN)
-
-`src/app/api/auditoria/route.ts`:
-- `GET` com query params: `postoId`, `usuarioId`, `recurso`, `acao`, `dataInicio`, `dataFim`, `pagina`.
-- Autoriza com `autorizar(usuario, 'auditorias', 'ver')` — só ADMIN tem na matriz.
-- Use case `ListAuditoriaUseCase` aplica o filtro e retorna `{ data: { itens, total, pagina } }`.
-- Validação Zod dos params.
-
----
-
-## 8. Tela de auditoria
-
-`src/app/(dashboard)/auditoria/page.tsx` (ou reusar a aba "Auditorias" da sidebar):
-- Protegida com `<RouteGuard recurso="auditorias">` (só ADMIN).
-- Visual clean do design system (cabeçalho card branco, faixa de filtros orange-50/50).
-- Filtros: posto, usuário, tipo de recurso, tipo de ação, intervalo de datas.
-- Lista/tabela: data-hora, usuário (nome+perfil em badge), ação (badge colorido por tipo), recurso, descrição legível, posto.
-- Cores por ação: CRIAR (emerald), EDITAR (amber), EXCLUIR (red), LOGIN/LOGOUT (zinc), EXPORTAR (blue).
-- Paginação no rodapé.
-- Hook `use-auditoria.ts` com React Query, queryKey `['auditoria', filtros]`.
-
----
-
-## 9. Captura de IP (opcional, melhora a auditoria)
-
-Nas rotas, extrair o IP do header e passar para o use case:
-```ts
-const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  ?? request.headers.get('x-real-ip') ?? null;
+```typescript
+// Estrutura real da imagem fornecida
+const bombasCaceres = [
+  {
+    numero: 1,
+    bicos: [
+      { numero: 1, produto: 'ETANOL_HIDRATADO' },
+      { numero: 2, produto: 'GASOLINA_COMUM' },
+      { numero: 3, produto: 'DIESEL_S10' },
+      { numero: 4, produto: 'ETANOL_HIDRATADO' },
+      { numero: 5, produto: 'GASOLINA_COMUM' },
+      { numero: 6, produto: 'DIESEL_S10' },
+    ]
+  },
+  {
+    numero: 2,
+    bicos: [
+      { numero: 7, produto: 'DIESEL_S10' },
+      { numero: 8, produto: 'ETANOL_HIDRATADO' },
+      { numero: 9, produto: 'DIESEL_S10' },
+      { numero: 10, produto: 'ETANOL_HIDRATADO' },
+      { numero: 11, produto: 'GASOLINA_COMUM' },
+      { numero: 12, produto: 'DIESEL_S10' },
+      { numero: 13, produto: 'ETANOL_HIDRATADO' },
+      { numero: 14, produto: 'GASOLINA_COMUM' },
+    ]
+  },
+  {
+    numero: 3,
+    bicos: [
+      { numero: 15, produto: 'DIESEL_S500' },
+      { numero: 16, produto: 'DIESEL_S10' },
+      { numero: 17, produto: 'ETANOL_HIDRATADO' },
+      { numero: 18, produto: 'GASOLINA_COMUM' },
+      { numero: 19, produto: 'DIESEL_S500' },
+      { numero: 20, produto: 'DIESEL_S10' },
+    ]
+  }
+];
 ```
-Passar `ip` no input do use case e repassar a `registrarAuditoria`. Se não quiser no 1.0, deixar `null` — o campo já é opcional.
 
----
+## Regras que o Codex deve seguir neste módulo
 
-## 10. Checklist de implementação
-
-1. [ ] Schema: enums + model AuditLog + índices
-2. [ ] Migration `add_audit_log` (Anthony roda)
-3. [ ] Entidade + porta
-4. [ ] Repositório Prisma + registrar no container
-5. [ ] Serviço `registrarAuditoria` (nunca lança)
-6. [ ] Integrar nas ações da tabela do item 5 (criar/excluir/editar)
-7. [ ] Rota GET /api/auditoria (só ADMIN) + use case de listagem
-8. [ ] Tela de auditoria com filtros + paginação
-9. [ ] (Opcional) captura de IP
-10. [ ] (Fase posterior) export PDF/Excel do log
-
----
-
-## 11. Erros recorrentes a evitar
-
-- **NÃO** fazer `registrarAuditoria` lançar erro — quebra a operação principal.
-- **NÃO** usar VarChar em `detalhes` — JSON estoura; usar `@db.Text`.
-- **NÃO** auditar leituras (GET) — só mudanças de estado.
-- **NÃO** usar relação Prisma para o usuário do log — usar snapshots de texto (histórico imutável).
-- **SEMPRE** registrar DEPOIS do sucesso da operação, nunca antes.
-- Após migration: `npx prisma generate` + reiniciar servidor, senão "Unknown argument" / enum não reconhecido.
+1. Quando um bico é selecionado, o produto é preenchido automaticamente — nunca deixar o usuário escolher produto manualmente
+2. Foto é opcional mas recomendada — não bloquear o registro sem ela
+3. Upload de foto vai para Supabase Storage em `afericao/{afericaoId}/foto.jpg`
+4. Histórico sempre mostra nome do responsável + data/hora — nunca só o ID
+5. Bomba e bico são selecionados via select populado pela API — nunca campo de texto livre
+6. Seguir o mesmo padrão arquitetural do projeto (domain → application → infra → interface)
+7. Usar o mesmo padrão de container.ts para injeção de dependência

@@ -50,6 +50,7 @@ const produtosOptions = [
 type ProdutoCombustivel = (typeof produtosOptions)[number];
 
 type BicoDraftState = Record<string, {
+  numero: string;
   produto: ProdutoCombustivel | '';
   capacidade: string;
 }>;
@@ -60,13 +61,10 @@ type BombaDraftState = Record<string, {
 }>;
 
 type NovoBicoDraftState = Record<string, {
+  numero: string;
   produto: ProdutoCombustivel | '';
   capacidade: string;
 }>;
-
-function formatarNumero(value: number) {
-  return value.toString().padStart(2, '0');
-}
 
 function formatarProduto(produto: ProdutoCombustivel) {
   switch (produto) {
@@ -87,12 +85,33 @@ function formatarProduto(produto: ProdutoCombustivel) {
   }
 }
 
+function getProximoNumeroBico(
+  bicos: Array<{ numero: number }> | undefined,
+) {
+  return ((bicos ?? []).reduce((max, bico) => Math.max(max, bico.numero), 0)) + 1;
+}
+
+function parseNumeroInteiroPositivo(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const numero = Number(trimmed);
+  if (!Number.isInteger(numero) || numero <= 0) {
+    return null;
+  }
+
+  return numero;
+}
+
 function buildBicoDraftState(bombas: BombaComBicos[] | undefined): BicoDraftState {
   const nextState: BicoDraftState = {};
 
   for (const bomba of bombas ?? []) {
     for (const bico of bomba.bicos) {
       nextState[bico.id] = {
+        numero: String(bico.numero),
         produto: bico.produto,
         capacidade: bico.capacidade === undefined ? '' : String(bico.capacidade),
       };
@@ -120,25 +139,13 @@ function buildNovoBicoDraftState(bombas: BombaComBicos[] | undefined): NovoBicoD
 
   for (const bomba of bombas ?? []) {
     nextState[bomba.id] = {
+      numero: String(getProximoNumeroBico(bomba.bicos)),
       produto: '',
       capacidade: '',
     };
   }
 
   return nextState;
-}
-
-function getProximoNumeroSequencialPosto(bombas: BombaComBicos[] | undefined) {
-  const ultimoNumeroSequencial = (bombas ?? []).reduce((max, bomba) => {
-    const maxDaBomba = bomba.bicos.reduce(
-      (bombaMax, bico) => Math.max(bombaMax, bico.numeroSequencial),
-      0,
-    );
-
-    return Math.max(max, maxDaBomba);
-  }, 0);
-
-  return ultimoNumeroSequencial + 1;
 }
 
 export default function ConfigurarBombasPage() {
@@ -188,10 +195,6 @@ export default function ConfigurarBombasPage() {
     () => (postos ?? []).find((posto) => posto.id === postoId),
     [postoId, postos],
   );
-  const proximoNumeroSequencialPosto = useMemo(
-    () => getProximoNumeroSequencialPosto(bombas),
-    [bombas],
-  );
 
   if (status === "loading" || loadingPostos) {
     return (
@@ -212,10 +215,15 @@ export default function ConfigurarBombasPage() {
     setDeletingBombaId(null);
   }
 
-  function handleChangeBicoDraft(bicoId: string, field: 'produto' | 'capacidade', value: string) {
+  function handleChangeBicoDraft(
+    bicoId: string,
+    field: 'numero' | 'produto' | 'capacidade',
+    value: string,
+  ) {
     setBicoDrafts((current) => ({
       ...current,
       [bicoId]: {
+        numero: field === 'numero' ? value : (current[bicoId]?.numero ?? ''),
         produto: field === 'produto'
           ? value as ProdutoCombustivel
           : (current[bicoId]?.produto ?? ''),
@@ -234,10 +242,15 @@ export default function ConfigurarBombasPage() {
     }));
   }
 
-  function handleChangeNovoBico(bombaId: string, field: 'produto' | 'capacidade', value: string) {
+  function handleChangeNovoBico(
+    bombaId: string,
+    field: 'numero' | 'produto' | 'capacidade',
+    value: string,
+  ) {
     setNovosBicos((current) => ({
       ...current,
       [bombaId]: {
+        numero: field === 'numero' ? value : (current[bombaId]?.numero ?? ''),
         produto: field === 'produto'
           ? value as ProdutoCombustivel | ''
           : (current[bombaId]?.produto ?? ''),
@@ -253,11 +266,18 @@ export default function ConfigurarBombasPage() {
       return;
     }
 
+    const numero = parseNumeroInteiroPositivo(draft.numero);
+    if (numero === null) {
+      toast.error('Informe um número inteiro positivo para o bico.');
+      return;
+    }
+
     setSavingBicoId(bicoId);
     updateBico(
       {
         bombaId,
         bicoId,
+        numero,
         produto: draft.produto,
         capacidade: draft.capacidade.trim() ? Number(draft.capacidade) : undefined,
       },
@@ -316,21 +336,28 @@ export default function ConfigurarBombasPage() {
       return;
     }
 
-    const nextNumero = ((bomba.bicos ?? []).reduce((max, bico) => Math.max(max, bico.numero), 0)) + 1;
+    const numero = parseNumeroInteiroPositivo(draft.numero);
+    if (numero === null) {
+      toast.error('Informe um número inteiro positivo para o novo bico.');
+      return;
+    }
 
     setAddingBicoBombaId(bomba.id);
     createBico(
       {
         bombaId: bomba.id,
-        numero: nextNumero,
+        numero,
         produto: draft.produto,
         capacidade: draft.capacidade.trim() ? Number(draft.capacidade) : undefined,
       },
       {
         onSuccess: () => {
+          const proximoNumero = Math.max(numero, ...bomba.bicos.map((bico) => bico.numero)) + 1;
+
           setNovosBicos((current) => ({
             ...current,
             [bomba.id]: {
+              numero: String(proximoNumero),
               produto: '',
               capacidade: '',
             },
@@ -346,7 +373,7 @@ export default function ConfigurarBombasPage() {
   async function handleExcluirBico(bombaId: string, bicoId: string) {
     const ok = await confirmar({
       titulo: 'Excluir bico?',
-      descricao: 'Esta ação não pode ser desfeita.',
+      descricao: 'Se não houver aferições registradas, ele será excluído permanentemente. Se houver, será desativado e o histórico preservado.',
       severidade: 'destrutivo',
       textoConfirmar: 'Excluir',
     });
@@ -369,7 +396,7 @@ export default function ConfigurarBombasPage() {
   async function handleExcluirBomba(bombaId: string) {
     const ok = await confirmar({
       titulo: 'Excluir bomba?',
-      descricao: 'A bomba e seus bicos serão removidos. Esta ação não pode ser desfeita.',
+      descricao: 'Se não houver aferições registradas, ela será excluída permanentemente. Se houver, será desativada e o histórico preservado.',
       severidade: 'destrutivo',
       textoConfirmar: 'Excluir bomba',
     });
@@ -450,8 +477,12 @@ export default function ConfigurarBombasPage() {
               numero: String(bomba.numero),
               modelo: bomba.modelo ?? '',
             };
-            const novoBico = novosBicos[bomba.id] ?? { produto: '', capacidade: '' };
-            const nextNumero = ((bomba.bicos ?? []).reduce((max, bico) => Math.max(max, bico.numero), 0)) + 1;
+            const novoBico = novosBicos[bomba.id] ?? {
+              numero: String(getProximoNumeroBico(bomba.bicos)),
+              produto: '',
+              capacidade: '',
+            };
+            const nextNumero = getProximoNumeroBico(bomba.bicos);
 
             return (
               <CardBase key={bomba.id}>
@@ -506,7 +537,7 @@ export default function ConfigurarBombasPage() {
                   <table className="min-w-full divide-y divide-zinc-200 text-sm">
                     <thead className="bg-zinc-50 text-left text-zinc-600">
                       <tr>
-                        <th className="px-4 py-3 font-semibold">Bico</th>
+                        <th className="px-4 py-3 font-semibold">Número do bico</th>
                         <th className="px-4 py-3 font-semibold">Produto</th>
                         <th className="px-4 py-3 font-semibold">Capacidade</th>
                         <th className="px-4 py-3 font-semibold">Ação</th>
@@ -515,13 +546,23 @@ export default function ConfigurarBombasPage() {
                     <tbody className="divide-y divide-zinc-100 bg-white">
                       {bomba.bicos.map((bico) => {
                         const draft = bicoDrafts[bico.id] ?? {
+                          numero: String(bico.numero),
                           produto: bico.produto,
                           capacidade: bico.capacidade === undefined ? '' : String(bico.capacidade),
                         };
 
                         return (
                           <tr key={bico.id}>
-                            <td className="px-4 py-3 font-medium text-zinc-900">{`Bico ${formatarNumero(bico.numeroSequencial)}`}</td>
+                            <td className="px-4 py-3">
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={draft.numero}
+                                onChange={(event) => handleChangeBicoDraft(bico.id, 'numero', event.target.value)}
+                                className={inputClassName}
+                              />
+                            </td>
                             <td className="px-4 py-3">
                               <select
                                 value={draft.produto}
@@ -577,7 +618,17 @@ export default function ConfigurarBombasPage() {
                       })}
 
                       <tr className="bg-orange-50/40">
-                        <td className="px-4 py-3 font-medium text-zinc-900">{`Bico ${formatarNumero(proximoNumeroSequencialPosto)}`}</td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={novoBico.numero}
+                            placeholder={String(nextNumero)}
+                            onChange={(event) => handleChangeNovoBico(bomba.id, 'numero', event.target.value)}
+                            className={inputClassName}
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <select
                             value={novoBico.produto}

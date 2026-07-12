@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { AuthenticationError, DomainError } from '@/domain/errors/domain.errors';
+import { AuthenticationError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
 import { deleteBombaUseCase, updateBombaUseCase } from '@/lib/container';
 import { handleApiError, validationErrorResponse } from '@/lib/handle-api-error';

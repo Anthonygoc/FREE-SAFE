@@ -37,6 +37,14 @@ function getDuplicateMessage(target: Prisma.PrismaClientKnownRequestError['meta'
     return 'Este CNPJ já está cadastrado';
   }
 
+  if (normalizedTarget.includes('bomba') && normalizedTarget.includes('numero')) {
+    return 'Já existe um bico com este número nesta bomba';
+  }
+
+  if (normalizedTarget.includes('posto') && normalizedTarget.includes('numero')) {
+    return 'Já existe uma bomba com este número neste posto';
+  }
+
   return 'Já existe um registro com esses dados';
 }
 

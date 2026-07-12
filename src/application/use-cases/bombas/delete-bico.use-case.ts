@@ -12,6 +12,7 @@ export interface DeleteBicoInput {
 
 export interface DeleteBicoOutput {
   deletado: true;
+  acao: 'excluida' | 'desativada';
 }
 
 export class DeleteBicoUseCase {
@@ -34,12 +35,12 @@ export class DeleteBicoUseCase {
     autorizar(input.usuario, 'bombas', 'excluir', bomba.postoId);
 
     const totalAfericoes = await this.bicoRepo.contarAfericoes(bico.id);
-    const desativado = totalAfericoes > 0;
+    const acao = totalAfericoes === 0 ? 'excluida' : 'desativada';
 
-    if (desativado) {
+    if (acao === 'desativada') {
       await this.bicoRepo.desativar(bico.id);
     } else {
-      await this.bicoRepo.deletar(bico.id);
+      await this.bicoRepo.excluirDefinitivo(bico.id);
     }
     await registrarAuditoria({
       usuario: input.usuario,
@@ -51,10 +52,11 @@ export class DeleteBicoUseCase {
       detalhes: {
         bombaNumero: bomba.numero,
         bicoNumero: bico.numero,
-        desativado,
+        totalAfericoes,
+        acao,
       },
     });
 
-    return { deletado: true };
+    return { deletado: true, acao };
   }
 }
