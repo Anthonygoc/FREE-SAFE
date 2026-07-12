@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { UsuarioAutenticado } from '@/application/dtos/auth.dto';
-import { AuthenticationError, DomainError } from '@/domain/errors/domain.errors';
+import { AuthenticationError } from '@/domain/errors/domain.errors';
 import { auth } from '@/lib/auth';
+import { buildReportFileName } from '@/lib/report-file-name';
 import { emitAfericaoXlsxUseCase } from '@/lib/container';
 import { handleApiError } from '@/lib/handle-api-error';
 
@@ -39,16 +40,16 @@ export async function GET(_request: Request, context: { params: Promise<{ loteId
     }
 
     const useCase = emitAfericaoXlsxUseCase();
-    const xlsxBuffer = await useCase.execute({
+    const output = await useCase.execute({
       usuario,
       loteId: parsed.data,
     });
 
-    return new NextResponse(new Uint8Array(xlsxBuffer), {
+    return new NextResponse(new Uint8Array(output.buffer), {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="afericao-${parsed.data}.xlsx"`,
+        'Content-Disposition': `attachment; filename="${buildReportFileName('Afericao', output.postoNome, output.dataReferencia, 'xlsx')}"`,
       },
     });
   } catch (error) {

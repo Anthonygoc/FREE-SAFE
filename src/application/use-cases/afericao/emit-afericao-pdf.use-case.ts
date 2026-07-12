@@ -10,6 +10,12 @@ export interface EmitAfericaoPdfInput {
   loteId: string;
 }
 
+export interface EmitAfericaoPdfOutput {
+  buffer: Buffer;
+  postoNome: string;
+  dataReferencia: Date;
+}
+
 export class EmitAfericaoPdfUseCase {
   constructor(
     private readonly afericaoRepo: AfericaoRepository,
@@ -17,7 +23,7 @@ export class EmitAfericaoPdfUseCase {
     private readonly pdfPort: AfericaoPdfPort,
   ) {}
 
-  async execute(input: EmitAfericaoPdfInput): Promise<Buffer> {
+  async execute(input: EmitAfericaoPdfInput): Promise<EmitAfericaoPdfOutput> {
     const afericoes = await this.afericaoRepo.listarPorLote(input.loteId);
     if (afericoes.length === 0) {
       throw new DomainError('Lote de aferições não encontrado');
@@ -31,6 +37,10 @@ export class EmitAfericaoPdfUseCase {
       throw new DomainError('Posto das aferições não encontrado');
     }
 
-    return this.pdfPort.gerarRelatorioLote(afericoes, posto);
+    return {
+      buffer: await this.pdfPort.gerarRelatorioLote(afericoes, posto),
+      postoNome: posto.nome,
+      dataReferencia: afericoes[0]?.criadoEm ?? new Date(),
+    };
   }
 }

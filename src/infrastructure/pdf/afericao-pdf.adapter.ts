@@ -112,86 +112,144 @@ const columns = {
 export class AfericaoPdfAdapter implements AfericaoPdfPort {
   async gerarRelatorioLote(afericoes: Afericao[], posto: Posto): Promise<Buffer> {
     const primeira = afericoes[0];
-    const logoPath = resolveLogoPath();
+    const logoSrc = resolveLogoSrc(posto.logoUrl);
     const foraDaTolerancia = afericoes.filter((item) => item.situacao === 'FORA_DA_TOLERANCIA').length;
     const responsavel = primeira?.responsavelNome ?? 'Responsável não identificado';
     const dataLote = primeira ? formatDateTime(primeira.criadoEm) : '';
 
-    const doc = React.createElement(
-      Document,
-      null,
-      React.createElement(
-        Page,
-        { size: 'A4', style: styles.page },
-        React.createElement(Image, { src: logoPath, style: styles.logo }),
-        React.createElement(Text, { style: styles.title }, 'RELATÓRIO DE AFERIÇÃO INMETRO'),
-        React.createElement(
-          View,
-          { style: styles.infoBlock },
-          React.createElement(Text, { style: styles.infoTitle }, 'Dados do posto'),
-          React.createElement(Text, { style: styles.infoRow }, `Razão social: ${posto.razaoSocial}`),
-          React.createElement(Text, { style: styles.infoRow }, `CNPJ: ${posto.cnpj}`),
-          React.createElement(Text, { style: styles.infoRow }, `Endereço: ${formatEndereco(posto.endereco, posto.cidade, posto.uf)}`),
-        ),
-        React.createElement(
-          View,
-          { style: styles.infoBlock },
-          React.createElement(Text, { style: styles.infoTitle }, 'Dados do lote'),
-          React.createElement(Text, { style: styles.infoRow }, `Responsável: ${responsavel}`),
-          React.createElement(Text, { style: styles.infoRow }, `Data/hora: ${dataLote}`),
-          React.createElement(Text, { style: styles.infoRow }, `Total de bicos aferidos: ${afericoes.length}`),
-        ),
-        React.createElement(
-          View,
-          { style: styles.table },
-          React.createElement(
-            View,
-            { style: styles.tableHeader },
-            React.createElement(Text, { style: [styles.tableHeaderCell, { width: columns.bomba }] }, 'Bomba'),
-            React.createElement(Text, { style: [styles.tableHeaderCell, { width: columns.bico }] }, 'Bico'),
-            React.createElement(Text, { style: [styles.tableHeaderCell, { width: columns.produto }] }, 'Produto'),
-            React.createElement(Text, { style: [styles.tableHeaderCell, { width: columns.resultado }] }, 'Resultado (mL)'),
-            React.createElement(Text, { style: [{ ...styles.tableHeaderCell, width: columns.situacao, borderRightWidth: 0 }] }, 'Situação'),
-          ),
-          ...afericoes.map((afericao) =>
-            React.createElement(
-              View,
-              {
-                key: afericao.id,
-                style: [
-                  styles.row,
-                  afericao.situacao === 'DENTRO_DA_LEGISLACAO' ? styles.rowInside : styles.rowOutside,
-                ],
-              },
-              React.createElement(Text, { style: [styles.cell, { width: columns.bomba }] }, String(afericao.bomba)),
-              React.createElement(Text, { style: [styles.cell, { width: columns.bico }] }, String(afericao.bico)),
-              React.createElement(Text, { style: [styles.cell, { width: columns.produto }] }, formatProduto(afericao.produto)),
-              React.createElement(Text, { style: [styles.cell, { width: columns.resultado }] }, formatResultado(afericao.resultadoMl)),
-              React.createElement(Text, { style: [{ ...styles.cell, width: columns.situacao, borderRightWidth: 0 }] }, formatSituacao(afericao.situacao)),
-            ),
-          ),
-        ),
-        React.createElement(
-          View,
-          { style: styles.footer },
-          React.createElement(Text, { style: styles.footerTitle }, 'Resumo do lote'),
-          React.createElement(Text, null, `Total de bicos aferidos: ${afericoes.length}`),
-          React.createElement(Text, null, `Fora da tolerância: ${foraDaTolerancia}`),
-        ),
-      ),
-    );
+    try {
+      return await renderToBuffer(
+        buildDocument({
+          afericoes,
+          posto,
+          responsavel,
+          dataLote,
+          foraDaTolerancia,
+          logoSrc,
+        }),
+      );
+    } catch (error) {
+      if (!logoSrc) {
+        throw error;
+      }
 
-    return renderToBuffer(doc);
+      return renderToBuffer(
+        buildDocument({
+          afericoes,
+          posto,
+          responsavel,
+          dataLote,
+          foraDaTolerancia,
+          logoSrc: null,
+        }),
+      );
+    }
   }
 }
 
-function resolveLogoPath(): string {
-  const publicLogoPath = path.join(process.cwd(), 'public', 'logo.png');
-  if (fs.existsSync(publicLogoPath)) {
-    return publicLogoPath;
+interface BuildDocumentParams {
+  afericoes: Afericao[];
+  posto: Posto;
+  responsavel: string;
+  dataLote: string;
+  foraDaTolerancia: number;
+  logoSrc: string | null;
+}
+
+function buildDocument({
+  afericoes,
+  posto,
+  responsavel,
+  dataLote,
+  foraDaTolerancia,
+  logoSrc,
+}: BuildDocumentParams) {
+  return React.createElement(
+    Document,
+    null,
+    React.createElement(
+      Page,
+      { size: 'A4', style: styles.page },
+      ...(logoSrc ? [React.createElement(Image, { key: 'logo', src: logoSrc, style: styles.logo })] : []),
+      React.createElement(Text, { key: 'title', style: styles.title }, 'RELATÓRIO DE AFERIÇÃO INMETRO'),
+      React.createElement(
+        View,
+        { key: 'posto', style: styles.infoBlock },
+        React.createElement(Text, { style: styles.infoTitle }, 'Dados do posto'),
+        React.createElement(Text, { style: styles.infoRow }, `Razão social: ${posto.razaoSocial}`),
+        React.createElement(Text, { style: styles.infoRow }, `CNPJ: ${posto.cnpj}`),
+        React.createElement(Text, { style: styles.infoRow }, `Endereço: ${formatEndereco(posto.endereco, posto.cidade, posto.uf)}`),
+      ),
+      React.createElement(
+        View,
+        { key: 'lote', style: styles.infoBlock },
+        React.createElement(Text, { style: styles.infoTitle }, 'Dados do lote'),
+        React.createElement(Text, { style: styles.infoRow }, `Responsável: ${responsavel}`),
+        React.createElement(Text, { style: styles.infoRow }, `Data/hora: ${dataLote}`),
+        React.createElement(Text, { style: styles.infoRow }, `Total de bicos aferidos: ${afericoes.length}`),
+      ),
+      React.createElement(
+        View,
+        { key: 'table', style: styles.table },
+        React.createElement(
+          View,
+          { style: styles.tableHeader },
+          React.createElement(Text, { style: [styles.tableHeaderCell, { width: columns.bomba }] }, 'Bomba'),
+          React.createElement(Text, { style: [styles.tableHeaderCell, { width: columns.bico }] }, 'Bico'),
+          React.createElement(Text, { style: [styles.tableHeaderCell, { width: columns.produto }] }, 'Produto'),
+          React.createElement(Text, { style: [styles.tableHeaderCell, { width: columns.resultado }] }, 'Resultado (mL)'),
+          React.createElement(Text, { style: [{ ...styles.tableHeaderCell, width: columns.situacao, borderRightWidth: 0 }] }, 'Situação'),
+        ),
+        ...afericoes.map((afericao) =>
+          React.createElement(
+            View,
+            {
+              key: afericao.id,
+              style: [
+                styles.row,
+                afericao.situacao === 'DENTRO_DA_LEGISLACAO' ? styles.rowInside : styles.rowOutside,
+              ],
+            },
+            React.createElement(Text, { style: [styles.cell, { width: columns.bomba }] }, String(afericao.bomba)),
+            React.createElement(Text, { style: [styles.cell, { width: columns.bico }] }, String(afericao.bico)),
+            React.createElement(Text, { style: [styles.cell, { width: columns.produto }] }, formatProduto(afericao.produto)),
+            React.createElement(Text, { style: [styles.cell, { width: columns.resultado }] }, formatResultado(afericao.resultadoMl)),
+            React.createElement(Text, { style: [{ ...styles.cell, width: columns.situacao, borderRightWidth: 0 }] }, formatSituacao(afericao.situacao)),
+          ),
+        ),
+      ),
+      React.createElement(
+        View,
+        { key: 'footer', style: styles.footer },
+        React.createElement(Text, { style: styles.footerTitle }, 'Resumo do lote'),
+        React.createElement(Text, null, `Total de bicos aferidos: ${afericoes.length}`),
+        React.createElement(Text, null, `Fora da tolerância: ${foraDaTolerancia}`),
+      ),
+    ),
+  );
+}
+
+function resolveLogoSrc(logoUrl?: string | null): string | null {
+  const normalized = normalizeLogoSrc(logoUrl);
+  if (normalized) {
+    return normalized;
   }
 
-  return path.join(process.cwd(), 'public', 'next.svg');
+  const publicLogoPath = path.join(process.cwd(), 'public', 'logo.png');
+  return fs.existsSync(publicLogoPath) ? publicLogoPath : null;
+}
+
+function normalizeLogoSrc(logoUrl?: string | null): string | null {
+  const trimmed = logoUrl?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+    return trimmed;
+  }
+
+  return null;
 }
 
 function formatEndereco(endereco: string, cidade: string, uf: string): string {

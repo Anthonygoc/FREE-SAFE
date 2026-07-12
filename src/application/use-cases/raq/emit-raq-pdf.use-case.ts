@@ -10,6 +10,12 @@ export interface EmitRAQPdfInput {
   raqId: string;
 }
 
+export interface EmitRAQPdfOutput {
+  buffer: Buffer;
+  postoNome: string;
+  dataReferencia: Date;
+}
+
 export class EmitRAQPdfUseCase {
   constructor(
     private readonly raqRepo: RAQRepository,
@@ -17,7 +23,7 @@ export class EmitRAQPdfUseCase {
     private readonly pdfPort: PDFPort,
   ) {}
 
-  async execute(input: EmitRAQPdfInput): Promise<Buffer> {
+  async execute(input: EmitRAQPdfInput): Promise<EmitRAQPdfOutput> {
     const raq = await this.raqRepo.buscarPorId(input.raqId);
     if (!raq) {
       throw new DomainError('RAQ não encontrada');
@@ -30,6 +36,10 @@ export class EmitRAQPdfUseCase {
       throw new DomainError('Posto da RAQ não encontrado');
     }
 
-    return this.pdfPort.gerarRAQ(raq, posto);
+    return {
+      buffer: await this.pdfPort.gerarRAQ(raq, posto),
+      postoNome: posto.nome,
+      dataReferencia: raq.criadoEm,
+    };
   }
 }

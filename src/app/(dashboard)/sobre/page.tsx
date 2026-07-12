@@ -61,9 +61,6 @@ export default function SobrePage() {
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Versão do sistema</p>
               <h2 className="text-2xl font-bold tracking-tight text-zinc-950">Versão {APP_VERSION}</h2>
-              <p className="text-sm leading-6 text-zinc-600">
-                Esta informação está centralizada em <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-700">src/lib/version.ts</code> para atualização futura.
-              </p>
             </div>
           </div>
         </CardBase>

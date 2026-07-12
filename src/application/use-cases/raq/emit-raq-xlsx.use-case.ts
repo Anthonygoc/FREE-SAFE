@@ -12,6 +12,12 @@ export interface EmitRAQXlsxInput {
   raqId: string;
 }
 
+export interface EmitRAQXlsxOutput {
+  buffer: Buffer;
+  postoNome: string;
+  dataReferencia: Date;
+}
+
 const THIN_BLACK_BORDER = {
   top: { style: 'thin', color: { argb: 'FF000000' } },
   left: { style: 'thin', color: { argb: 'FF000000' } },
@@ -49,7 +55,7 @@ export class EmitRAQXlsxUseCase {
     private readonly postoRepo: PostoRepository,
   ) {}
 
-  async execute(input: EmitRAQXlsxInput): Promise<Buffer> {
+  async execute(input: EmitRAQXlsxInput): Promise<EmitRAQXlsxOutput> {
     const raq = await this.raqRepo.buscarPorId(input.raqId);
     if (!raq) {
       throw new DomainError('RAQ não encontrada');
@@ -129,7 +135,12 @@ export class EmitRAQXlsxUseCase {
     applyResultStyle(sheet.getCell('B32'), raq.resultado);
 
     const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer);
+
+    return {
+      buffer: Buffer.from(buffer),
+      postoNome: posto.nome,
+      dataReferencia: raq.criadoEm,
+    };
   }
 }
 

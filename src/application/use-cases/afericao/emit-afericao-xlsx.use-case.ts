@@ -11,6 +11,12 @@ export interface EmitAfericaoXlsxInput {
   loteId: string;
 }
 
+export interface EmitAfericaoXlsxOutput {
+  buffer: Buffer;
+  postoNome: string;
+  dataReferencia: Date;
+}
+
 const THIN_BLACK_BORDER = {
   top: { style: 'thin', color: { argb: 'FF000000' } },
   left: { style: 'thin', color: { argb: 'FF000000' } },
@@ -48,7 +54,7 @@ export class EmitAfericaoXlsxUseCase {
     private readonly postoRepo: PostoRepository,
   ) {}
 
-  async execute(input: EmitAfericaoXlsxInput): Promise<Buffer> {
+  async execute(input: EmitAfericaoXlsxInput): Promise<EmitAfericaoXlsxOutput> {
     const afericoes = await this.afericaoRepo.listarPorLote(input.loteId);
     if (afericoes.length === 0) {
       throw new DomainError('Lote de aferições não encontrado');
@@ -146,7 +152,12 @@ export class EmitAfericaoXlsxUseCase {
     sheet.getCell(`A${summaryRow + 2}`).value = `Fora da tolerância: ${foraDaTolerancia}`;
 
     const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer);
+
+    return {
+      buffer: Buffer.from(buffer),
+      postoNome: posto.nome,
+      dataReferencia: afericoes[0]?.criadoEm ?? new Date(),
+    };
   }
 }
 
