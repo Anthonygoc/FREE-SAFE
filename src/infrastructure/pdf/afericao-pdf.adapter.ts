@@ -99,6 +99,39 @@ const styles = StyleSheet.create({
     fontWeight: 700,
     marginBottom: 4,
   },
+  fotoSectionTitle: {
+    color: '#F97316',
+    fontSize: 10,
+    fontWeight: 700,
+    marginBottom: 8,
+  },
+  fotoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -6,
+    marginTop: 6,
+  },
+  fotoItem: {
+    width: '31%',
+    marginHorizontal: 6,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  fotoImagem: {
+    width: 150,
+    height: 110,
+    objectFit: 'contain',
+    borderWidth: 1,
+    borderColor: '#D4D4D8',
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+  },
+  fotoLabel: {
+    marginTop: 4,
+    fontSize: 8,
+    textAlign: 'center',
+    color: '#52525B',
+  },
 });
 
 const columns = {
@@ -109,41 +142,50 @@ const columns = {
   situacao: '26%',
 } as const;
 
+interface FotoAfericaoItem {
+  id: string;
+  bomba: number;
+  bico: number;
+  src: string;
+}
+
 export class AfericaoPdfAdapter implements AfericaoPdfPort {
   async gerarRelatorioLote(afericoes: Afericao[], posto: Posto): Promise<Buffer> {
     const primeira = afericoes[0];
     const logoSrc = resolveLogoSrc(posto.logoUrl);
+    const fotos = extractFotoAfericoes(afericoes);
     const foraDaTolerancia = afericoes.filter((item) => item.situacao === 'FORA_DA_TOLERANCIA').length;
     const responsavel = primeira?.responsavelNome ?? 'Responsável não identificado';
     const dataLote = primeira ? formatDateTime(primeira.criadoEm) : '';
 
-    try {
-      return await renderToBuffer(
-        buildDocument({
-          afericoes,
-          posto,
-          responsavel,
-          dataLote,
-          foraDaTolerancia,
-          logoSrc,
-        }),
-      );
-    } catch (error) {
-      if (!logoSrc) {
-        throw error;
-      }
+    const renderAttempts = [
+      { logoSrc, fotos },
+      ...(fotos.length > 0 ? [{ logoSrc, fotos: [] as FotoAfericaoItem[] }] : []),
+      ...(logoSrc ? [{ logoSrc: null, fotos }] : []),
+      ...(logoSrc && fotos.length > 0 ? [{ logoSrc: null, fotos: [] as FotoAfericaoItem[] }] : []),
+    ];
 
-      return renderToBuffer(
-        buildDocument({
-          afericoes,
-          posto,
-          responsavel,
-          dataLote,
-          foraDaTolerancia,
-          logoSrc: null,
-        }),
-      );
+    let lastError: unknown;
+
+    for (const attempt of renderAttempts) {
+      try {
+        return await renderToBuffer(
+          buildDocument({
+            afericoes,
+            posto,
+            responsavel,
+            dataLote,
+            foraDaTolerancia,
+            logoSrc: attempt.logoSrc,
+            fotos: attempt.fotos,
+          }),
+        );
+      } catch (error) {
+        lastError = error;
+      }
     }
+
+    throw lastError;
   }
 }
 
@@ -154,6 +196,7 @@ interface BuildDocumentParams {
   dataLote: string;
   foraDaTolerancia: number;
   logoSrc: string | null;
+  fotos: FotoAfericaoItem[];
 }
 
 function buildDocument({
@@ -163,6 +206,7 @@ function buildDocument({
   dataLote,
   foraDaTolerancia,
   logoSrc,
+  fotos,
 }: BuildDocumentParams) {
   return React.createElement(
     Document,
@@ -225,6 +269,27 @@ function buildDocument({
         React.createElement(Text, null, `Total de bicos aferidos: ${afericoes.length}`),
         React.createElement(Text, null, `Fora da tolerância: ${foraDaTolerancia}`),
       ),
+      ...(fotos.length > 0
+        ? [
+            React.createElement(
+              View,
+              { key: 'photo-section', style: styles.infoBlock },
+              React.createElement(Text, { style: styles.fotoSectionTitle }, 'REGISTRO FOTOGRÁFICO'),
+              React.createElement(
+                View,
+                { style: styles.fotoGrid },
+                ...fotos.map((foto) =>
+                  React.createElement(
+                    View,
+                    { key: foto.id, style: styles.fotoItem },
+                    React.createElement(Image, { src: foto.src, style: styles.fotoImagem }),
+                    React.createElement(Text, { style: styles.fotoLabel }, `Bomba ${foto.bomba} · Bico ${foto.bico}`),
+                  ),
+                ),
+              ),
+            ),
+          ]
+        : []),
     ),
   );
 }
@@ -235,8 +300,7 @@ function resolveLogoSrc(logoUrl?: string | null): string | null {
     return normalized;
   }
 
-  const publicLogoPath = path.join(process.cwd(), 'public', 'logo.png');
-  return fs.existsSync(publicLogoPath) ? publicLogoPath : null;
+  return resolveLocalFallbackLogoPath();
 }
 
 function normalizeLogoSrc(logoUrl?: string | null): string | null {
@@ -250,6 +314,44 @@ function normalizeLogoSrc(logoUrl?: string | null): string | null {
   }
 
   return null;
+}
+
+function normalizeFotoSrc(fotoUrl?: string | null): string | null {
+  const trimmed = fotoUrl?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+    return trimmed;
+  }
+
+  return null;
+}
+
+function extractFotoAfericoes(afericoes: Afericao[]): FotoAfericaoItem[] {
+  return afericoes.flatMap((afericao) => {
+    const src = normalizeFotoSrc(afericao.fotoUrl);
+    if (!src) {
+      return [];
+    }
+
+    return [{
+      id: afericao.id,
+      bomba: afericao.bomba,
+      bico: afericao.bico,
+      src,
+    }];
+  });
+}
+
+function resolveLocalFallbackLogoPath(): string | null {
+  const fallbackPaths = [
+    path.join(process.cwd(), 'public', 'logo.png'),
+    path.join(process.cwd(), 'src', 'public', 'logo.png'),
+  ];
+
+  return fallbackPaths.find((logoPath) => fs.existsSync(logoPath)) ?? null;
 }
 
 function formatEndereco(endereco: string, cidade: string, uf: string): string {
