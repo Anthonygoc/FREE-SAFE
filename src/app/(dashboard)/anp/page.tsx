@@ -9,6 +9,11 @@ import { z } from 'zod';
 
 import { RouteGuard } from '@/components/auth/route-guard';
 import { BadgeStatus, CardBase, IconBadge, InputBase, LoadingSpinner, SelectBase } from '@/components/ui';
+import {
+  avaliarRAQ,
+  calcularTeorEtanol,
+  type ProdutoCombustivel,
+} from '@/domain/entities/raq.entity';
 import { usePostos } from '@/hooks/use-postos';
 import { useCreateRAQ, useRAQsByPosto, type RAQFiltros } from '@/hooks/use-raq';
 import { formatAspecto, formatCor } from '@/lib/especificacoes-raq';
@@ -22,7 +27,14 @@ const animation = {
   transition: { duration: 0.35 },
 };
 
-const produtoSchema = z.enum(['GASOLINA_COMUM', 'ETANOL_HIDRATADO', 'DIESEL_S10']);
+const produtoSchema = z.enum([
+  'GASOLINA_COMUM',
+  'GASOLINA_ADITIVADA',
+  'GASOLINA_PREMIUM',
+  'ETANOL_HIDRATADO',
+  'DIESEL_S10',
+  'DIESEL_S500',
+]);
 
 const raqFormSchema = z.object({
   postoId: z.string().uuid('Selecione um posto válido'),
@@ -53,9 +65,12 @@ const produtoOptions: Array<{
   label: string;
   icon: typeof Fuel;
 }> = [
-  { value: 'GASOLINA_COMUM', label: 'Gasolina', icon: Fuel },
-  { value: 'ETANOL_HIDRATADO', label: 'Etanol', icon: Droplets },
-  { value: 'DIESEL_S10', label: 'Diesel', icon: Gauge },
+  { value: 'GASOLINA_COMUM', label: 'Gasolina comum', icon: Fuel },
+  { value: 'GASOLINA_ADITIVADA', label: 'Gasolina aditivada', icon: Fuel },
+  { value: 'GASOLINA_PREMIUM', label: 'Gasolina premium', icon: Fuel },
+  { value: 'ETANOL_HIDRATADO', label: 'Etanol hidratado', icon: Droplets },
+  { value: 'DIESEL_S10', label: 'Diesel S10', icon: Gauge },
+  { value: 'DIESEL_S500', label: 'Diesel S500', icon: Gauge },
 ];
 
 export default function AnpPage() {
@@ -64,7 +79,7 @@ export default function AnpPage() {
   const [raqIdCriado, setRaqIdCriado] = useState<string | null>(null);
   const [filtroDataInicio, setFiltroDataInicio] = useState(() => getTodayDateInputValue());
   const [filtroDataFim, setFiltroDataFim] = useState(() => getTodayDateInputValue());
-  const [filtroProduto, setFiltroProduto] = useState<'' | 'GASOLINA_COMUM' | 'ETANOL_HIDRATADO' | 'DIESEL_S10'>('');
+  const [filtroProduto, setFiltroProduto] = useState<'' | ProdutoCombustivel>('');
   const [filtroResultado, setFiltroResultado] = useState<'' | 'APROVADO' | 'REPROVADO'>('');
 
   const {
@@ -80,10 +95,10 @@ export default function AnpPage() {
       produto: 'GASOLINA_COMUM',
       volumeRecebido: '',
       temperaturaObservada: '20',
-      densidadeObservada: '0.74',
+      densidadeObservada: '',
       massa20c: '',
-      faseAquosa: '50',
-      teorAlcoolico: '93',
+      faseAquosa: '',
+      teorAlcoolico: '',
       aspecto: 'LIQUIDO_E_ISENTO',
       cor: 'CARACTERISTICA',
       distribuidora: '',
@@ -101,6 +116,7 @@ export default function AnpPage() {
   const postoId = watch('postoId');
   const produto = watch('produto');
   const densidade = watch('densidadeObservada');
+  const massa20c = watch('massa20c');
   const faseAquosa = watch('faseAquosa');
   const teorAlcoolico = watch('teorAlcoolico');
   const aspecto = watch('aspecto');
@@ -111,6 +127,16 @@ export default function AnpPage() {
       setValue('postoId', postos[0].id);
     }
   }, [postoId, postos, setValue]);
+
+  useEffect(() => {
+    if (!isGasolina(produto)) {
+      setValue('faseAquosa', '');
+    }
+
+    if (!isEtanol(produto)) {
+      setValue('teorAlcoolico', '');
+    }
+  }, [produto, setValue]);
 
   const filtrosHistorico = useMemo<RAQFiltros>(
     () => ({
@@ -135,38 +161,23 @@ export default function AnpPage() {
   const dataColeta = useMemo(() => new Date().toLocaleDateString('pt-BR'), []);
 
   const faseAquosaNumero = parseOptionalNumber(faseAquosa);
-  const teorEtanolGasolina =
-    produto === 'GASOLINA_COMUM' && faseAquosaNumero !== undefined
-      ? (faseAquosaNumero - 50) * 2 + 1
-      : undefined;
+  const teorEtanolGasolina = isGasolina(produto)
+    ? calcularTeorEtanol(faseAquosaNumero)
+    : undefined;
 
-  const statusAprovado = useMemo(() => {
-    const densidadeNumero = parseOptionalNumber(densidade) ?? 0;
-    const teorAlcoolicoNumero = parseOptionalNumber(teorAlcoolico) ?? 0;
-
-    if (aspecto !== 'LIQUIDO_E_ISENTO' || cor !== 'CARACTERISTICA') {
-      return false;
-    }
-
-    if (produto === 'GASOLINA_COMUM') {
-      return (
-        teorEtanolGasolina !== undefined &&
-        teorEtanolGasolina >= 27 &&
-        teorEtanolGasolina <= 35
-      );
-    }
-
-    if (produto === 'ETANOL_HIDRATADO') {
-      return (
-        teorAlcoolicoNumero >= 92.5 &&
-        teorAlcoolicoNumero <= 95.4 &&
-        densidadeNumero >= 0.79 &&
-        densidadeNumero <= 0.82
-      );
-    }
-
-    return densidadeNumero >= 0.82 && densidadeNumero <= 0.9;
-  }, [aspecto, cor, densidade, produto, teorAlcoolico, teorEtanolGasolina]);
+  const resultadoPrevio = useMemo(
+    () =>
+      avaliarRAQ({
+        produto,
+        aspecto,
+        cor,
+        faseAquosa: isGasolina(produto) ? faseAquosaNumero : undefined,
+        teorAlcoolico: isEtanol(produto) ? parseOptionalNumber(teorAlcoolico) : undefined,
+        massa20c: parseOptionalNumber(massa20c),
+      }),
+    [aspecto, cor, faseAquosaNumero, massa20c, produto, teorAlcoolico],
+  );
+  const statusAprovado = resultadoPrevio === 'APROVADO';
 
   function onSubmit(values: RAQFormValues) {
     createRAQ(
@@ -179,10 +190,10 @@ export default function AnpPage() {
         massa20c: parseOptionalNumber(values.massa20c),
         aspecto: values.aspecto,
         cor: values.cor,
-        faseAquosa: values.produto === 'GASOLINA_COMUM' ? parseOptionalNumber(values.faseAquosa) : undefined,
-        teorEtanol: values.produto === 'GASOLINA_COMUM' ? teorEtanolGasolina : undefined,
+        faseAquosa: isGasolina(values.produto) ? parseOptionalNumber(values.faseAquosa) : undefined,
+        teorEtanol: isGasolina(values.produto) ? calcularTeorEtanol(parseOptionalNumber(values.faseAquosa)) : undefined,
         teorAlcoolico:
-          values.produto === 'ETANOL_HIDRATADO'
+          isEtanol(values.produto)
             ? parseOptionalNumber(values.teorAlcoolico)
             : undefined,
         distribuidora: normalizeOptionalText(values.distribuidora),
@@ -335,7 +346,7 @@ export default function AnpPage() {
             <div className="space-y-6 px-6 py-6">
               <div>
                 <p className="mb-3 text-sm font-semibold text-zinc-700">Produto analisado</p>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {produtoOptions.map((option) => {
                     const Icon = option.icon;
                     const selected = produto === option.value;
@@ -450,8 +461,15 @@ export default function AnpPage() {
                   </SelectBase>
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-zinc-700">Densidade relativa / observada</label>
-                  <InputBase type="number" step="0.001" {...register('densidadeObservada')} className="h-10 border-zinc-300" />
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">Massa específica observada (kg/m³)</label>
+                  <InputBase
+                    type="number"
+                    step="0.1"
+                    placeholder="815,0"
+                    {...register('densidadeObservada')}
+                    className="h-10 border-zinc-300"
+                  />
+                  <p className="mt-1 text-xs text-zinc-500">Valor observado no densímetro, em kg/m³.</p>
                   {errors.densidadeObservada ? <p className="mt-1 text-xs text-red-600">{errors.densidadeObservada.message}</p> : null}
                 </div>
                 <div>
@@ -460,41 +478,52 @@ export default function AnpPage() {
                   {errors.temperaturaObservada ? <p className="mt-1 text-xs text-red-600">{errors.temperaturaObservada.message}</p> : null}
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-zinc-700">Massa específica a 20°C</label>
-                  <InputBase type="number" step="0.001" {...register('massa20c')} className="h-10 border-zinc-300" />
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">Massa específica a 20°C (kg/m³)</label>
+                  <InputBase
+                    type="number"
+                    step="0.1"
+                    placeholder="815,0"
+                    {...register('massa20c')}
+                    className="h-10 border-zinc-300"
+                  />
+                  <p className="mt-1 text-xs text-zinc-500">Valor corrigido pela tabela do densímetro, em kg/m³.</p>
                 </div>
+                {isGasolina(produto) ? (
                 <div>
                   <label className="mb-1 block text-sm font-medium text-zinc-700">Teor de etanol na gasolina</label>
                   <InputBase
                     readOnly
                     value={
-                      produto === 'GASOLINA_COMUM' && teorEtanolGasolina !== undefined
+                      teorEtanolGasolina !== undefined
                         ? `${teorEtanolGasolina.toFixed(2)}%`
                         : 'Não aplicável'
                     }
                     className={`h-10 border-zinc-300 ${readOnlyInputClassName}`}
                   />
                 </div>
+                ) : null}
+                {isGasolina(produto) ? (
                 <div>
                   <label className="mb-1 block text-sm font-medium text-zinc-700">Fase aquosa (ml)</label>
                   <InputBase
                     type="number"
                     step="0.1"
-                    disabled={produto !== 'GASOLINA_COMUM'}
                     {...register('faseAquosa')}
-                    className={`h-10 border-zinc-300 ${produto === 'GASOLINA_COMUM' ? '' : readOnlyInputClassName}`}
+                    className="h-10 border-zinc-300"
                   />
                 </div>
+                ) : null}
+                {isEtanol(produto) ? (
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-zinc-700">Teor alcoólico no AEHC</label>
+                  <label className="mb-1 block text-sm font-medium text-zinc-700">Teor alcoólico (°INPM)</label>
                   <InputBase
                     type="number"
                     step="0.1"
-                    disabled={produto !== 'ETANOL_HIDRATADO'}
                     {...register('teorAlcoolico')}
-                    className={`h-10 border-zinc-300 ${produto === 'ETANOL_HIDRATADO' ? '' : readOnlyInputClassName}`}
+                    className="h-10 border-zinc-300"
                   />
                 </div>
+                ) : null}
               </div>
 
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
@@ -551,7 +580,7 @@ export default function AnpPage() {
                 <div>
                   <p className="text-base font-semibold text-zinc-950">Resumo / Resultado</p>
                   <p className="text-sm text-zinc-500">
-                    {statusAprovado ? 'Amostra aprovada pelos parametros atuais.' : 'Amostra reprovada pelos parametros atuais.'}
+                    {statusAprovado ? 'Amostra aprovada pelos parâmetros atuais.' : 'Amostra reprovada pelos parâmetros atuais.'}
                   </p>
                 </div>
               </div>
@@ -568,13 +597,13 @@ export default function AnpPage() {
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Produto</p>
                   <p className="mt-2 text-sm font-semibold text-zinc-950">
-                    {produto === 'GASOLINA_COMUM' ? 'Gasolina' : produto === 'ETANOL_HIDRATADO' ? 'Etanol' : 'Diesel'}
+                    {formatProdutoLabel(produto)}
                   </p>
                 </div>
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">Teor calculado</p>
                   <p className="mt-2 text-sm font-semibold text-zinc-950">
-                    {produto === 'GASOLINA_COMUM' && teorEtanolGasolina !== undefined
+                    {isGasolina(produto) && teorEtanolGasolina !== undefined
                       ? `${teorEtanolGasolina.toFixed(2)}%`
                       : 'Não aplicável'}
                   </p>
@@ -583,20 +612,24 @@ export default function AnpPage() {
 
               <div className="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-medium text-zinc-600">Densidade</span>
-                  <span className="text-sm font-semibold tabular-nums text-zinc-950">{densidade || '0.00'}</span>
+                  <span className="text-sm font-medium text-zinc-600">Massa observada</span>
+                  <span className="text-sm font-semibold tabular-nums text-zinc-950">{formatKgM3(densidade)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-sm font-medium text-zinc-600">Temperatura base</span>
                   <span className="text-sm font-semibold tabular-nums text-zinc-950">{watch('temperaturaObservada') || '0'} °C</span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-medium text-zinc-600">Fase aquosa / teor</span>
+                  <span className="text-sm font-medium text-zinc-600">Massa a 20°C</span>
+                  <span className="text-sm font-semibold tabular-nums text-zinc-950">{formatKgM3(massa20c)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-zinc-600">Parâmetro específico</span>
                   <span className="text-sm font-semibold tabular-nums text-zinc-950">
-                    {produto === 'GASOLINA_COMUM'
+                    {isGasolina(produto)
                       ? `${watch('faseAquosa') || '0'} mL`
-                      : produto === 'ETANOL_HIDRATADO'
-                        ? `${watch('teorAlcoolico') || '0'}%`
+                      : isEtanol(produto)
+                        ? `${watch('teorAlcoolico') || '0'} °INPM`
                         : 'N/A'}
                   </span>
                 </div>
@@ -662,9 +695,9 @@ export default function AnpPage() {
                   className="h-10 border-zinc-300"
                 >
                   <option value="">Todos</option>
-                  <option value="GASOLINA_COMUM">Gasolina</option>
-                  <option value="ETANOL_HIDRATADO">Etanol</option>
-                  <option value="DIESEL_S10">Diesel</option>
+                  {produtoOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </SelectBase>
               </div>
               <div>
@@ -794,12 +827,32 @@ function formatNomeAnalista(nomeAnalista?: string) {
   return nomeAnalista?.trim() || 'Não informado';
 }
 
-function formatProdutoLabel(produto: 'GASOLINA_COMUM' | 'GASOLINA_ADITIVADA' | 'GASOLINA_PREMIUM' | 'ETANOL_HIDRATADO' | 'DIESEL_S10' | 'DIESEL_S500') {
+function isGasolina(produto: ProdutoCombustivel) {
+  return (
+    produto === 'GASOLINA_COMUM' ||
+    produto === 'GASOLINA_ADITIVADA' ||
+    produto === 'GASOLINA_PREMIUM'
+  );
+}
+
+function isEtanol(produto: ProdutoCombustivel) {
+  return produto === 'ETANOL_HIDRATADO';
+}
+
+function formatKgM3(value: string | undefined) {
+  if (!value?.trim()) {
+    return 'N/A';
+  }
+
+  return `${value} kg/m³`;
+}
+
+function formatProdutoLabel(produto: ProdutoCombustivel) {
   const produtoLabels = {
-    GASOLINA_COMUM: 'Gasolina',
-    GASOLINA_ADITIVADA: 'Gasolina Aditivada',
-    GASOLINA_PREMIUM: 'Gasolina Premium',
-    ETANOL_HIDRATADO: 'Etanol',
+    GASOLINA_COMUM: 'Gasolina comum',
+    GASOLINA_ADITIVADA: 'Gasolina aditivada',
+    GASOLINA_PREMIUM: 'Gasolina premium',
+    ETANOL_HIDRATADO: 'Etanol hidratado',
     DIESEL_S10: 'Diesel S10',
     DIESEL_S500: 'Diesel S500',
   };

@@ -195,8 +195,8 @@ export class ReactPDFAdapter implements PDFPort {
             value: formatCor(raq.cor, raq.produto),
           }),
           React.createElement(FieldRow, {
-            label: 'DENSIDADE RELATIVA',
-            value: formatDecimal(raq.densidadeObservada),
+            label: 'MASSA ESPECÍFICA OBSERVADA',
+            value: formatMassSpecific(raq.densidadeObservada),
           }),
           React.createElement(FieldRow, {
             label: 'TEMPERATURA',
@@ -204,7 +204,7 @@ export class ReactPDFAdapter implements PDFPort {
           }),
           React.createElement(FieldRow, {
             label: 'MASSA ESPECÍFICA A 20°C',
-            value: formatDecimal(raq.massa20c),
+            value: formatMassSpecific(raq.massa20c),
           }),
           React.createElement(FieldRow, {
             label: 'TEOR DE ÁLCOOL NA GASOLINA',
@@ -303,6 +303,11 @@ function formatDecimal(value: number | undefined): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 3,
   });
+}
+
+function formatMassSpecific(value: number | undefined): string {
+  const formatted = formatDecimal(value);
+  return formatted ? `${formatted} kg/m³` : '';
 }
 
 function formatPercentForGasolina(produto: string, value: number | undefined): string {

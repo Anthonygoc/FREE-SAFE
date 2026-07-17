@@ -101,9 +101,9 @@ export class EmitRAQXlsxUseCase {
       ['RESULTADO DA ANÁLISE', ''],
       ['ASPECTO:', formatAspecto(raq.aspecto, raq.produto)],
       ['COR:', formatCor(raq.cor, raq.produto)],
-      ['DENSIDADE RELATIVA:', formatDecimal(raq.densidadeObservada)],
+      ['MASSA ESPECÍFICA OBSERVADA:', formatMassSpecific(raq.densidadeObservada)],
       ['TEMPERATURA:', formatDecimal(raq.temperaturaObservada)],
-      ['MASSA ESPECÍFICA A 20°C:', formatDecimal(raq.massa20c)],
+      ['MASSA ESPECÍFICA A 20°C:', formatMassSpecific(raq.massa20c)],
       ['TEOR DE ÁLCOOL NA GASOLINA:', formatPercentForGasolina(raq.produto, raq.teorEtanol)],
       ['TEOR ALCOÓLICO NO AEHC:', formatPercentForEtanol(raq.produto, raq.teorAlcoolico)],
       ['RESULTADO FINAL:', raq.resultado],
@@ -258,6 +258,11 @@ function formatDecimal(value: number | undefined): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 3,
   });
+}
+
+function formatMassSpecific(value: number | undefined): string {
+  const formatted = formatDecimal(value);
+  return formatted ? `${formatted} kg/m³` : '';
 }
 
 function formatPercentForGasolina(produto: string, value: number | undefined): string {

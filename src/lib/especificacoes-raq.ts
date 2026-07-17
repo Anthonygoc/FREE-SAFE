@@ -13,11 +13,11 @@ const ROTULOS_ASPECTO_CONFORME: Partial<Record<ProdutoCombustivel, string>> = {
 };
 
 const ROTULOS_COR_CONFORME: Partial<Record<ProdutoCombustivel, string>> = {
-  ETANOL_HIDRATADO: 'Sem coloração laranja ou azul',
-  GASOLINA_COMUM: 'Sem coloração azul',
-  GASOLINA_ADITIVADA: 'Sem coloração azul',
-  GASOLINA_PREMIUM: 'Sem coloração azul',
-  DIESEL_S10: 'De incolor a amarelado',
+  ETANOL_HIDRATADO: 'Incolor',
+  GASOLINA_COMUM: 'De incolor a amarelada',
+  GASOLINA_ADITIVADA: 'De incolor a amarelada',
+  GASOLINA_PREMIUM: 'De incolor a amarelada',
+  DIESEL_S10: 'Amarelo',
   DIESEL_S500: 'Vermelho',
 };
 
